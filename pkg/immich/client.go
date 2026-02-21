@@ -24,11 +24,9 @@ const (
 type Album struct {
 	AlbumName string `json:"albumName"`
 	Id        string `json:"id"`
-	OwnerId   string `json:"ownerId"`
 	Assets    []struct {
 		Id               string `json:"id"`
 		OriginalFileName string `json:"originalFileName"`
-		OriginalMimeType string `json:"originalMimeType"`
 	} `json:"assets"`
 }
 
@@ -246,9 +244,6 @@ func (c *Client) doUpload(ctx context.Context, data []byte, filename string, cre
 		defer pw.Close()
 		defer multipartWriter.Close()
 
-		// Use filename as deviceAssetId for deterministic dedup across runs.
-		// Previously included len(data), but Google Photos CDN may return
-		// slightly different bytes for the same item, breaking Immich-side dedup.
 		_ = multipartWriter.WriteField("deviceAssetId", filename)
 		_ = multipartWriter.WriteField("deviceId", "immich-sync-go")
 
@@ -319,10 +314,8 @@ func (c *Client) GetUser(ctx context.Context) (string, string, error) {
 	return user.Id, user.Name, err
 }
 
-// SearchAssetsByDevice fetches all assets uploaded by the given deviceId using paginated metadata search.
-// Returns a map of baseName (without extension) -> asset ID for O(1) lookups.
-// Indexes assets by both originalFileName and deviceAssetId for robust dedup across
-// deviceAssetId format changes (old: "filename-size", new: "filename").
+// SearchAssetsByDevice fetches all assets uploaded by the given deviceId.
+// Returns a map of baseName (without extension) -> asset ID.
 func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map[string]string, error) {
 	result := make(map[string]string)
 	page := 1
@@ -362,25 +355,22 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 			return result, fmt.Errorf("failed to parse search response: %w", err)
 		}
 
-		// Detect empty response (API format mismatch or empty database)
 		if page == 1 && len(searchResp.Assets.Items) == 0 {
 			var raw map[string]interface{}
 			if json.Unmarshal(body, &raw) == nil {
 				if _, hasAssets := raw["assets"]; !hasAssets && len(raw) > 0 {
-					return result, fmt.Errorf("unexpected search response format (missing 'assets' key), raw keys: %v", mapKeys(raw))
+					return result, fmt.Errorf("unexpected search response format (missing 'assets' key)")
 				}
 			}
 		}
 
 		for _, asset := range searchResp.Assets.Items {
-			// Index by originalFileName (without extension) — primary lookup key
 			name := util.StripExtension(asset.OriginalFileName)
 			result[name] = asset.Id
 
-			// Also index by deviceAssetId (without extension) — handles old format
-			// "gp_xxx.jpg-12345" and new format "gp_xxx.jpg" both resolve to "gp_xxx"
+			// Also index by deviceAssetId to handle old format "gp_xxx.jpg-12345"
 			if asset.DeviceAssetId != "" {
-				// Strip size suffix from old-format deviceAssetId (e.g. "gp_xxx.jpg-12345" -> "gp_xxx.jpg")
+				// Strip numeric size suffix from old-format deviceAssetId
 				daid := asset.DeviceAssetId
 				if dashIdx := strings.LastIndex(daid, "-"); dashIdx > 0 {
 					suffix := daid[dashIdx+1:]
@@ -402,7 +392,7 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 			}
 		}
 
-		// Stop if no more pages (null, empty string, or fewer items than requested)
+		// Stop if no more pages
 		nextPageEmpty := searchResp.Assets.NextPage == nil
 		if np, ok := searchResp.Assets.NextPage.(string); ok && np == "" {
 			nextPageEmpty = true
@@ -414,13 +404,4 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 	}
 
 	return result, nil
-}
-
-// mapKeys returns the keys of a map for diagnostic logging
-func mapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }

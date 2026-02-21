@@ -246,8 +246,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	albumId := a.resolveAlbumID(ctx, ac, albumTitle, albumCache, logger)
 	existingFiles := a.prefetchAlbumAssets(ctx, albumId, logger)
 
-	// Log dedup cache state for diagnostics
-	logger.Info("Dedup cache loaded", "album_assets", len(existingFiles), "global_assets", len(globalAssets))
+	logger.Debug("Dedup cache loaded", "album_assets", len(existingFiles), "global_assets", len(globalAssets))
 
 	var newAssetIds []string
 
@@ -265,7 +264,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		numWorkers = total
 	}
 
-	logger.Info("Processing items", "total_items", total, "workers", numWorkers)
+	logger.Debug("Processing items", "total_items", total, "workers", numWorkers)
 
 	// Create and start progress tracker
 	tracker := progress.New(albumTitle, total, a.Cfg.Debug)
@@ -280,7 +279,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		go func() {
 			defer wg.Done()
 			for p := range jobs {
-					id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, p, albumTitle, ac.URL, existingFiles, globalAssets)
+				id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, p, albumTitle, ac.URL, existingFiles, globalAssets)
 				results <- processResult{ID: id, WasUploaded: uploaded, Error: err, BytesDownloaded: bytesDown, BytesUploaded: bytesUp}
 			}
 		}()
@@ -304,7 +303,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		close(results)
 	}()
 
-	// Stream results as they arrive, flushing new assets to album every 10%
+	// Stream results, flushing new assets to album every 10%
 	flushInterval := total / 10
 	if flushInterval < 1 {
 		flushInterval = 1
@@ -341,7 +340,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		if albumId != "" && len(newAssetIds) > lastFlushCount && processed%flushInterval == 0 {
 			batch := newAssetIds[lastFlushCount:]
 			lastFlushCount = len(newAssetIds)
-			logger.Info("Adding assets to album (incremental)", "count", len(batch), "progress", fmt.Sprintf("%d/%d", processed, total))
+			logger.Debug("Adding assets to album (incremental)", "count", len(batch), "progress", fmt.Sprintf("%d/%d", processed, total))
 			if err := a.Client.AddAssetsToAlbum(ctx, albumId, batch); err != nil {
 				logger.Error("Error adding assets to album", "error", err)
 			}
@@ -359,7 +358,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	// Final flush: add remaining unflushed assets to album
 	if albumId != "" && len(newAssetIds) > lastFlushCount {
 		remaining := newAssetIds[lastFlushCount:]
-		logger.Info("Finalizing album assets", "count", len(remaining), "album", albumTitle)
+		logger.Debug("Finalizing album assets", "count", len(remaining), "album", albumTitle)
 		if err := a.Client.AddAssetsToAlbum(ctx, albumId, remaining); err != nil {
 			logger.Error("Error adding assets to album", "error", err)
 		}
@@ -379,9 +378,7 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 	safeId = strings.ReplaceAll(safeId, ":", "_")
 	baseName := fmt.Sprintf("gp_%s", safeId)
 
-	// O(1) dedup checks against Immich (album-level and global device search).
-	// These maps are fetched from the Immich API at the start of each sync cycle,
-	// so they persist across container restarts — this is NOT an in-memory-only cache.
+	// Dedup checks against Immich (album-level, global device search, and persistent state)
 	if assetId, exists := existingFiles[baseName]; exists {
 		a.Logger.Debug("Asset already in album (Immich album lookup)", "id", assetId, "filename", baseName)
 		return "", false, 0, 0, nil
@@ -392,18 +389,15 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 		return assetId, false, 0, 0, nil
 	}
 
-	// Check persistent local state (survives container restarts).
-	// Catches assets that exist in Immich under a different deviceId/filename.
+	// Persistent local state catches assets uploaded under a different deviceId/filename
 	if assetId, exists := a.State.Get(baseName); exists {
 		a.Logger.Debug("Asset found in persistent dedup cache", "id", assetId, "filename", baseName)
 		return assetId, false, 0, 0, nil
 	}
 
-	a.Logger.Warn("Asset not found in Immich dedup, will download and re-upload",
+	a.Logger.Debug("Asset not found in dedup, will download",
 		"baseName", baseName,
 		"gp_item_id", p.ID,
-		"album_assets_count", len(existingFiles),
-		"global_assets_count", len(globalAssets),
 	)
 
 	if a.Cfg.StrictMetadata && p.TakenAt.IsZero() {
@@ -412,8 +406,7 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 		return "", false, 0, 0, nil
 	}
 
-	// Download original media from Google Photos (returns buffered []byte)
-	a.Logger.Info("Downloading item", "id", safeId)
+	a.Logger.Debug("Downloading item", "id", safeId)
 	data, ext, isVideo, err := googlephotos.DownloadMedia(ctx, a.GPClient, p.URL)
 	if err != nil {
 		return "", false, 0, 0, fmt.Errorf("error downloading item: %w", err)
@@ -428,7 +421,6 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	filename := baseName + ext
 
-	// Build description with source metadata
 	description := p.Description
 	sep := "\n"
 	if description != "" {
@@ -446,9 +438,8 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 		imageData, videoData, isMotion := googlephotos.ExtractMotionPhoto(data, a.Logger)
 
 		if isMotion {
-			a.Logger.Info("Detected motion photo",
+			a.Logger.Debug("Detected motion photo",
 				"id", safeId,
-				"total_size", len(data),
 				"image_size", len(imageData),
 				"video_size", len(videoData),
 			)
@@ -483,15 +474,14 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			bytesUploaded := int64(len(imageData) + len(videoData))
 			a.State.Set(baseName, uploadedId)
 			if isDup {
-				a.Logger.Warn("Motion photo deduplicated by Immich (re-downloaded unnecessarily)",
-					"filename", filename, "id", uploadedId, "baseName", baseName)
+				a.Logger.Debug("Motion photo deduplicated by Immich", "filename", filename, "id", uploadedId)
 				return uploadedId, false, bytesDownloaded, bytesUploaded, nil
 			}
-			a.Logger.Info("Uploaded motion photo", "filename", filename, "video_id", videoId, "id", uploadedId)
+			a.Logger.Debug("Uploaded motion photo", "filename", filename, "id", uploadedId)
 			return uploadedId, true, bytesDownloaded, bytesUploaded, nil
 		}
 
-		// Not a motion photo — XMP flags already stripped by ExtractMotionPhoto
+		// Not a motion photo
 		data = imageData
 	}
 
@@ -507,12 +497,11 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 	a.State.Set(baseName, uploadedId)
 
 	if isDup {
-		a.Logger.Warn("Asset deduplicated by Immich (was re-downloaded unnecessarily, dedup pre-check missed it)",
-			"filename", filename, "id", uploadedId, "baseName", baseName)
+		a.Logger.Debug("Asset deduplicated by Immich", "filename", filename, "id", uploadedId)
 		return uploadedId, false, bytesDownloaded, bytesUploaded, nil
 	}
 
-	a.Logger.Info("Uploaded item", "filename", filename, "id", uploadedId)
+	a.Logger.Debug("Uploaded item", "filename", filename, "id", uploadedId)
 	return uploadedId, true, bytesDownloaded, bytesUploaded, nil
 }
 

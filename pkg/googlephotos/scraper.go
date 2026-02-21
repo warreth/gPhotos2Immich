@@ -569,26 +569,19 @@ func hasMotionPhotoXMP(data []byte) bool {
 	return false
 }
 
-// ExtractMotionPhoto checks if a JPEG contains a valid embedded MP4 video.
-// Google Photos CDN often strips the actual video bytes while preserving XMP metadata,
-// so we only extract when a real MP4 (ftyp box) is confirmed present.
-// Only strips motion photo XMP flags when markers are actually found, preserving the
-// original file bytes (and thus checksum) for regular photos without motion XMP.
-// Returns image bytes, video bytes, and whether a valid motion video was found.
+// ExtractMotionPhoto checks if a JPEG contains an embedded MP4 video.
+// Only strips motion photo XMP when markers are found, preserving original bytes
+// for regular photos (checksum-based dedup).
 func ExtractMotionPhoto(data []byte, logger *slog.Logger) ([]byte, []byte, bool) {
-	// Check if this image has any motion photo XMP markers at all.
-	// If not, return the original data unchanged to preserve the checksum
-	// for Immich's native duplicate detection.
 	if !hasMotionPhotoXMP(data) {
 		return data, nil, false
 	}
 
-	// Image has motion photo XMP markers — check if actual video data is embedded
+	// Check if actual video data is embedded
 	ftypMagic := []byte("ftyp")
 	lastFtyp := bytes.LastIndex(data, ftypMagic)
 
-	// The ftyp must be after a reasonable image header (>4KB) and have 4 bytes
-	// before it for the MP4 box size field
+	// ftyp must be after image header (>4KB) with 4 bytes before for box size
 	if lastFtyp >= 8 && lastFtyp > 4096 {
 		videoStart := lastFtyp - 4
 		videoSize := len(data) - videoStart
@@ -610,11 +603,9 @@ func ExtractMotionPhoto(data []byte, logger *slog.Logger) ([]byte, []byte, bool)
 		}
 	}
 
-	// Has motion photo XMP markers but no valid embedded video.
-	// Strip the XMP flags so Immich does not attempt broken server-side extraction.
-	logger.Info("Motion photo XMP found but no embedded video, stripping XMP flags",
+	// Has motion photo XMP but no valid embedded video — strip XMP flags
+	logger.Debug("Motion photo XMP found but no embedded video, stripping XMP flags",
 		"file_size", len(data),
-		"ftyp_found", lastFtyp >= 0,
 	)
 	StripMotionPhotoXMP(data)
 	return data, nil, false
@@ -688,14 +679,9 @@ func isVideoMagicBytes(data []byte) bool {
 }
 
 // DownloadMedia downloads original media from Google Photos.
-// First probes =dv with HEAD to reliably detect videos (Google CDN may return a JPEG
-// poster frame for videos via =d with an image Content-Type).
-// Returns: data, extension (e.g. ".jpg"), isVideo, error
+// Probes =dv with HEAD to detect videos before downloading.
 func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte, string, bool, error) {
-	// Probe =dv (video download) with HEAD to detect video items before fetching the body.
-	// Google Photos serves videos via =dv and images via =d. Without this probe,
-	// video items fetched with =d often return a JPEG poster frame, causing videos
-	// to be incorrectly uploaded as .jpg files.
+	// HEAD probe on =dv to detect video items
 	headResp, headErr := client.Head(ctx, baseUrl+"=dv")
 	if headErr == nil {
 		headResp.Body.Close()
@@ -720,7 +706,7 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 		}
 	}
 
-	// Not a video (or HEAD probe failed/inconclusive), download as image with =d
+	// Not a video, download as image with =d
 	resp, err := client.Get(ctx, baseUrl+"=d")
 	if err != nil {
 		return nil, "", false, fmt.Errorf("download failed: %w", err)
@@ -737,7 +723,7 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 		return nil, "", false, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Safety net: check Content-Type and magic bytes for videos that slipped through the HEAD probe
+	// Safety net: detect videos that slipped through the HEAD probe
 	isVideo := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
 	if isVideo {
 		// Re-download with =dv for proper video data
