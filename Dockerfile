@@ -9,7 +9,7 @@ RUN go mod download
 COPY . .
 
 # Build with CGO disabled for alpine/scratch compatibility
-RUN CGO_ENABLED=0 go build -o immich-sync main.go
+RUN CGO_ENABLED=0 go build -o gphotos2immich main.go
 
 FROM alpine:latest
 
@@ -18,6 +18,6 @@ WORKDIR /app
 # Install ca-certificates and tzdata for timezones
 RUN apk --no-cache add ca-certificates tzdata
 
-COPY --from=builder /app/immich-sync .
+COPY --from=builder /app/gphotos2immich .
 
-CMD ["./immich-sync"]
+CMD ["./gphotos2immich"]

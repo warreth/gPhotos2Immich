@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"warreth.dev/immich-sync/pkg/config"
-	"warreth.dev/immich-sync/pkg/googlephotos"
-	"warreth.dev/immich-sync/pkg/immich"
-	"warreth.dev/immich-sync/pkg/progress"
-	"warreth.dev/immich-sync/pkg/state"
-	"warreth.dev/immich-sync/pkg/util"
+	"warreth.dev/gphotos2immich/pkg/config"
+	"warreth.dev/gphotos2immich/pkg/googlephotos"
+	"warreth.dev/gphotos2immich/pkg/immich"
+	"warreth.dev/gphotos2immich/pkg/progress"
+	"warreth.dev/gphotos2immich/pkg/state"
+	"warreth.dev/gphotos2immich/pkg/util"
 )
 
 type App struct {
@@ -125,7 +125,7 @@ func (a *App) Run(ctx context.Context) error {
 				a.Logger.Warn("Failed to fetch Immich album list", "error", err)
 			}
 
-			globalAssets, err := a.Client.SearchAssetsByDevice(ctx, "immich-sync-go")
+			globalAssets, err := a.Client.SearchAssetsByDevice(ctx, "gphotos2immich-go")
 			if err != nil {
 				a.Logger.Warn("Failed to fetch global assets, will fall back to re-upload for duplicates", "error", err)
 				globalAssets = make(map[string]string)

@@ -1,7 +1,7 @@
 services:
-  immich-sync:
+  gphotos2immich:
     build: .
-    container_name: immich-sync
+    container_name: gphotos2immich
     environment:
       - TZ=UTC
       # - IMMICH_API_KEY=your-key # If not using config.json

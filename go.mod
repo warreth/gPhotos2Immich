@@ -1,3 +1,3 @@
-module warreth.dev/immich-sync
+module warreth.dev/gphotos2immich
 
 go 1.23.7

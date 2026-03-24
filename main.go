@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"warreth.dev/immich-sync/pkg/app"
-	"warreth.dev/immich-sync/pkg/config"
+	"warreth.dev/gphotos2immich/pkg/app"
+	"warreth.dev/gphotos2immich/pkg/config"
 )
 
 func main() {
-	fmt.Println(">> Immich Sync Tool <<")
+	fmt.Println(">> gPhotos2Immich <<")
 
 	cfg, err := config.ReadConfig("config.json")
 	if err != nil {

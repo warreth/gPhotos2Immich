@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"warreth.dev/immich-sync/pkg/util"
+	"warreth.dev/gphotos2immich/pkg/util"
 )
 
 const (
@@ -245,7 +245,7 @@ func (c *Client) doUpload(ctx context.Context, data []byte, filename string, cre
 		defer multipartWriter.Close()
 
 		_ = multipartWriter.WriteField("deviceAssetId", filename)
-		_ = multipartWriter.WriteField("deviceId", "immich-sync-go")
+		_ = multipartWriter.WriteField("deviceId", "gphotos2immich-go")
 
 		creationTime := time.Now()
 		if !createdAt.IsZero() {

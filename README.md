@@ -1,4 +1,4 @@
-# GPhotos To Immich
+# gPhotos2Immich
 
 Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance- automatically, on a schedule.
 
@@ -13,9 +13,9 @@ Sync photos from Google Photos shared albums to your [Immich](https://immich.app
    ```yaml
    # compose.yml
    services:
-     immich-sync:
-       image: ghcr.io/warreth/gphotosalbum_to_immich:latest
-       container_name: immich-sync
+     gphotos2immich:
+       image: ghcr.io/warreth/gphotos2immich:latest
+       container_name: gphotos2immich
        restart: unless-stopped
        volumes:
          - ./config.json:/app/config.json

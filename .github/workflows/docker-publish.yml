@@ -1,16 +1,22 @@
-name: Build and Publish Docker Image
+name: Build and Publish gPhotos2Immich Docker Image
 
 on:
+    release:
+        types: [published]
     workflow_dispatch:
         inputs:
             version:
                 description: "Docker Tag Version"
-                required: true
+                required: false
                 type: string
 
 env:
     REGISTRY: ghcr.io
-    IMAGE_NAME: ${{ github.repository }}
+    IMAGE_NAME: ${{ github.repository_owner }}/gphotos2immich
+
+concurrency:
+    group: docker-publish-${{ github.ref }}
+    cancel-in-progress: false
 
 jobs:
     build-and-push:
@@ -38,7 +44,8 @@ jobs:
                   tags: |
                       type=raw,value=latest
                       type=sha
-                      type=raw,value=${{ inputs.version }}
+                      type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+                      type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
 
             - name: Build and push Docker image
               uses: docker/build-push-action@v5

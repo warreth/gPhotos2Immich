@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -56,10 +57,19 @@ func ReadConfig(path string) (*Config, error) {
 	if err := json.Unmarshal(bytefile, &config); err != nil {
 		return nil, err
 	}
-	
+
 	// Override/Fallback with ENV
 	if config.ApiKey == "" { config.ApiKey = os.Getenv("IMMICH_API_KEY") }
 	if config.ApiURL == "" { config.ApiURL = os.Getenv("IMMICH_API_URL") }
+
+	config.ApiKey = strings.TrimSpace(config.ApiKey)
+	config.ApiURL = strings.TrimSpace(config.ApiURL)
+	for i := range config.GooglePhotos {
+		config.GooglePhotos[i].URL = strings.TrimSpace(config.GooglePhotos[i].URL)
+		config.GooglePhotos[i].ImmichAlbumID = strings.TrimSpace(config.GooglePhotos[i].ImmichAlbumID)
+		config.GooglePhotos[i].AlbumName = strings.TrimSpace(config.GooglePhotos[i].AlbumName)
+		config.GooglePhotos[i].SyncInterval = strings.TrimSpace(config.GooglePhotos[i].SyncInterval)
+	}
 	
 	return &config, nil
 }
