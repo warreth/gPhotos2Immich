@@ -42,7 +42,7 @@ jobs:
               with:
                   images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
                   tags: |
-                      type=raw,value=latest
+                      type=raw,value=latest,enable=${{ github.event.release.prerelease == false }}
                       type=sha
                       type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
                       type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
