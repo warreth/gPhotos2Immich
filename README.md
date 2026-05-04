@@ -1,5 +1,5 @@
 # gPhotos2Immich
-[![Total downloads](https://img.shields.io/badge/dynamic/json?label=Total%20downloads&url=https://ipitio.github.io/backage/warreth/gPhotos2Immich.json&query=$.package.downloads&color=blue)](https://github.com/warreth/gPhotos2Immich/packages)
+[![Total downloads](https://img.shields.io/badge/dynamic/json?label=Total%20downloads&url=https://ipitio.github.io/backage/warreth/gPhotos2Immich.json&query=$.downloads&color=blue)](https://github.com/warreth/gPhotos2Immich/packages)
 
 Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance- automatically, on a schedule.
 
