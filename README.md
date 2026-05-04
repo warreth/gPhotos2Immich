@@ -1,6 +1,6 @@
 # gPhotos2Immich
-![Docker Downloads](https://img.shields.io/badge/dynamic/json?label=Total%20Downloads&url=https://ipitio.github.io/backage/warreth/gPhotos2Immich/gPhotos2Immich.json&query=$.downloads&color=blue)
-![Docker Daily Downloads](https://img.shields.io/badge/dynamic/json?label=Daily%20Downloads&url=https://ipitio.github.io/backage/warreth/gPhotos2Immich/gPhotos2Immich.json&query=$.downloads_day&color=teal)
+![Docker Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads&label=Total%20Downloads&color=blue)
+![Docker Daily Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads_day&label=Daily%20Downloads&color=teal)
 
 Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance- automatically, on a schedule.
 
