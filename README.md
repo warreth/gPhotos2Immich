@@ -55,8 +55,6 @@ To sync photos, generate an Immich API key with the following permissions (or ju
 - **Smart Syncing:** We pull down the full images and videos (no compressed thumbnails), extract the correct "taken" dates, and smoothly avoid Google's rate limits.
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 
-> [!NOTE]
-> Motion/Live photos are imported as still images. The embedded video component is stripped so Immich handles them without errors.
 
 ---
 
