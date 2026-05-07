@@ -142,10 +142,10 @@ func ScrapeAlbum(ctx context.Context, client *Client, albumURL string) (*Album, 
 	}
 
 	jsonStr := htmlContent[jsonStart:jsonEnd]
-	
+
 	// Pre-cleanup of JSON string if needed (sometimes unescaping)
 	// Usually it's valid JSON directly in the script tag
-	
+
 	var data []interface{}
 	err = json.Unmarshal([]byte(jsonStr), &data)
 	if err != nil {
@@ -771,11 +771,11 @@ func DownloadMotionVideoSidecar(ctx context.Context, client *Client, baseUrl str
 	if !strings.HasPrefix(strings.ToLower(ct), "video/") {
 		// If it's not explicitly marked as video, sniff a small chunk before downloading fully
 		buf := make([]byte, 512)
-		n, _ := io.ReadFull(resp.Body, buf)
+		n, _ := io.ReadAtLeast(resp.Body, buf, 12)
 		if n > 0 && !isVideoMagicBytes(buf[:n]) {
 			return nil, "", fmt.Errorf("sidecar is not a video payload (type: %s)", ct)
 		}
-		
+
 		rest, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to read sidecar body: %w", err)
