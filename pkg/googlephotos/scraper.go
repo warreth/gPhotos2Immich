@@ -699,7 +699,6 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 	if strings.HasPrefix(strings.ToLower(ct), "video/") {
 		resp2, err := client.Get(ctx, baseUrl+"=dv")
 		if err != nil {
-			defer resp.Body.Close()
 			return nil, "", false, fmt.Errorf("video re-download failed: %w", err)
 		}
 		defer resp2.Body.Close()
@@ -707,10 +706,8 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 			videoCt := resp2.Header.Get("Content-Type")
 			videoData, err := io.ReadAll(resp2.Body)
 			if err != nil {
-				resp.Body.Close()
 				return nil, "", false, fmt.Errorf("failed to read video response body: %w", err)
 			}
-			resp.Body.Close()
 			ext := extensionFromContentType(videoCt)
 			return videoData, ext, true, nil
 		}
@@ -749,8 +746,11 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 		}
 	}
 
+	// Fallback: determine if this is video by checking both Content-Type and magic bytes.
+	// If =dv retry failed but Content-Type indicated video, trust that classification.
+	isVideoFinal := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
 	ext := extensionFromContentType(ct)
-	return data, ext, false, nil
+	return data, ext, isVideoFinal, nil
 }
 
 // DownloadMotionVideoSidecar fetches the motion sidecar stream (if present) for an image item.

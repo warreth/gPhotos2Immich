@@ -215,10 +215,15 @@ func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *s
 		return existingFiles
 	}
 	for _, asset := range albumDetails.Assets {
+		var name string
 		if util.IsVideoFilename(asset.OriginalFileName) {
-			continue
+			// For videos, use full filename to avoid colliding with image basenames
+			// (especially motion photo containers like "photo.mp.jpg")
+			name = asset.OriginalFileName
+		} else {
+			// For images, use basename without extension (existing behavior)
+			name = util.StripExtension(asset.OriginalFileName)
 		}
-		name := util.StripExtension(asset.OriginalFileName)
 		existingFiles[name] = asset.Id
 	}
 	logger.Debug("Pre-fetched album assets", "count", len(existingFiles))
@@ -417,6 +422,19 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	bytesDownloaded := int64(len(data))
 
+	// For videos, also check both existingFiles and globalAssets by full filename to catch video dedup
+	if isVideo {
+		filename := baseName + ext
+		if assetId, exists := existingFiles[filename]; exists {
+			a.Logger.Debug("Video already in album (album-level dedup by filename)", "id", assetId, "filename", filename)
+			return "", false, bytesDownloaded, 0, nil
+		}
+		if assetId, exists := globalAssets[filename]; exists {
+			a.Logger.Debug("Video exists in Immich (device search by filename), adding to album", "id", assetId, "filename", filename)
+			return assetId, false, bytesDownloaded, 0, nil
+		}
+	}
+
 	if isVideo && a.Cfg.SkipVideos {
 		a.Logger.Debug("Skipping video item", "id", p.ID)
 		return "", false, bytesDownloaded, 0, nil
@@ -496,13 +514,18 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			if uploadedId == "" {
 				return "", false, bytesDownloaded, 0, fmt.Errorf("upload returned empty ID for %s", filename)
 			}
-			if videoId != "" {
+			// Only apply the live photo link for deduplicated assets, since UploadAssetWithLive
+			// already applied it during the initial upload
+			if videoId != "" && isDup {
 				if linkErr := a.Client.LinkLivePhotoToAsset(ctx, uploadedId, videoId); linkErr != nil {
-					a.Logger.Warn("Failed to link motion video to uploaded photo", "photo_id", uploadedId, "video_id", videoId, "error", linkErr)
+					a.Logger.Warn("Failed to link motion video to deduplicated photo", "photo_id", uploadedId, "video_id", videoId, "error", linkErr)
 				}
 			}
 
-			bytesUploaded := int64(len(imageData) + len(videoData))
+			bytesUploaded := int64(len(imageData))
+			if videoId != "" {
+				bytesUploaded += int64(len(videoData))
+			}
 			a.State.Set(baseName, uploadedId)
 			if isDup {
 				a.Logger.Debug("Motion photo deduplicated by Immich", "filename", filename, "id", uploadedId)

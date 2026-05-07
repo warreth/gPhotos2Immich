@@ -395,10 +395,15 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 		}
 
 		for _, asset := range searchResp.Assets.Items {
+			var name string
 			if util.IsVideoFilename(asset.OriginalFileName) {
-				continue
+				// For videos, use full filename to avoid colliding with image basenames
+				// (especially motion photo containers like "photo.mp.jpg")
+				name = asset.OriginalFileName
+			} else {
+				// For images, use basename without extension (existing behavior)
+				name = util.StripExtension(asset.OriginalFileName)
 			}
-			name := util.StripExtension(asset.OriginalFileName)
 			result[name] = asset.Id
 
 			// Also index by deviceAssetId to handle old format "gp_xxx.jpg-12345"
