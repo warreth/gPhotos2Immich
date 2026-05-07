@@ -38,9 +38,7 @@ type Client struct {
 
 // NewClient creates an Immich API client with connection pooling tuned to the given concurrency level
 func NewClient(apiURL, apiKey string, maxConnsPerHost int) *Client {
-	if strings.HasSuffix(apiURL, "/") {
-		apiURL = apiURL[:len(apiURL)-1]
-	}
+	apiURL = strings.TrimSuffix(apiURL, "/")
 	if maxConnsPerHost < 20 {
 		maxConnsPerHost = 20
 	}
@@ -207,11 +205,20 @@ func (c *Client) AddAssetsToAlbum(ctx context.Context, albumId string, assetIds 
 
 // UploadAsset uploads a file to Immich with automatic retry on transient errors
 func (c *Client) UploadAsset(ctx context.Context, data []byte, filename string, createdAt time.Time, description string) (string, bool, error) {
-	return c.UploadAssetWithLive(ctx, data, filename, createdAt, description, "")
+	return c.uploadAssetWithOptions(ctx, data, filename, createdAt, description, "", "")
 }
 
 // UploadAssetWithLive uploads an asset and optionally links it to a live photo video, with retry
 func (c *Client) UploadAssetWithLive(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string) (string, bool, error) {
+	return c.uploadAssetWithOptions(ctx, data, filename, createdAt, description, livePhotoVideoId, "")
+}
+
+// UploadAssetWithVisibility uploads an asset with optional custom visibility (e.g. "hidden").
+func (c *Client) UploadAssetWithVisibility(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, visibility string) (string, bool, error) {
+	return c.uploadAssetWithOptions(ctx, data, filename, createdAt, description, "", visibility)
+}
+
+func (c *Client) uploadAssetWithOptions(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
 	var lastErr error
 	for attempt := 0; attempt <= uploadMaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -226,7 +233,7 @@ func (c *Client) UploadAssetWithLive(ctx context.Context, data []byte, filename 
 			}
 		}
 
-		id, isDup, err := c.doUpload(ctx, data, filename, createdAt, description, livePhotoVideoId)
+		id, isDup, err := c.doUpload(ctx, data, filename, createdAt, description, livePhotoVideoId, visibility)
 		if err == nil {
 			return id, isDup, nil
 		}
@@ -236,7 +243,7 @@ func (c *Client) UploadAssetWithLive(ctx context.Context, data []byte, filename 
 }
 
 // doUpload performs a single multipart upload attempt
-func (c *Client) doUpload(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string) (string, bool, error) {
+func (c *Client) doUpload(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
 	pr, pw := io.Pipe()
 	multipartWriter := multipart.NewWriter(pw)
 
@@ -260,6 +267,9 @@ func (c *Client) doUpload(ctx context.Context, data []byte, filename string, cre
 		}
 		if livePhotoVideoId != "" {
 			_ = multipartWriter.WriteField("livePhotoVideoId", livePhotoVideoId)
+		}
+		if visibility != "" {
+			_ = multipartWriter.WriteField("visibility", visibility)
 		}
 
 		part, err := multipartWriter.CreateFormFile("assetData", filename)
@@ -314,6 +324,26 @@ func (c *Client) GetUser(ctx context.Context) (string, string, error) {
 	return user.Id, user.Name, err
 }
 
+// LinkLivePhotoToAsset associates an existing image asset with a motion video asset.
+func (c *Client) LinkLivePhotoToAsset(ctx context.Context, assetId string, livePhotoVideoId string) error {
+	if assetId == "" || livePhotoVideoId == "" {
+		return fmt.Errorf("assetId and livePhotoVideoId are required")
+	}
+
+	payload := map[string]string{"livePhotoVideoId": livePhotoVideoId}
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal live photo link payload: %w", err)
+	}
+
+	_, err = c.request(ctx, "PUT", fmt.Sprintf("assets/%s", assetId), jsonPayload, "")
+	if err != nil {
+		return fmt.Errorf("failed to link live photo video to asset %s: %w", assetId, err)
+	}
+
+	return nil
+}
+
 // SearchAssetsByDevice fetches all assets uploaded by the given deviceId.
 // Returns a map of baseName (without extension) -> asset ID.
 func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map[string]string, error) {
@@ -365,7 +395,15 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 		}
 
 		for _, asset := range searchResp.Assets.Items {
-			name := util.StripExtension(asset.OriginalFileName)
+			var name string
+			if util.IsVideoFilename(asset.OriginalFileName) {
+				// For videos, use full filename to avoid colliding with image basenames
+				// (especially motion photo containers like "photo.mp.jpg")
+				name = asset.OriginalFileName
+			} else {
+				// For images, use basename without extension (existing behavior)
+				name = util.StripExtension(asset.OriginalFileName)
+			}
 			result[name] = asset.Id
 
 			// Also index by deviceAssetId to handle old format "gp_xxx.jpg-12345"
@@ -384,6 +422,9 @@ func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map
 					if allDigits && len(suffix) > 0 {
 						daid = daid[:dashIdx]
 					}
+				}
+				if util.IsVideoFilename(daid) {
+					continue
 				}
 				daidBase := util.StripExtension(daid)
 				if _, exists := result[daidBase]; !exists {

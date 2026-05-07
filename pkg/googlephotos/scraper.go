@@ -570,11 +570,11 @@ func hasMotionPhotoXMP(data []byte) bool {
 }
 
 // ExtractMotionPhoto checks if a JPEG contains an embedded MP4 video.
-// Only strips motion photo XMP when markers are found, preserving original bytes
-// for regular photos (checksum-based dedup).
-func ExtractMotionPhoto(data []byte, logger *slog.Logger) ([]byte, []byte, bool) {
+// Returns hadMotionXMP=true when motion markers are present even if no video payload
+// is embedded in the image bytes.
+func ExtractMotionPhoto(data []byte, logger *slog.Logger) ([]byte, []byte, bool, bool) {
 	if !hasMotionPhotoXMP(data) {
-		return data, nil, false
+		return data, nil, false, false
 	}
 
 	// Check if actual video data is embedded
@@ -599,16 +599,16 @@ func ExtractMotionPhoto(data []byte, logger *slog.Logger) ([]byte, []byte, bool)
 				"video_size", videoSize,
 				"ftyp_offset", lastFtyp,
 			)
-			return imageData, videoData, true
+			return imageData, videoData, true, true
 		}
 	}
 
-	// Has motion photo XMP but no valid embedded video — strip XMP flags
-	logger.Debug("Motion photo XMP found but no embedded video, stripping XMP flags",
+	// Has motion photo XMP but no valid embedded video in the container bytes.
+	// Caller may attempt sidecar download (=dv) before deciding to strip XMP.
+	logger.Debug("Motion photo XMP found but no embedded video",
 		"file_size", len(data),
 	)
-	StripMotionPhotoXMP(data)
-	return data, nil, false
+	return data, nil, false, true
 }
 
 // StripMotionPhotoXMP disables motion photo flags in XMP metadata (same-length replacements)
@@ -679,34 +679,10 @@ func isVideoMagicBytes(data []byte) bool {
 }
 
 // DownloadMedia downloads original media from Google Photos.
-// Probes =dv with HEAD to detect videos before downloading.
+// It always tries =d first so motion photos are fetched as their JPEG container
+// (e.g. *.MP.jpg) instead of the short motion-video stream from =dv.
 func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte, string, bool, error) {
-	// HEAD probe on =dv to detect video items
-	headResp, headErr := client.Head(ctx, baseUrl+"=dv")
-	if headErr == nil {
-		headResp.Body.Close()
-		dvCt := strings.ToLower(headResp.Header.Get("Content-Type"))
-		if headResp.StatusCode == 200 && strings.HasPrefix(dvCt, "video/") {
-			// Confirmed video, download with =dv
-			resp, err := client.Get(ctx, baseUrl+"=dv")
-			if err != nil {
-				return nil, "", false, fmt.Errorf("video download failed: %w", err)
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				return nil, "", false, fmt.Errorf("video download returned status %d", resp.StatusCode)
-			}
-			ct := resp.Header.Get("Content-Type")
-			data, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, "", false, fmt.Errorf("failed to read video response body: %w", err)
-			}
-			ext := extensionFromContentType(ct)
-			return data, ext, true, nil
-		}
-	}
-
-	// Not a video, download as image with =d
+	// Always fetch =d first. For motion photos this is the image container file.
 	resp, err := client.Get(ctx, baseUrl+"=d")
 	if err != nil {
 		return nil, "", false, fmt.Errorf("download failed: %w", err)
@@ -718,15 +694,33 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 	}
 
 	ct := resp.Header.Get("Content-Type")
+	// If =d is already a video response, avoid reading that whole body unless we
+	// have to fall back to it. Prefer =dv for the actual playable payload.
+	if strings.HasPrefix(strings.ToLower(ct), "video/") {
+		resp2, err := client.Get(ctx, baseUrl+"=dv")
+		if err != nil {
+			return nil, "", false, fmt.Errorf("video re-download failed: %w", err)
+		}
+		defer resp2.Body.Close()
+		if resp2.StatusCode == 200 {
+			videoCt := resp2.Header.Get("Content-Type")
+			videoData, err := io.ReadAll(resp2.Body)
+			if err != nil {
+				return nil, "", false, fmt.Errorf("failed to read video response body: %w", err)
+			}
+			ext := extensionFromContentType(videoCt)
+			return videoData, ext, true, nil
+		}
+	}
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Safety net: detect videos that slipped through the HEAD probe
-	isVideo := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
+	// If =d is actually a video item, prefer =dv for the original video stream.
+	isVideo := isVideoMagicBytes(data)
 	if isVideo {
-		// Re-download with =dv for proper video data
 		resp2, err := client.Get(ctx, baseUrl+"=dv")
 		if err != nil {
 			return nil, "", false, fmt.Errorf("video re-download failed: %w", err)
@@ -744,6 +738,66 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 		// =dv failed, fall through and use the =d data as-is
 	}
 
+	// Some Google Photos shared-album video items may return an image poster on =d.
+	// If this is not a motion-photo container, probe =dv and treat valid video as the primary asset.
+	if !hasMotionPhotoXMP(data) {
+		if sidecarData, sidecarExt, sidecarErr := DownloadMotionVideoSidecar(ctx, client, baseUrl); sidecarErr == nil {
+			return sidecarData, sidecarExt, true, nil
+		}
+	}
+
+	// Fallback: determine if this is video by checking both Content-Type and magic bytes.
+	// If =dv retry failed but Content-Type indicated video, trust that classification.
+	isVideoFinal := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
 	ext := extensionFromContentType(ct)
-	return data, ext, false, nil
+	return data, ext, isVideoFinal, nil
+}
+
+// DownloadMotionVideoSidecar fetches the motion sidecar stream (if present) for an image item.
+func DownloadMotionVideoSidecar(ctx context.Context, client *Client, baseUrl string) ([]byte, string, error) {
+	resp, err := client.Get(ctx, baseUrl+"=dv")
+	if err != nil {
+		return nil, "", fmt.Errorf("sidecar download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, "", fmt.Errorf("sidecar download returned status %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+
+	var data []byte
+	if !strings.HasPrefix(strings.ToLower(ct), "video/") {
+		// If it's not explicitly marked as video, sniff a small chunk before downloading fully
+		buf := make([]byte, 512)
+		n, _ := io.ReadFull(resp.Body, buf)
+		if n > 0 && !isVideoMagicBytes(buf[:n]) {
+			return nil, "", fmt.Errorf("sidecar is not a video payload (type: %s)", ct)
+		}
+		
+		rest, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to read sidecar body: %w", err)
+		}
+		data = append(buf[:n], rest...)
+	} else {
+		var err error
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to read sidecar body: %w", err)
+		}
+	}
+
+	isVideo := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
+	if !isVideo || len(data) <= 1024 {
+		return nil, "", fmt.Errorf("sidecar is not a valid video payload")
+	}
+
+	ext := extensionFromContentType(ct)
+	if ext == "" || ext == ".jpg" {
+		ext = ".mp4"
+	}
+
+	return data, ext, nil
 }

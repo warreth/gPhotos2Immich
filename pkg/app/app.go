@@ -215,7 +215,15 @@ func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *s
 		return existingFiles
 	}
 	for _, asset := range albumDetails.Assets {
-		name := util.StripExtension(asset.OriginalFileName)
+		var name string
+		if util.IsVideoFilename(asset.OriginalFileName) {
+			// For videos, use full filename to avoid colliding with image basenames
+			// (especially motion photo containers like "photo.mp.jpg")
+			name = asset.OriginalFileName
+		} else {
+			// For images, use basename without extension (existing behavior)
+			name = util.StripExtension(asset.OriginalFileName)
+		}
 		existingFiles[name] = asset.Id
 	}
 	logger.Debug("Pre-fetched album assets", "count", len(existingFiles))
@@ -414,6 +422,19 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	bytesDownloaded := int64(len(data))
 
+	// For videos, also check both existingFiles and globalAssets by full filename to catch video dedup
+	if isVideo {
+		filename := baseName + ext
+		if assetId, exists := existingFiles[filename]; exists {
+			a.Logger.Debug("Video already in album (album-level dedup by filename)", "id", assetId, "filename", filename)
+			return "", false, bytesDownloaded, 0, nil
+		}
+		if assetId, exists := globalAssets[filename]; exists {
+			a.Logger.Debug("Video exists in Immich (device search by filename), adding to album", "id", assetId, "filename", filename)
+			return assetId, false, bytesDownloaded, 0, nil
+		}
+	}
+
 	if isVideo && a.Cfg.SkipVideos {
 		a.Logger.Debug("Skipping video item", "id", p.ID)
 		return "", false, bytesDownloaded, 0, nil
@@ -435,7 +456,30 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	// Handle motion photos for images
 	if !isVideo {
-		imageData, videoData, isMotion := googlephotos.ExtractMotionPhoto(data, a.Logger)
+		imageData, videoData, isMotion, hadMotionXMP := googlephotos.ExtractMotionPhoto(data, a.Logger)
+		motionVideoExt := ".mp4"
+
+		// Some Google motion photos expose video as sidecar (=dv) instead of embedded bytes.
+		if !isMotion && hadMotionXMP {
+			sidecarData, sidecarExt, sidecarErr := googlephotos.DownloadMotionVideoSidecar(ctx, a.GPClient, p.URL)
+			if sidecarErr == nil {
+				videoData = sidecarData
+				isMotion = true
+				if sidecarExt != "" {
+					motionVideoExt = sidecarExt
+				}
+				a.Logger.Debug("Motion photo sidecar downloaded",
+					"id", safeId,
+					"video_size", len(videoData),
+				)
+			} else {
+				a.Logger.Debug("Motion XMP found but sidecar unavailable, stripping XMP flags",
+					"id", safeId,
+					"error", sidecarErr,
+				)
+				googlephotos.StripMotionPhotoXMP(imageData)
+			}
+		}
 
 		if isMotion {
 			a.Logger.Debug("Detected motion photo",
@@ -445,9 +489,9 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			)
 
 			// Upload the video part first
-			videoFilename := baseName + ".mp4"
-			videoId, videoDup, videoErr := a.Client.UploadAsset(ctx,
-				videoData, videoFilename, p.TakenAt, "")
+			videoFilename := baseName + motionVideoExt
+			videoId, videoDup, videoErr := a.Client.UploadAssetWithVisibility(ctx,
+				videoData, videoFilename, p.TakenAt, "", "hidden")
 			if videoErr != nil {
 				a.Logger.Warn("Failed to upload motion video, uploading image as static photo", "error", videoErr)
 			} else if videoDup {
@@ -470,8 +514,18 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			if uploadedId == "" {
 				return "", false, bytesDownloaded, 0, fmt.Errorf("upload returned empty ID for %s", filename)
 			}
+			// Only apply the live photo link for deduplicated assets, since UploadAssetWithLive
+			// already applied it during the initial upload
+			if videoId != "" && isDup {
+				if linkErr := a.Client.LinkLivePhotoToAsset(ctx, uploadedId, videoId); linkErr != nil {
+					a.Logger.Warn("Failed to link motion video to deduplicated photo", "photo_id", uploadedId, "video_id", videoId, "error", linkErr)
+				}
+			}
 
-			bytesUploaded := int64(len(imageData) + len(videoData))
+			bytesUploaded := int64(len(imageData))
+			if videoId != "" {
+				bytesUploaded += int64(len(videoData))
+			}
 			a.State.Set(baseName, uploadedId)
 			if isDup {
 				a.Logger.Debug("Motion photo deduplicated by Immich", "filename", filename, "id", uploadedId)
