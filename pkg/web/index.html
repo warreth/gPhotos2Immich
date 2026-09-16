@@ -417,14 +417,17 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
                 });
-                if (!res.ok) throw new Error('Failed to save');
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(errText || 'Failed to save');
+                }
                 
                 const toast = document.getElementById('toast');
                 toast.style.display = 'block';
                 setTimeout(() => toast.style.display = 'none', 3000);
             } catch (err) {
                 console.error(err);
-                alert('Error saving configuration');
+                alert('Error saving configuration: ' + err.message);
             }
         }
 

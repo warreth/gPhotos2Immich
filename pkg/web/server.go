@@ -211,7 +211,8 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := os.WriteFile(s.configPath, outBytes, 0644); err != nil {
-		http.Error(w, "Failed to write config file", http.StatusInternalServerError)
+		fmt.Printf("Failed to write config file %s: %v\n", s.configPath, err)
+		http.Error(w, fmt.Sprintf("Failed to write config file: %v", err), http.StatusInternalServerError)
 		return
 	}
 
