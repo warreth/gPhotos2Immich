@@ -19,7 +19,11 @@ WORKDIR /app
 # Install ca-certificates and tzdata for timezones
 RUN apk --no-cache add ca-certificates tzdata \
     && addgroup -g 1000 app \
-    && adduser -u 1000 -G app -D -H app
+    && adduser -u 1000 -G app -D -H app \
+    && chown app:app /app
+
+RUN mkdir -p /app/data \
+    && chown -R app:app /app/data
 
 COPY --from=builder --chown=app:app /app/gphotos2immich .
 
