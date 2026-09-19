@@ -39,7 +39,28 @@ type Tracker struct {
 var (
 	GlobalTrackerMu sync.RWMutex
 	GlobalTracker   *Tracker
+	GlobalLastRun   time.Time
+	GlobalNextRun   time.Time
 )
+
+// SetScheduleTimes updates global last run and next run timestamps
+func SetScheduleTimes(lastRun, nextRun time.Time) {
+	GlobalTrackerMu.Lock()
+	defer GlobalTrackerMu.Unlock()
+	if !lastRun.IsZero() {
+		GlobalLastRun = lastRun
+	}
+	if !nextRun.IsZero() {
+		GlobalNextRun = nextRun
+	}
+}
+
+// ScheduleTimes returns the recorded last run and next run timestamps
+func ScheduleTimes() (lastRun, nextRun time.Time) {
+	GlobalTrackerMu.RLock()
+	defer GlobalTrackerMu.RUnlock()
+	return GlobalLastRun, GlobalNextRun
+}
 
 // ActiveStatus returns the current sync status
 func ActiveStatus() (album string, processed, total int) {

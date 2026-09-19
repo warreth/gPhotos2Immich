@@ -75,7 +75,7 @@ Google Photos serves re-encoded (compressed) copies for shared albums, so their 
 
 - **No Google API Keys:** We scrape directly from shared album URLs, so there's no complex Google Cloud setup required!
 - **Web UI & Hot Reloading:** Manage your albums from a sleek web interface on port 8080. Check live logs, trigger an instant sync with "Sync Now", and tweak settings; everything applies instantly without restarting the container.
-- **Trigger Sync API:** Trigger a sync on demand outside the regular schedule via `POST /api/sync` or `GET /sync_now` (ideal for Home Assistant buttons, webhooks, or automation scripts).
+- **Trigger Sync API:** Trigger a sync on demand outside the regular schedule via `POST /api/sync` or `GET /sync_now` (ideal for Home Assistant buttons, webhooks, or automation scripts). See [home-assistant.yaml](home-assistant.yaml) for a ready-to-use Home Assistant configuration.
 - **Smart Syncing:** We pull down the full images and videos (no compressed thumbnails), extract the correct "taken" dates, and smoothly avoid Google's rate limits.
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 

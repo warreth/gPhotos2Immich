@@ -1,0 +1,54 @@
+# Home Assistant configuration.yaml snippet for gPhotos2Immich integration.
+# Replace 'serverip' with the hostname or IP address of your gPhotos2Immich instance.
+
+rest_command:
+  immich_sync:
+    url: "http://serverip:8080/api/sync"
+    method: GET
+
+rest:
+  - resource: "http://serverip:8080/api/status"
+    scan_interval: 30
+    sensor:
+      - name: "Immich Sync Album"
+        unique_id: immich_sync_album
+        value_template: "{{ value_json.album }}"
+      - name: "Immich Sync User"
+        unique_id: immich_sync_user
+        value_template: "{{ value_json.immichUser }}"
+      - name: "Immich Sync Processed"
+        unique_id: immich_sync_processed
+        value_template: "{{ value_json.processed }}"
+        state_class: measurement
+      - name: "Immich Sync Total"
+        unique_id: immich_sync_total
+        value_template: "{{ value_json.total }}"
+        state_class: measurement
+      - name: "Immich Sync Last Run"
+        unique_id: immich_sync_last_run
+        value_template: "{{ value_json.lastRun }}"
+        device_class: timestamp
+      - name: "Immich Sync Next Run"
+        unique_id: immich_sync_next_run
+        value_template: "{{ value_json.nextRun }}"
+        device_class: timestamp
+
+template:
+  - button:
+      - name: "Trigger Immich Sync"
+        unique_id: immich_sync_button
+        icon: mdi:sync
+        press:
+          - action: rest_command.immich_sync
+  - sensor:
+      - name: "Immich Sync Percentage"
+        unique_id: immich_sync_percentage
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.immich_sync_total') | float(0) %}
+          {% if t > 0 %}
+            {{ (states('sensor.immich_sync_processed') | float(0) / t * 100) | round(0) }}
+          {% else %}
+            0
+          {% endif %}

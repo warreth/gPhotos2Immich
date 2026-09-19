@@ -98,9 +98,11 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Initialize schedule - all albums due immediately
 	nextRun := make(map[string]time.Time)
+	nowStart := time.Now()
 	for _, ac := range a.Cfg.GooglePhotos {
-		nextRun[ac.URL] = time.Now()
+		nextRun[ac.URL] = nowStart
 	}
+	progress.SetScheduleTimes(time.Time{}, nowStart)
 
 	albumWorkers := a.Cfg.AlbumWorkers
 	if albumWorkers < 1 {
@@ -158,15 +160,23 @@ func (a *App) Run(ctx context.Context) error {
 			}
 			wg.Wait()
 
-			// Schedule next runs
+			// Schedule next runs and record completion
+			nowCompleted := time.Now()
+			nextEarliest := nowCompleted.Add(24 * time.Hour)
 			for _, ac := range due {
 				interval, err := time.ParseDuration(ac.SyncInterval)
 				if err != nil || interval == 0 {
 					interval = 24 * time.Hour
 				}
-				nextRun[ac.URL] = time.Now().Add(interval)
+				nextRun[ac.URL] = nowCompleted.Add(interval)
 				a.Logger.Info("Scheduled next sync", "album", ac.URL, "next_run", nextRun[ac.URL].Format("15:04:05"))
 			}
+			for _, nr := range nextRun {
+				if nr.Before(nextEarliest) {
+					nextEarliest = nr
+				}
+			}
+			progress.SetScheduleTimes(nowCompleted, nextEarliest)
 			continue
 		}
 

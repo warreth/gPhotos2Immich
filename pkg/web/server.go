@@ -70,6 +70,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/logs", s.handleLogs)
 	mux.HandleFunc("/api/status", s.handleStatus)
+	mux.HandleFunc("/sync/status", s.handleStatus)
 	mux.HandleFunc("/api/sync", s.handleSync)
 	mux.HandleFunc("/sync_now", s.handleSync)
 
@@ -159,11 +160,22 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	lastRun, nextRun := progress.ScheduleTimes()
+	var lastRunStr, nextRunStr string
+	if !lastRun.IsZero() {
+		lastRunStr = lastRun.UTC().Format(time.RFC3339)
+	}
+	if !nextRun.IsZero() {
+		nextRunStr = nextRun.UTC().Format(time.RFC3339)
+	}
+
 	resp := map[string]interface{}{
 		"immichUser": userName,
 		"album":      album,
 		"processed":  processed,
 		"total":      total,
+		"lastRun":    lastRunStr,
+		"nextRun":    nextRunStr,
 	}
 
 	json.NewEncoder(w).Encode(resp)

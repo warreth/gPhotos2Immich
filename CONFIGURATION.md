@@ -69,6 +69,7 @@ When the Web UI is enabled, the embedded server provides the following endpoints
 | --- | --- | --- |
 | `/api/sync` | `POST` / `GET` | Trigger an immediate sync run of all configured albums outside their normal sync interval. Returns `{"status":"ok","message":"Sync triggered"}`. |
 | `/sync_now` | `POST` / `GET` | Alias for `/api/sync`, convenient for Home Assistant buttons or curl commands. |
-| `/api/status` | `GET` | Return current album synchronization progress and Immich connection status. |
+| `/api/status` | `GET` | Return current album synchronization progress, Immich connection status, and `lastRun`/`nextRun` timestamps. |
+| `/sync/status` | `GET` | Alias for `/api/status`. |
 | `/api/logs` | `GET` | Return the latest application logs. |
 | `/api/config` | `GET` / `POST` | Retrieve or update the application configuration. |
