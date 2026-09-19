@@ -60,3 +60,15 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 | `googlePhotos[].albumName` | string | auto-detected | Override the album name in Immich. If omitted, uses the album title from Google Photos. |
 | `googlePhotos[].syncInterval` | string | `24h` | How often to re-check this album (e.g. `12h`, `60m`, `1h30m`). |
 | `googlePhotos[].immichAlbumId` | string | — | Link to an existing Immich album by UUID instead of creating a new one. |
+
+## Web API Endpoints
+
+When the Web UI is enabled, the embedded server provides the following endpoints:
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/api/sync` | `POST` / `GET` | Trigger an immediate sync run of all configured albums outside their normal sync interval. Returns `{"status":"ok","message":"Sync triggered"}`. |
+| `/sync_now` | `POST` / `GET` | Alias for `/api/sync`, convenient for Home Assistant buttons or curl commands. |
+| `/api/status` | `GET` | Return current album synchronization progress and Immich connection status. |
+| `/api/logs` | `GET` | Return the latest application logs. |
+| `/api/config` | `GET` / `POST` | Retrieve or update the application configuration. |

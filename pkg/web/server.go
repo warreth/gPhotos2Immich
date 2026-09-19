@@ -57,6 +57,7 @@ type Server struct {
 	configPath     string
 	mu             sync.Mutex
 	OnConfigChange func()
+	OnSyncTrigger  func()
 }
 
 func NewServer(configPath string) *Server {
@@ -69,6 +70,8 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/logs", s.handleLogs)
 	mux.HandleFunc("/api/status", s.handleStatus)
+	mux.HandleFunc("/api/sync", s.handleSync)
+	mux.HandleFunc("/sync_now", s.handleSync)
 
 	addr := fmt.Sprintf(":%d", port)
 	srv := &http.Server{
@@ -96,6 +99,21 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	io.WriteString(w, GlobalLogBuffer.String())
+}
+
+func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.OnSyncTrigger != nil {
+		go s.OnSyncTrigger()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok","message":"Sync triggered"}`))
 }
 
 var cachedImmichUser string

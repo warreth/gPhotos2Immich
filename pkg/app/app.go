@@ -24,6 +24,7 @@ type App struct {
 	GPClient *googlephotos.Client
 	Logger   *slog.Logger
 	State    *state.SyncState
+	syncCh   chan struct{}
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -69,7 +70,16 @@ func New(cfg *config.Config) (*App, error) {
 		GPClient: gpClient,
 		Logger:   logger,
 		State:    syncState,
+		syncCh:   make(chan struct{}, 1),
 	}, nil
+}
+
+// TriggerSync requests an immediate sync of all albums outside the schedule
+func (a *App) TriggerSync() {
+	select {
+	case a.syncCh <- struct{}{}:
+	default:
+	}
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -171,6 +181,12 @@ func (a *App) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			a.Logger.Info("Shutdown requested, stopping sync loop")
 			return nil
+		case <-a.syncCh:
+			a.Logger.Info("Sync triggered manually, running all albums immediately")
+			now := time.Now()
+			for _, ac := range a.Cfg.GooglePhotos {
+				nextRun[ac.URL] = now
+			}
 		case <-time.After(waitDuration):
 		}
 	}

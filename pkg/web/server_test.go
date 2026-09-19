@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSaveConfig(t *testing.T) {
@@ -78,3 +79,63 @@ func TestSaveConfigPermissionError(t *testing.T) {
 		t.Fatalf("expected error message to contain 'Failed to write config file', got %s", bodyStr)
 	}
 }
+
+func TestHandleSync(t *testing.T) {
+	s := NewServer("dummy.json")
+	var triggered bool
+	s.OnSyncTrigger = func() {
+		triggered = true
+	}
+
+	// Test POST
+	req := httptest.NewRequest(http.MethodPost, "/api/sync", nil)
+	w := httptest.NewRecorder()
+	s.handleSync(w, req)
+
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK on POST /api/sync, got %d", resp.StatusCode)
+	}
+
+	// Wait briefly for goroutine
+	for i := 0; i < 50; i++ {
+		if triggered {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !triggered {
+		t.Fatal("expected OnSyncTrigger to be called")
+	}
+
+	// Test GET (for easy browser/Home Assistant webhook usage)
+	triggered = false
+	reqGet := httptest.NewRequest(http.MethodGet, "/sync_now", nil)
+	wGet := httptest.NewRecorder()
+	s.handleSync(wGet, reqGet)
+
+	respGet := wGet.Result()
+	if respGet.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK on GET /sync_now, got %d", respGet.StatusCode)
+	}
+
+	for i := 0; i < 50; i++ {
+		if triggered {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !triggered {
+		t.Fatal("expected OnSyncTrigger to be called on GET")
+	}
+
+	// Test Method Not Allowed
+	reqDelete := httptest.NewRequest(http.MethodDelete, "/api/sync", nil)
+	wDelete := httptest.NewRecorder()
+	s.handleSync(wDelete, reqDelete)
+
+	if wDelete.Result().StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 Method Not Allowed on DELETE, got %d", wDelete.Result().StatusCode)
+	}
+}
+

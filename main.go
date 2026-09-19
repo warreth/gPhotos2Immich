@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -46,6 +47,11 @@ func main() {
 
 	reloadCh := make(chan struct{}, 1)
 
+	var (
+		currentAppMu sync.RWMutex
+		currentApp   *app.App
+	)
+
 	if !disableWebUI {
 		// Start web UI in the background
 		webUI := web.NewServer("config.json")
@@ -54,6 +60,18 @@ func main() {
 			select {
 			case reloadCh <- struct{}{}:
 			default:
+			}
+		}
+		webUI.OnSyncTrigger = func() {
+			currentAppMu.RLock()
+			appl := currentApp
+			currentAppMu.RUnlock()
+
+			if appl != nil {
+				log.Println("Manual sync requested via API/Web UI.")
+				appl.TriggerSync()
+			} else {
+				log.Println("Manual sync requested but application is not initialized yet.")
 			}
 		}
 
@@ -118,11 +136,22 @@ func main() {
 			}
 		}
 
+		currentAppMu.Lock()
+		currentApp = application
+		currentAppMu.Unlock()
+
 		appCtx, cancelApp := context.WithCancel(rootCtx)
 
 		// Run app in a goroutine
 		appErrCh := make(chan error, 1)
 		go func() {
+			defer func() {
+				currentAppMu.Lock()
+				if currentApp == application {
+					currentApp = nil
+				}
+				currentAppMu.Unlock()
+			}()
 			appErrCh <- application.Run(appCtx)
 		}()
 

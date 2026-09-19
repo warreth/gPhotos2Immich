@@ -177,6 +177,7 @@
                             <div class="progress-bar-fill" id="statusProgressBar"></div>
                         </div>
                         <div class="status-text" id="statusItems">Items: 0 / 0</div>
+                        <button type="button" class="btn" style="margin-top: 10px; width: 100%;" onclick="triggerSync()">Sync Now</button>
                     </div>
                 </div>
             </div>
@@ -428,6 +429,24 @@
             } catch (err) {
                 console.error(err);
                 alert('Error saving configuration: ' + err.message);
+            }
+        }
+
+        async function triggerSync() {
+            try {
+                const res = await fetch('/api/sync', { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to trigger sync');
+                const toast = document.getElementById('toast');
+                toast.textContent = 'Sync triggered!';
+                toast.style.display = 'block';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                    toast.textContent = 'Saved successfully!';
+                }, 3000);
+                pollStatus();
+            } catch (err) {
+                console.error(err);
+                alert('Error triggering sync');
             }
         }
 
