@@ -49,6 +49,8 @@ To test a pre-release, use `ghcr.io/warreth/gphotos2immich:beta` in your compose
 
 <br/>
 
+> **Permissions Note:** The container runs as an unprivileged user (`app`, UID 1000). At startup, the entrypoint automatically fixes ownership of mounted `config.json` and `data/` directories. If you encounter permission errors with bind mounts, you can also manually set ownership on the host: `chown 1000:1000 config.json data`
+
 > [!IMPORTANT]
 > The built-in Web configuration UI is not password-protected. Do **NOT** expose the port to the public internet or untrusted networks!
 

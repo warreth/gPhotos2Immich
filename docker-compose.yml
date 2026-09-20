@@ -3,8 +3,8 @@ services:
     build: .
     container_name: gphotos2immich
     network_mode: "host"
-    # Matches the UID/GID of the non-root 'app' user created in the Dockerfile.
-    user: "1000:1000"
+    # Entrypoint automatically drops privileges to the 'app' user (UID 1000)
+    # and fixes ownership of mounted files/directories at startup
     environment:
       - TZ=UTC
       - PORT=8080 # Port for the Web UI
