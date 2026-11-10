@@ -245,8 +245,8 @@ func TestResolveStateAsset(t *testing.T) {
 		app.State.Set("gp_x", "vid1")
 		idx := global(struct{ id, name, typ string }{id: "vid1", name: "gp_x.mov", typ: "VIDEO"})
 		id, action := app.resolveStateAsset("gp_x", false, idx)
-		if action != stateReupload || id != "vid1" {
-			t.Fatalf("expected stateReupload with vid1, got %v %q", action, id)
+		if action != stateReprocess || id != "vid1" {
+			t.Fatalf("expected stateReprocess with vid1, got %v %q", action, id)
 		}
 	})
 

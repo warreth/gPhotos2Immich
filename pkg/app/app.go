@@ -118,6 +118,11 @@ func (a *App) descriptionWorker(ctx context.Context) {
 	}
 }
 
+func isPermissionError(err error) bool {
+	var httpErr *immich.HTTPError
+	return errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusForbidden
+}
+
 func (a *App) applyDescriptionUpdate(ctx context.Context, update descriptionUpdate) {
 	if update.waitForMetadata {
 		deadline := time.Now().Add(30 * time.Second)
@@ -153,6 +158,11 @@ func (a *App) applyDescriptionUpdate(ctx context.Context, update descriptionUpda
 	}
 
 	if err := a.Client.UpdateAssetDescription(ctx, update.assetID, update.description); err != nil {
+		if isPermissionError(err) {
+			a.Logger.Warn("Immich API key is missing the asset.update permission; descriptions and live-photo links cannot be updated",
+				"asset_id", update.assetID, "error", err)
+			return
+		}
 		a.Logger.Warn("Failed to update asset description", "asset_id", update.assetID, "error", err)
 	}
 }
@@ -273,7 +283,7 @@ func isPermanentImmichError(err error) bool {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	a.Logger.Info("Starting Immich Sync")
+	a.Logger.Info("Starting Immich Sync", "dedup_mode", a.Cfg.EffectiveDedupMode())
 
 	id, name, err := a.waitForImmich(ctx)
 	if err != nil {
@@ -343,6 +353,10 @@ func (a *App) Run(ctx context.Context) error {
 				globalAssets = nil
 			} else {
 				a.Logger.Debug("Pre-fetched global assets from Immich", "count", globalAssets.Count)
+				if stateCount := a.State.Count(); stateCount > 0 && globalAssets.Count*2 < stateCount {
+					a.Logger.Warn("Global asset search returned far fewer assets than the local dedup state; some state entries may look missing",
+						"state_entries", stateCount, "global_assets", globalAssets.Count)
+				}
 			}
 
 			a.Logger.Info("Processing due albums", "count", len(due), "album_workers", albumWorkers)
@@ -641,8 +655,11 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			"id", stateAssetID, "filename", baseName)
 		return "", false, 0, 0, nil
 	case stateReupload:
-		a.Logger.Info("State asset no longer exists in Immich, re-uploading",
+		a.Logger.Info("State asset is missing from Immich, re-uploading (dedupMode=repair)",
 			"old_id", stateAssetID, "filename", baseName)
+	case stateReprocess:
+		a.Logger.Info("State asset has a different media type, re-processing",
+			"old_id", stateAssetID, "filename", baseName, "is_video", isVideoItem)
 	}
 
 	a.Logger.Debug("Asset not found in dedup, will download",
@@ -782,7 +799,12 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 			// already applied it during the initial upload
 			if videoId != "" && isDup {
 				if linkErr := a.Client.LinkLivePhotoToAsset(ctx, uploadedId, videoId); linkErr != nil {
-					a.Logger.Warn("Failed to link motion video to deduplicated photo", "photo_id", uploadedId, "video_id", videoId, "error", linkErr)
+					if isPermissionError(linkErr) {
+						a.Logger.Warn("Immich API key is missing the asset.update permission; live-photo link was not applied",
+							"photo_id", uploadedId, "video_id", videoId, "error", linkErr)
+					} else {
+						a.Logger.Warn("Failed to link motion video to deduplicated photo", "photo_id", uploadedId, "video_id", videoId, "error", linkErr)
+					}
 				}
 			}
 
@@ -842,6 +864,7 @@ const (
 	stateUse
 	stateSkip
 	stateReupload
+	stateReprocess
 )
 
 // resolveStateAsset decides what to do with a persistent state entry for an
@@ -870,7 +893,7 @@ func (a *App) resolveStateAsset(baseName string, isVideo bool, globalAssets *imm
 		// re-process the item instead of skipping it. Keep the ID so the
 		// post-download check can still avoid a needless re-upload when the
 		// downloaded media actually matches the existing asset.
-		return assetID, stateReupload
+		return assetID, stateReprocess
 	}
 
 	if a.Cfg.AdoptReplacements() {

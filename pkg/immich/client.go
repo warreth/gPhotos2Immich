@@ -466,6 +466,23 @@ func (c *Client) GetUser(ctx context.Context) (string, string, error) {
 	return user.Id, user.Name, err
 }
 
+// GetUserOnce performs a single users/me request without the API retry loop.
+// The web UI connection test uses it so a wrong host fails fast.
+func (c *Client) GetUserOnce(ctx context.Context) (string, string, error) {
+	body, _, err := c.doHTTP(ctx, "GET", "users/me", nil, "")
+	if err != nil {
+		return "", "", err
+	}
+	var user struct {
+		Id   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &user); err != nil {
+		return "", "", err
+	}
+	return user.Id, user.Name, nil
+}
+
 // LinkLivePhotoToAsset associates an existing image asset with a motion video asset.
 func (c *Client) LinkLivePhotoToAsset(ctx context.Context, assetId string, livePhotoVideoId string) error {
 	if assetId == "" || livePhotoVideoId == "" {

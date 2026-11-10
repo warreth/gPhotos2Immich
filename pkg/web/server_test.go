@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +22,13 @@ func TestSaveConfig(t *testing.T) {
 		"apiURL": "http://localhost:2283/api",
 		"apiKey": "test-key",
 		"workers": 2,
+		"albumWorkers": 3,
 		"debug": true,
+		"strictMetadata": true,
+		"skipVideos": true,
+		"dataDir": "/tmp/g2i-data",
+		"dedupMode": "repair",
+		"updateExistingMetadata": true,
 		"googlePhotos": []
 	}`)
 
@@ -40,8 +47,44 @@ func TestSaveConfig(t *testing.T) {
 		t.Fatalf("failed to read written config: %v", err)
 	}
 
-	if !strings.Contains(string(content), "http://localhost:2283/api") {
-		t.Fatalf("saved content missing expected apiURL: %s", string(content))
+	saved := string(content)
+	for _, want := range []string{
+		`"apiURL": "http://localhost:2283/api"`,
+		`"albumWorkers": 3`,
+		`"strictMetadata": true`,
+		`"skipVideos": true`,
+		`"dataDir": "/tmp/g2i-data"`,
+		`"dedupMode": "repair"`,
+		`"updateExistingMetadata": true`,
+	} {
+		if !strings.Contains(saved, want) {
+			t.Fatalf("saved content missing %s: %s", want, saved)
+		}
+	}
+}
+
+func TestTestConnection(t *testing.T) {
+	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/users/me" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"id":"user-1","name":"Test User"}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer immichServer.Close()
+
+	s := NewServer("dummy.json")
+	body := []byte(fmt.Sprintf(`{"apiURL":%q,"apiKey":"test-key"}`, immichServer.URL))
+	req := httptest.NewRequest(http.MethodPost, "/api/test-connection", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleTestConnection(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Test User") {
+		t.Fatalf("response missing user name: %s", w.Body.String())
 	}
 }
 
@@ -140,21 +183,19 @@ func TestHandleSync(t *testing.T) {
 }
 func TestHandleStatus(t *testing.T) {
 	s := NewServer("dummy.json")
-	
+
 	req := httptest.NewRequest(http.MethodGet, "/sync/status", nil)
 	w := httptest.NewRecorder()
-	
+
 	s.handleStatus(w, req)
-	
+
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 OK on /sync/status, got %d", resp.StatusCode)
 	}
-	
+
 	bodyStr := w.Body.String()
 	if !strings.Contains(bodyStr, "immichUser") || !strings.Contains(bodyStr, "lastRun") || !strings.Contains(bodyStr, "nextRun") {
 		t.Fatalf("response missing expected fields: %s", bodyStr)
 	}
 }
-
-

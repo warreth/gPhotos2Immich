@@ -31,7 +31,7 @@ func (l *LogBuffer) Write(p []byte) (n int, err error) {
 	defer l.mu.Unlock()
 	// write to original os.Stdout
 	originalStdout.Write(p)
-	
+
 	l.buf.Write(p)
 	if l.buf.Len() > maxLogSize {
 		// simple truncation: drop first half
@@ -68,6 +68,7 @@ func (s *Server) Start(port int) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/config", s.handleConfig)
+	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/logs", s.handleLogs)
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/sync/status", s.handleStatus)
@@ -226,11 +227,18 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 		existingMap = make(map[string]interface{})
 	}
 
-	// Update only fields exposed in UI
+	// Update every field exposed in the UI, preserving any extra fields that
+	// were added to config.json by hand.
 	existingMap["apiURL"] = newCfg.ApiURL
 	existingMap["apiKey"] = newCfg.ApiKey
-	existingMap["workers"] = newCfg.Workers
 	existingMap["debug"] = newCfg.Debug
+	existingMap["workers"] = newCfg.Workers
+	existingMap["albumWorkers"] = newCfg.AlbumWorkers
+	existingMap["strictMetadata"] = newCfg.StrictMetadata
+	existingMap["skipVideos"] = newCfg.SkipVideos
+	existingMap["dataDir"] = newCfg.DataDir
+	existingMap["dedupMode"] = newCfg.DedupMode
+	existingMap["updateExistingMetadata"] = newCfg.UpdateExistingMetadata
 	existingMap["googlePhotos"] = newCfg.GooglePhotos
 
 	// Prettify output
@@ -246,10 +254,52 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The cached Immich user may belong to the previous credentials.
+	cachedImmichUserMu.Lock()
+	cachedImmichUser = ""
+	cachedImmichUserMu.Unlock()
+
 	if s.OnConfigChange != nil {
 		go s.OnConfigChange()
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status": "ok"}`))
+}
+
+func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ApiURL string `json:"apiURL"`
+		ApiKey string `json:"apiKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.ApiURL == "" || req.ApiKey == "" {
+		http.Error(w, "apiURL and apiKey are required", http.StatusBadRequest)
+		return
+	}
+
+	client := immich.NewClient(req.ApiURL, req.ApiKey, 1)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	id, name, err := client.GetUserOnce(ctx)
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+		"userId": id,
+		"user":   name,
+	})
 }

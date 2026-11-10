@@ -3,427 +3,1196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>gPhotos2Immich Configuration</title>
+    <title>gPhotos2Immich</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230f766e'/%3E%3Cpath d='M7 17V7h10v10H7z' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E">
     <style>
         :root {
-            --bg-color: #f4f4f9;
-            --text-color: #333;
-            --card-bg: #fff;
-            --border-color: #ddd;
-            --primary-color: #007bff;
-            --primary-hover: #0056b3;
-            --success-color: #28a745;
-            --danger-color: #dc3545;
+            --bg: #f4f2ee;
+            --surface: #ffffff;
+            --surface-2: #faf9f6;
+            --border: #e6e1d8;
+            --border-strong: #d5cec2;
+            --text: #20241f;
+            --text-secondary: #5c635b;
+            --text-muted: #8b9088;
+            --accent: #0f766e;
+            --accent-hover: #0b5f58;
+            --accent-soft: #e5f3f0;
+            --success: #15803d;
+            --success-soft: #e8f5ec;
+            --warning: #b45309;
+            --warning-soft: #fdf2e3;
+            --danger: #b91c1c;
+            --danger-soft: #fdecec;
+            --radius: 14px;
+            --radius-sm: 9px;
+            --shadow: 0 1px 2px rgba(32, 36, 31, .04), 0 2px 8px rgba(32, 36, 31, .04);
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
             margin: 0;
-            padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: .92em;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+
+        .icon {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .app {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .topbar {
             display: flex;
-            justify-content: center;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        .container, .wizard-container {
-            max-width: 800px;
+
+        .brand { display: flex; align-items: center; gap: 12px; }
+
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            display: grid;
+            place-items: center;
+        }
+
+        .brand-name {
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: -.01em;
+        }
+
+        .brand-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+        .shell {
+            display: grid;
+            grid-template-columns: 236px minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .sidebar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px;
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 24px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             width: 100%;
-            background: var(--card-bg);
-            padding: 30px;
+            padding: 9px 10px;
+            border: 0;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 13.5px;
+            text-align: left;
+            cursor: pointer;
+            transition: background .15s, color .15s;
         }
-        .wizard-container {
-            display: none;
+
+        .nav-item:hover { background: var(--surface-2); color: var(--text); }
+        .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+        .nav-item .icon { width: 17px; height: 17px; }
+
+        .nav-count {
+            margin-left: auto;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--surface-2);
+            border-radius: 999px;
+            padding: 1px 7px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .nav-item.active .nav-count { background: #fff; color: var(--accent); }
+
+        .sidebar-footer {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .save-state {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
             text-align: center;
         }
-        .wizard-step {
-            display: none;
-        }
-        .wizard-step.active {
-            display: block;
-            animation: fadeIn 0.3s ease-in-out;
-        }
-        .wizard-step-title {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: var(--primary-color);
-        }
-        .wizard-buttons {
-            margin-top: 30px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .wizard-buttons.right {
-            justify-content: flex-end;
-        }
+
+        .save-state.dirty { color: var(--warning); font-weight: 500; }
+
+        .content { min-width: 0; }
+
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn .2s ease; }
+
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(4px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .setup-field {
-            text-align: left;
-            margin-bottom: 20px;
-        }
-        .setup-field label {
-            display: block;
-            margin-bottom: 8px;
-            margin-top: 0;
-        }
-        .setup-field input {
-            width: 100%;
-        }
-        .wizard-album-row {
-            display: flex; gap: 10px; margin-bottom: 10px; text-align: left;
-        }
-        .wizard-album-row input { flex: 1; }
-        .wizard-hint {
-            font-size: 13px; color: #666; margin-top: 5px; text-align: left;
-        }
-        h1 { margin-top: 0; font-size: 24px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
-        h2 { font-size: 20px; margin-top: 30px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; margin-top: 15px; }
-        input[type="text"], input[type="number"], input[type="password"] {
-            width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 14px;
-        }
-        textarea {
-            width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-family: monospace; font-size: 12px; height: 300px; background: #f8f9fa; resize: vertical; margin-top: 10px;
-        }
-        input[type="checkbox"] { margin-right: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid var(--border-color); padding: 10px; text-align: left; }
-        th { background-color: var(--bg-color); }
-        .btn {
-            background-color: var(--primary-color); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-top: 10px; text-decoration: none; display: inline-block;
-        }
-        .btn:hover { background-color: var(--primary-hover); }
-        .btn-success { background-color: var(--success-color); }
-        .btn-danger { background-color: var(--danger-color); padding: 5px 10px; }
-        .flex-row { display: flex; align-items: center; }
-        .toast {
-            position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 15px; border-radius: 4px; display: none; z-index: 1000;
-        }
-        .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
-        .tab { padding: 10px 20px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: bold; }
-        .tab.active { border-bottom-color: var(--primary-color); color: var(--primary-color); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
-        .albums-section {
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }
-        .albums-table-container {
-            flex: 2;
-        }
-        .status-container {
-            flex: 1;
-            padding: 15px;
-            background: #f8f9fa;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            margin-top: 15px;
-        }
-        .status-container h3 { margin-top: 0; font-size: 16px; }
-        .progress-bar-bg { width: 100%; background-color: #ddd; border-radius: 4px; height: 20px; overflow: hidden; margin-top: 10px; }
-        .progress-bar-fill { height: 100%; background-color: var(--success-color); width: 0%; transition: width 0.3s; }
-        .status-text { font-size: 14px; margin-top: 5px; }
 
+        .section-header { margin-bottom: 20px; }
+        .section-header h2 {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -.02em;
+            margin: 0 0 4px;
+        }
+        .section-header p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card-header h3 { font-size: 15px; font-weight: 600; margin: 0; }
+        .card-header p { font-size: 12.5px; color: var(--text-muted); margin: 3px 0 0; }
+
+        .field { margin-bottom: 16px; }
+        .field:last-child { margin-bottom: 0; }
+        .field label { display: block; font-size: 12.5px; font-weight: 500; margin-bottom: 6px; }
+        .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+        .input {
+            width: 100%;
+            padding: 9px 11px;
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font: inherit;
+            font-size: 13.5px;
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+
+        .input::placeholder { color: var(--text-muted); }
+        .input-group { display: flex; gap: 8px; }
+        .input-group .input { flex: 1; }
+
+        .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
+        .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 9px 14px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 13.5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+
+        .btn:disabled { opacity: .6; cursor: not-allowed; }
+        .btn .icon { width: 16px; height: 16px; }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn-secondary { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+        .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+        .btn-danger { background: var(--danger-soft); color: var(--danger); }
+        .btn-danger:hover:not(:disabled) { background: #fbd5d5; }
+        .btn-sm { padding: 6px 10px; font-size: 12.5px; }
+        .btn-block { width: 100%; }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .pill-accent { background: var(--accent-soft); color: var(--accent); }
+        .pill-success { background: var(--success-soft); color: var(--success); }
+        .pill-warning { background: var(--warning-soft); color: var(--warning); }
+        .pill-danger { background: var(--danger-soft); color: var(--danger); }
+        .pill-muted { background: var(--surface-2); color: var(--text-muted); }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .pill-accent .status-dot { animation: pulse 1.6s ease-in-out infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .35; }
+        }
+
+        .status-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        .status-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .status-album {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -.01em;
+            margin-bottom: 14px;
+        }
+
+        .status-album.muted { color: var(--text-secondary); font-weight: 500; }
+
+        .progress {
+            height: 8px;
+            background: var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0;
+            transition: width .3s ease;
+        }
+
+        .status-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .status-times {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-times div { display: flex; flex-direction: column; gap: 2px; }
+        .muted { font-size: 11.5px; color: var(--text-muted); }
+        .status-times strong { font-size: 13px; font-weight: 500; }
+
+        .status-side {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding-left: 24px;
+            border-left: 1px solid var(--border);
+        }
+
+        .status-percent {
+            font-size: 48px;
+            font-weight: 600;
+            letter-spacing: -.04em;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        .status-percent-label { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+        .status-side-note { margin-top: 14px; font-size: 12px; color: var(--text-secondary); }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-label { font-size: 11.5px; color: var(--text-muted); }
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 4px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.02em;
+        }
+        .stat-value-sm {
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+
+        .mode-card {
+            position: relative;
+            display: block;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            background: var(--surface);
+            transition: border-color .15s, background .15s, box-shadow .15s;
+        }
+
+        .mode-card:hover { border-color: var(--border-strong); }
+        .mode-card.selected {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        .mode-card input { position: absolute; opacity: 0; pointer-events: none; }
+        .mode-title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+        .mode-badge {
+            font-size: 10.5px;
+            font-weight: 500;
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: var(--surface-2);
+            color: var(--text-muted);
+        }
+        .mode-card.selected .mode-badge { background: #fff; color: var(--accent); }
+        .mode-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-top: 6px; }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toggle:last-child { border-bottom: 0; padding-bottom: 0; }
+        .toggle-text { flex: 1; }
+        .toggle-title { font-size: 13.5px; font-weight: 500; }
+        .toggle-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.5; }
+
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+        .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        .switch-track {
+            position: absolute;
+            inset: 0;
+            background: var(--border-strong);
+            border-radius: 999px;
+            transition: background .15s;
+            pointer-events: none;
+        }
+        .switch-track::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .15);
+            transition: transform .15s;
+        }
+        .switch input:checked + .switch-track { background: var(--accent); }
+        .switch input:checked + .switch-track::after { transform: translateX(18px); }
+        .switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+        .album-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .album-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 90px minmax(0, 1.1fr) auto;
+            gap: 10px;
+            align-items: end;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-2);
+        }
+
+        .album-row .field { margin: 0; }
+        .album-row .field label { font-size: 11.5px; }
+        .album-row .input { background: var(--surface); }
+        .album-remove { align-self: end; margin-bottom: 1px; }
+        .album-remove:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+
+        .empty-state {
+            padding: 28px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            border: 1px dashed var(--border-strong);
+            border-radius: 10px;
+            background: var(--surface-2);
+        }
+
+        .logs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .inline-check {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .inline-check input { accent-color: var(--accent); }
+
+        .log-view {
+            margin: 0;
+            padding: 14px;
+            background: #1e2320;
+            color: #d8ded8;
+            border: 1px solid #2b322d;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            line-height: 1.65;
+            max-height: 520px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .test-result { font-size: 12.5px; color: var(--text-muted); }
+        .test-result.success { color: var(--success); }
+        .test-result.danger { color: var(--danger); }
+
+        .toast {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 1000;
+            background: var(--text);
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+            font-size: 13px;
+            opacity: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+            transition: opacity .2s, transform .2s;
+        }
+
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.error { background: var(--danger); }
+
+        .wizard {
+            max-width: 560px;
+            margin: 48px auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: var(--shadow);
+        }
+
+        .wizard h2 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 8px; }
+        .wizard p { color: var(--text-secondary); font-size: 13.5px; line-height: 1.6; margin: 0 0 20px; }
+        .wizard-step { display: none; }
+        .wizard-step.active { display: block; animation: fadeIn .2s ease; }
+        .wizard-progress { display: flex; gap: 6px; margin-bottom: 24px; }
+        .wizard-dot { height: 4px; flex: 1; background: var(--border); border-radius: 999px; }
+        .wizard-dot.active { background: var(--accent); }
+        .wizard-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 24px; }
+        .wizard-actions.right { justify-content: flex-end; }
+
+        .footer-note {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 32px;
+        }
+
+        .mobile-save { display: none; }
+
+        @media (max-width: 1000px) {
+            .shell { grid-template-columns: 200px minmax(0, 1fr); }
+            .status-card { grid-template-columns: 1fr; }
+            .status-side { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); padding-top: 18px; }
+            .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .mode-grid { grid-template-columns: 1fr; }
+            .album-row { grid-template-columns: 1fr 1fr; }
+            .album-row .album-remove { grid-column: 1 / -1; justify-self: end; }
+        }
+
+        @media (max-width: 760px) {
+            .app { padding: 16px; padding-bottom: 88px; }
+            .topbar { flex-wrap: wrap; }
+            .shell { grid-template-columns: 1fr; }
+            .sidebar {
+                position: static;
+                display: flex;
+                overflow-x: auto;
+                gap: 4px;
+                padding: 8px;
+            }
+            .nav-item { width: auto; white-space: nowrap; }
+            .nav-count { display: none; }
+            .sidebar-footer { display: none; }
+            .mobile-save {
+                display: flex;
+                position: sticky;
+                bottom: 0;
+                z-index: 30;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 12px 16px;
+                background: var(--surface);
+                border-top: 1px solid var(--border);
+            }
+            .field-grid { grid-template-columns: 1fr; }
+            .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .album-row { grid-template-columns: 1fr; }
+            .album-row .album-remove { grid-column: auto; justify-self: end; }
+            .status-percent { font-size: 40px; }
+            .section-header h2 { font-size: 20px; }
+            .card { padding: 16px; }
+        }
+
+        @media (max-width: 480px) {
+            .stat-grid { grid-template-columns: 1fr; }
+            .status-times { grid-template-columns: 1fr; }
+            .topbar-actions { width: 100%; justify-content: space-between; }
+        }
     </style>
 </head>
 <body>
-    <div id="mainUI" class="container">
-        <h1>gPhotos2Immich Configuration</h1>
-        
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab(event, 'general')">General</div>
-            <div class="tab" onclick="switchTab(event, 'advanced')">Advanced</div>
-        </div>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="icon-images" viewBox="0 0 24 24"><path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.3-1.3a2.4 2.4 0 0 0-3.4 0L10 19"/><circle cx="9" cy="9" r="2"/><rect x="6" y="2" width="16" height="16" rx="2"/></symbol>
+        <symbol id="icon-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+        <symbol id="icon-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v3a6 6 0 0 1-12 0V8Z"/></symbol>
+        <symbol id="icon-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+        <symbol id="icon-albums" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></symbol>
+        <symbol id="icon-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+        <symbol id="icon-sync" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2"/><path d="M3 12a9 9 0 0 1 15.5-6.2"/><path d="M3 4v5h5"/><path d="M21 20v-5h-5"/></symbol>
+        <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+        <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="m2 2 20 20"/><path d="M6.7 6.7C3.6 8.6 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.4 4.5-1"/><path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+        <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+        <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+        <symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+        <symbol id="icon-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+        <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+        <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+        <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+        <symbol id="icon-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></symbol>
+    </svg>
 
-        <form id="configForm">
-            <div id="tab-general" class="tab-content active">
-                <label for="workers">Workers</label>
-                <input type="number" id="workers" name="workers" min="1" value="5">
-
-                <label class="flex-row">
-                    <input type="checkbox" id="debug" name="debug"> Enable Debug Logging
-                </label>
-
-                <!-- Albums -->
-                <h2>Google Photos Albums</h2>
-                <div class="albums-section">
-                    <div class="albums-table-container">
-                        <table id="albumsTable">
-                            <thead>
-                                <tr>
-                                    <th>URL</th>
-                                    <th>Album Name</th>
-                                    <th>Sync Interval</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Populated by JS -->
-                            </tbody>
-                        </table>
-                        <button type="button" class="btn" onclick="addAlbumRow()">+ Add Album</button>
-                    </div>
-
-                    <div class="status-container" id="syncStatusPanel">
-                        <h3>Sync Status</h3>
-                        <div class="status-text" id="statusImmichUser">User: Loading...</div>
-                        <div class="status-text" id="statusAlbum">Current Album: None</div>
-                        <div class="progress-bar-bg">
-                            <div class="progress-bar-fill" id="statusProgressBar"></div>
-                        </div>
-                        <div class="status-text" id="statusItems">Items: 0 / 0</div>
-                        <div class="status-text" id="statusLastRun" style="font-size: 12px; color: #666;">Last Run: Never</div>
-                        <div class="status-text" id="statusNextRun" style="font-size: 12px; color: #666;">Next Run: Pending</div>
-                        <button type="button" class="btn" style="margin-top: 10px; width: 100%;" onclick="triggerSync()">Sync Now</button>
-                    </div>
+    <div class="app" id="mainUI">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark"><svg class="icon"><use href="#icon-images"/></svg></div>
+                <div>
+                    <div class="brand-name">gPhotos2Immich</div>
+                    <div class="brand-sub">Google Photos shared albums to Immich</div>
                 </div>
             </div>
-
-            <div id="tab-advanced" class="tab-content">
-                <h2>Immich API Settings</h2>
-                <label for="apiURL">Immich API URL</label>
-                <input type="text" id="apiURL" name="apiURL" required placeholder="https://immich.example.com/api">
-                
-                <label for="apiKey">Immich API Key</label>
-                <input type="password" id="apiKey" name="apiKey" required placeholder="Your Immich API Key">
-                
-                <h2>Logs</h2>
-                <button type="button" class="btn" onclick="refreshLogs()">Refresh Logs</button>
-                <textarea id="appLogs" readonly></textarea>
+            <div class="topbar-actions">
+                <span class="pill pill-muted" id="statusPill"><span class="status-dot"></span><span id="statusPillText">Idle</span></span>
+                <button class="btn btn-secondary" type="button" onclick="triggerSync()"><svg class="icon"><use href="#icon-sync"/></svg>Sync now</button>
             </div>
+        </header>
 
-            <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 12px; color: #666;">Note: Saving the configuration will automatically restart the syncing process.</span>
-                <button type="button" class="btn btn-success" onclick="saveConfig()">Save Configuration</button>
-            </div>
-        </form>
+        <div class="shell">
+            <nav class="sidebar" aria-label="Settings sections">
+                <button class="nav-item active" data-section="overview" type="button"><svg class="icon"><use href="#icon-layers"/></svg>Overview</button>
+                <button class="nav-item" data-section="connection" type="button"><svg class="icon"><use href="#icon-plug"/></svg>Connection</button>
+                <button class="nav-item" data-section="sync" type="button"><svg class="icon"><use href="#icon-sliders"/></svg>Sync behavior</button>
+                <button class="nav-item" data-section="dedup" type="button"><svg class="icon"><use href="#icon-copy"/></svg>Deduplication</button>
+                <button class="nav-item" data-section="albums" type="button"><svg class="icon"><use href="#icon-albums"/></svg>Albums <span class="nav-count" id="albumCount">0</span></button>
+                <button class="nav-item" data-section="advanced" type="button"><svg class="icon"><use href="#icon-database"/></svg>Advanced</button>
+                <button class="nav-item" data-section="logs" type="button"><svg class="icon"><use href="#icon-terminal"/></svg>Logs</button>
+                <div class="sidebar-footer">
+                    <div class="save-state" id="saveState">All changes saved</div>
+                    <button class="btn btn-primary btn-block" type="button" onclick="saveConfig()">Save changes</button>
+                </div>
+            </nav>
 
-        <div style="margin-top: 20px; text-align: center; font-size: 14px; color: #666;">
-            If you find this project useful, please consider <a href="https://github.com/sponsors/warreth" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; font-weight: bold;">sponsoring me on GitHub</a> to support its development! ❤️
+            <main class="content">
+                <form id="configForm">
+                    <section id="section-overview" class="section active">
+                        <div class="section-header">
+                            <h2>Overview</h2>
+                            <p>What the sync is doing right now and what happens next.</p>
+                        </div>
+
+                        <div class="card status-card">
+                            <div class="status-main">
+                                <div class="status-top">
+                                    <span class="pill pill-muted" id="syncStatePill"><span class="status-dot"></span><span id="syncStateText">Idle</span></span>
+                                    <span class="muted" id="statusUpdated">Updated just now</span>
+                                </div>
+                                <div class="status-album muted" id="statusAlbum">No album is syncing</div>
+                                <div class="progress"><div class="progress-fill" id="statusProgressBar"></div></div>
+                                <div class="status-meta">
+                                    <span id="statusItems">0 / 0 items</span>
+                                    <span id="statusPercentSmall">0%</span>
+                                </div>
+                                <div class="status-times">
+                                    <div><span class="muted">Last run</span><strong id="statusLastRun">Never</strong></div>
+                                    <div><span class="muted">Next run</span><strong id="statusNextRun">Pending</strong></div>
+                                </div>
+                            </div>
+                            <div class="status-side">
+                                <div class="status-percent" id="statusPercent">0%</div>
+                                <div class="status-percent-label">of current album</div>
+                                <div class="status-side-note" id="statusSideNote">Waiting for the next run</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-grid">
+                            <div class="stat"><div class="stat-label">Albums</div><div class="stat-value" id="statAlbums">0</div></div>
+                            <div class="stat"><div class="stat-label">Workers</div><div class="stat-value" id="statWorkers">1</div></div>
+                            <div class="stat"><div class="stat-label">Dedup mode</div><div class="stat-value" id="statDedup">Safe</div></div>
+                            <div class="stat"><div class="stat-label">Immich user</div><div class="stat-value stat-value-sm" id="statUser">Unknown</div></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Quick actions</h3><p>Start a sync or jump to the part you want to change.</p></div>
+                            </div>
+                            <div class="button-row">
+                                <button class="btn btn-primary" type="button" onclick="triggerSync()"><svg class="icon"><use href="#icon-sync"/></svg>Sync now</button>
+                                <button class="btn btn-secondary" type="button" onclick="goToSection('albums')">Add album</button>
+                                <button class="btn btn-ghost" type="button" onclick="goToSection('logs')">View logs</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="section-connection" class="section">
+                        <div class="section-header">
+                            <h2>Connection</h2>
+                            <p>Where gPhotos2Immich sends your photos.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Immich server</h3><p>The API URL must include <code>/api</code>.</p></div>
+                                <span class="pill pill-muted" id="connectionPill"><span class="status-dot"></span>Not tested</span>
+                            </div>
+                            <div class="field">
+                                <label for="apiURL">API URL</label>
+                                <input class="input" type="text" id="apiURL" placeholder="http://immich-server:2283/api" required>
+                            </div>
+                            <div class="field">
+                                <label for="apiKey">API key</label>
+                                <div class="input-group">
+                                    <input class="input" type="password" id="apiKey" placeholder="Your Immich API key" required>
+                                    <button class="btn btn-secondary" type="button" id="toggleKeyBtn" onclick="togglePassword()" title="Show API key"><svg class="icon"><use href="#icon-eye"/></svg></button>
+                                </div>
+                                <div class="hint">Required permissions: <code>asset.read</code>, <code>asset.upload</code>, <code>asset.update</code>, <code>album.create</code>, <code>album.read</code>, <code>album.update</code>, <code>albumAsset.create</code>, <code>user.read</code>.</div>
+                            </div>
+                            <div class="button-row">
+                                <button class="btn btn-secondary" type="button" id="testConnectionBtn" onclick="testConnection()">Test connection</button>
+                                <span class="test-result" id="testConnectionResult"></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="section-sync" class="section">
+                        <div class="section-header">
+                            <h2>Sync behavior</h2>
+                            <p>How much work runs at once and what gets imported.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Concurrency</h3><p>Higher values are faster but use more bandwidth and memory.</p></div>
+                            </div>
+                            <div class="field-grid">
+                                <div class="field">
+                                    <label for="workers">Workers per album</label>
+                                    <input class="input" type="number" id="workers" min="1" max="32" value="1">
+                                    <div class="hint">Downloads and uploads inside one album.</div>
+                                </div>
+                                <div class="field">
+                                    <label for="albumWorkers">Albums in parallel</label>
+                                    <input class="input" type="number" id="albumWorkers" min="1" max="16" value="1">
+                                    <div class="hint">Albums processed at the same time.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Content</h3><p>Choose what the sync is allowed to import.</p></div>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Strict metadata</div>
+                                    <div class="toggle-desc">Skip items with a missing or invalid capture date instead of uploading them with today's date.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="strictMetadata"><span class="switch-track"></span></span>
+                            </label>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Skip videos</div>
+                                    <div class="toggle-desc">Import still images only. Videos are left out of the album.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="skipVideos"><span class="switch-track"></span></span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section id="section-dedup" class="section">
+                        <div class="section-header">
+                            <h2>Deduplication</h2>
+                            <p>What happens when the local state and Immich disagree.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Sync mode</h3><p>The local state lives in <code>data/sync-state.json</code>.</p></div>
+                            </div>
+                            <div class="mode-grid" id="dedupModes">
+                                <label class="mode-card selected" data-mode="safe">
+                                    <input type="radio" name="dedupMode" value="safe" checked>
+                                    <div class="mode-title">Safe <span class="mode-badge">Recommended</span></div>
+                                    <div class="mode-desc">Respects deletions. If Immich replaced an asset with a compressed copy, the replacement is adopted automatically.</div>
+                                </label>
+                                <label class="mode-card" data-mode="repair">
+                                    <input type="radio" name="dedupMode" value="repair">
+                                    <div class="mode-title">Repair <span class="mode-badge">Restores</span></div>
+                                    <div class="mode-desc">Re-uploads anything that is missing and has no replacement. Can recreate duplicates you deleted on purpose.</div>
+                                </label>
+                                <label class="mode-card" data-mode="fast">
+                                    <input type="radio" name="dedupMode" value="fast">
+                                    <div class="mode-title">Fast <span class="mode-badge">Fastest</span></div>
+                                    <div class="mode-desc">Trusts the local state without checking Immich. Stale IDs after deletions or compression are not repaired.</div>
+                                </label>
+                            </div>
+                            <div class="hint" style="margin-top:12px">Safe is the right choice for most libraries. Repair can recreate duplicates you deleted on purpose.</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Existing photos</h3><p>Backfill metadata on assets that are already in Immich.</p></div>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Update existing metadata</div>
+                                    <div class="toggle-desc">Adds the photographer and source album to existing photos. Custom descriptions are left untouched. The first run can take a while.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="updateExistingMetadata"><span class="switch-track"></span></span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section id="section-albums" class="section">
+                        <div class="section-header">
+                            <h2>Albums</h2>
+                            <p>Public Google Photos shared albums to keep in sync.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Shared albums</h3><p>Only links that work in an incognito window can be synced.</p></div>
+                                <span class="pill pill-muted" id="albumCountPill">0 albums</span>
+                            </div>
+                            <div id="albumList" class="album-list"></div>
+                            <div id="albumEmpty" class="empty-state">No albums yet. Add your first shared album below.</div>
+                            <button class="btn btn-secondary" type="button" onclick="addAlbumRow()" style="margin-top:12px"><svg class="icon"><use href="#icon-plus"/></svg>Add album</button>
+                        </div>
+                    </section>
+
+                    <section id="section-advanced" class="section">
+                        <div class="section-header">
+                            <h2>Advanced</h2>
+                            <p>Storage and debugging options.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Storage</h3><p>Where the dedup state is kept.</p></div>
+                            </div>
+                            <div class="field">
+                                <label for="dataDir">Data directory</label>
+                                <input class="input" type="text" id="dataDir" placeholder="./data">
+                                <div class="hint">Changing this starts a new dedup state. The default is <code>./data</code>.</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Diagnostics</h3><p>Verbose logs help when something is not syncing.</p></div>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Debug logging</div>
+                                    <div class="toggle-desc">Log every item and dedup decision. Useful for troubleshooting, noisy for normal use.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="debug"><span class="switch-track"></span></span>
+                            </label>
+                        </div>
+                    </section>
+                </form>
+
+                <section id="section-logs" class="section">
+                    <div class="section-header">
+                        <h2>Logs</h2>
+                        <p>Live output from the sync process.</p>
+                    </div>
+                    <div class="card">
+                        <div class="logs-toolbar">
+                            <div class="button-row">
+                                <button class="btn btn-secondary btn-sm" type="button" onclick="refreshLogs()">Refresh</button>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="copyLogs()">Copy</button>
+                            </div>
+                            <label class="inline-check"><input type="checkbox" id="autoScrollLogs" checked> Auto-scroll</label>
+                        </div>
+                        <pre class="log-view" id="appLogs">Loading logs...</pre>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div class="footer-note">
+            If you find this project useful, consider <a href="https://github.com/sponsors/warreth" target="_blank" rel="noopener noreferrer">sponsoring the project</a>.
         </div>
     </div>
-    
-    <div id="wizardUI" class="wizard-container">
+
+    <div id="wizardUI" class="wizard" style="display:none">
+        <div class="wizard-progress"><div class="wizard-dot active"></div><div class="wizard-dot"></div><div class="wizard-dot"></div></div>
+
         <div id="wizard-1" class="wizard-step active">
-            <h2 class="wizard-step-title">Welcome to gPhotos2Immich</h2>
-            <p>It looks like this is your first time starting this container.</p>
-            <p>This quick setup wizard will help you configure your Immich connection and add your first Google Photos album to sync.</p>
-            <div class="wizard-buttons right">
-                <button type="button" class="btn btn-success" onclick="goWizardStep(2)">Get Started &rarr;</button>
+            <h2>Welcome to gPhotos2Immich</h2>
+            <p>This quick setup connects your Immich server and adds your first shared album. You can change everything later.</p>
+            <div class="wizard-actions right">
+                <button class="btn btn-primary" type="button" onclick="goWizardStep(2)">Get started</button>
             </div>
         </div>
 
         <div id="wizard-2" class="wizard-step">
-            <h2 class="wizard-step-title">Step 1: Immich Settings</h2>
-            <div class="setup-field">
-                <label for="wizApiURL">Immich API URL</label>
-                <input type="text" id="wizApiURL" placeholder="https://immich.example.com/api">
-                <div class="wizard-hint">The URL to your Immich instance, including /api at the end.</div>
+            <h2>Connect Immich</h2>
+            <p>Use the API URL including <code>/api</code> and an API key with the required permissions.</p>
+            <div class="field">
+                <label for="wizApiURL">API URL</label>
+                <input class="input" type="text" id="wizApiURL" placeholder="http://immich-server:2283/api">
             </div>
-            <div class="setup-field">
-                <label for="wizApiKey">Immich API Key</label>
-                <input type="password" id="wizApiKey" placeholder="Your Immich API Key">
-                <div class="wizard-hint">Generate an API key in the Immich Account Settings.</div>
+            <div class="field">
+                <label for="wizApiKey">API key</label>
+                <input class="input" type="password" id="wizApiKey" placeholder="Your Immich API key">
             </div>
-            <div class="wizard-buttons">
-                <button type="button" class="btn" onclick="goWizardStep(1)">&larr; Back</button>
-                <button type="button" class="btn btn-success" onclick="goWizardStep(3)">Next: Add Album &rarr;</button>
+            <div class="button-row">
+                <button class="btn btn-secondary" type="button" onclick="testWizardConnection()">Test connection</button>
+                <span class="test-result" id="wizTestResult"></span>
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" type="button" onclick="goWizardStep(1)">Back</button>
+                <button class="btn btn-primary" type="button" onclick="goWizardStep(3)">Next: add album</button>
             </div>
         </div>
 
         <div id="wizard-3" class="wizard-step">
-            <h2 class="wizard-step-title">Step 2: Add Your First Album</h2>
-            <p style="text-align: left;">Enter the shared link to your Google Photos album. You can always add more later.</p>
-            <div class="setup-field">
-                <div class="wizard-album-row">
-                    <input type="text" id="wizAlbumUrl" placeholder="https://photos.app.goo.gl/..." style="flex: 2;">
-                    <input type="text" id="wizAlbumName" placeholder="Album Name (Optional)">
-                </div>
+            <h2>Add your first album</h2>
+            <p>Paste a public Google Photos shared album link. You can add more later.</p>
+            <div class="field">
+                <label for="wizAlbumUrl">Shared album URL</label>
+                <input class="input" type="text" id="wizAlbumUrl" placeholder="https://photos.app.goo.gl/...">
             </div>
-            <div class="wizard-buttons">
-                <button type="button" class="btn" onclick="goWizardStep(2)">&larr; Back</button>
-                <button type="button" class="btn btn-success" onclick="finishWizard()">Finish Setup &check;</button>
+            <div class="field">
+                <label for="wizAlbumName">Album name (optional)</label>
+                <input class="input" type="text" id="wizAlbumName" placeholder="Summer 2026">
+            </div>
+            <div class="wizard-actions">
+                <button class="btn btn-ghost" type="button" onclick="goWizardStep(2)">Back</button>
+                <button class="btn btn-primary" type="button" onclick="finishWizard()">Finish setup</button>
             </div>
         </div>
     </div>
 
-    <div id="toast" class="toast">Saved successfully!</div>
+    <div class="mobile-save">
+        <span class="save-state" id="mobileSaveState">All changes saved</span>
+        <button class="btn btn-primary" type="button" onclick="saveConfig()">Save changes</button>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
 
     <script>
-        function switchTab(event, tabId) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-            document.getElementById('tab-' + tabId).classList.add('active');
-            if (tabId === 'advanced') {
-                refreshLogs();
-            }
+        const state = {
+            config: null,
+            dirty: false,
+            activeSection: 'overview',
+            toastTimer: null
+        };
+
+        function $(id) { return document.getElementById(id); }
+        function qs(selector, root = document) { return root.querySelector(selector); }
+        function qsa(selector, root = document) { return Array.from(root.querySelectorAll(selector)); }
+
+        function setDirty() {
+            state.dirty = true;
+            ['saveState', 'mobileSaveState'].forEach(id => {
+                const el = $(id);
+                if (!el) return;
+                el.textContent = 'Unsaved changes';
+                el.classList.add('dirty');
+            });
         }
 
-        async function refreshLogs() {
-            try {
-                const res = await fetch('/api/logs');
-                if (res.ok) {
-                    const text = await res.text();
-                    const logArea = document.getElementById('appLogs');
-                    logArea.value = text;
-                    logArea.scrollTop = logArea.scrollHeight;
-                }
-            } catch (err) {
-                console.error('Error fetching logs', err);
-            }
+        function clearDirty() {
+            state.dirty = false;
+            ['saveState', 'mobileSaveState'].forEach(id => {
+                const el = $(id);
+                if (!el) return;
+                el.textContent = 'All changes saved';
+                el.classList.remove('dirty');
+            });
         }
 
-        async function pollStatus() {
-            try {
-                const res = await fetch('/api/status');
-                if (!res.ok) return;
-                const data = await res.json();
-                
-                document.getElementById('statusImmichUser').textContent = data.immichUser ? `User: ${data.immichUser}` : 'User: Unknown';
-                
-                if (data.album) {
-                    document.getElementById('statusAlbum').textContent = `Current Album: ${data.album}`;
-                    document.getElementById('statusItems').textContent = `Items: ${data.processed} / ${data.total}`;
-                    let percent = 0;
-                    if (data.total > 0) {
-                        percent = (data.processed / data.total) * 100;
-                    }
-                    document.getElementById('statusProgressBar').style.width = `${percent}%`;
-                } else {
-                    document.getElementById('statusAlbum').textContent = 'Current Album: None';
-                    document.getElementById('statusItems').textContent = 'Items: 0 / 0';
-                    document.getElementById('statusProgressBar').style.width = '0%';
-                }
-
-                if (data.lastRun) {
-                    document.getElementById('statusLastRun').textContent = `Last Run: ${new Date(data.lastRun).toLocaleTimeString()}`;
-                } else {
-                    document.getElementById('statusLastRun').textContent = 'Last Run: Never';
-                }
-                if (data.nextRun) {
-                    document.getElementById('statusNextRun').textContent = `Next Run: ${new Date(data.nextRun).toLocaleTimeString()}`;
-                } else {
-                    document.getElementById('statusNextRun').textContent = 'Next Run: Pending';
-                }
-            } catch (err) {
-                // Ignore silent errors during polling
-            }
+        function showToast(message, isError = false) {
+            const toast = $('toast');
+            toast.textContent = message;
+            toast.classList.toggle('error', isError);
+            toast.classList.add('show');
+            clearTimeout(state.toastTimer);
+            state.toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
         }
 
-        setInterval(() => {
-            if (document.getElementById('tab-advanced').classList.contains('active')) {
-                refreshLogs();
-            }
-            pollStatus();
-        }, 5000);
-        
-        // Initial poll right away
-        pollStatus();
+        function goToSection(name) {
+            qsa('.section').forEach(section => section.classList.toggle('active', section.id === 'section-' + name));
+            qsa('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === name));
+            state.activeSection = name;
+            if (name === 'logs') refreshLogs();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function goWizardStep(step) {
+            qsa('.wizard-step').forEach(el => el.classList.remove('active'));
+            $('wizard-' + step).classList.add('active');
+            qsa('.wizard-dot').forEach((dot, index) => dot.classList.toggle('active', index < step));
+        }
+
+        function setDedupMode(mode) {
+            const allowed = ['safe', 'repair', 'fast'];
+            if (!allowed.includes(mode)) mode = 'safe';
+            qsa('input[name="dedupMode"]').forEach(input => {
+                input.checked = input.value === mode;
+                input.closest('.mode-card').classList.toggle('selected', input.checked);
+            });
+            updateOverviewStats();
+        }
+
+        function updateOverviewStats() {
+            const albums = qsa('#albumList .album-row').length;
+            $('statAlbums').textContent = albums;
+            $('albumCount').textContent = albums;
+            $('albumCountPill').textContent = albums === 1 ? '1 album' : `${albums} albums`;
+            $('statWorkers').textContent = parseInt($('workers').value, 10) || 1;
+            const mode = qs('input[name="dedupMode"]:checked')?.value || 'safe';
+            $('statDedup').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+        }
+
+        function updateAlbumCount() {
+            const count = qsa('#albumList .album-row').length;
+            $('albumEmpty').style.display = count === 0 ? 'block' : 'none';
+            $('albumCount').textContent = count;
+            $('albumCountPill').textContent = count === 1 ? '1 album' : `${count} albums`;
+        }
+
+        function escapeHtml(value) {
+            if (value === undefined || value === null) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function addAlbumRow(gp = {}) {
+            const row = document.createElement('div');
+            row.className = 'album-row';
+            row.innerHTML = `
+                <div class="field">
+                    <label>Shared album URL</label>
+                    <input class="input" data-field="url" type="text" placeholder="https://photos.app.goo.gl/..." value="${escapeHtml(gp.url || '')}">
+                </div>
+                <div class="field">
+                    <label>Album name</label>
+                    <input class="input" data-field="albumName" type="text" placeholder="Optional name" value="${escapeHtml(gp.albumName || '')}">
+                </div>
+                <div class="field">
+                    <label>Sync interval</label>
+                    <input class="input" data-field="syncInterval" type="text" placeholder="12h" value="${escapeHtml(gp.syncInterval || '24h')}">
+                </div>
+                <div class="field">
+                    <label>Immich album ID</label>
+                    <input class="input" data-field="immichAlbumId" type="text" placeholder="Optional UUID" value="${escapeHtml(gp.immichAlbumId || '')}">
+                </div>
+                <button class="btn btn-ghost btn-sm album-remove" type="button" title="Remove album"><svg class="icon"><use href="#icon-trash"/></svg></button>
+            `;
+            row.querySelector('.album-remove').addEventListener('click', () => {
+                row.remove();
+                updateAlbumCount();
+                updateOverviewStats();
+                setDirty();
+            });
+            $('albumList').appendChild(row);
+            updateAlbumCount();
+            updateOverviewStats();
+        }
 
         async function loadConfig() {
             try {
                 const res = await fetch('/api/config');
-                if (!res.ok) throw new Error('Failed to load');
+                if (!res.ok) throw new Error('Failed to load configuration');
                 const config = await res.json();
-                
-                document.getElementById('apiURL').value = config.apiURL || '';
-                document.getElementById('apiKey').value = config.apiKey || '';
-                document.getElementById('workers').value = config.workers || 1;
-                document.getElementById('debug').checked = config.debug || false;
+                state.config = config;
 
-                const tbody = document.querySelector('#albumsTable tbody');
-                tbody.innerHTML = '';
-                if (config.googlePhotos && config.googlePhotos.length > 0) {
-                    config.googlePhotos.forEach(gp => addAlbumRow(gp));
-                }
+                $('apiURL').value = config.apiURL || '';
+                $('apiKey').value = config.apiKey || '';
+                $('workers').value = config.workers || 1;
+                $('albumWorkers').value = config.albumWorkers || 1;
+                $('debug').checked = !!config.debug;
+                $('strictMetadata').checked = !!config.strictMetadata;
+                $('skipVideos').checked = !!config.skipVideos;
+                $('dataDir').value = config.dataDir || '';
+                $('updateExistingMetadata').checked = !!config.updateExistingMetadata;
+                setDedupMode(config.dedupMode || 'safe');
 
-                // Show wizard if unconfigured
+                $('albumList').innerHTML = '';
+                (config.googlePhotos || []).forEach(gp => addAlbumRow(gp));
+                updateAlbumCount();
+                updateOverviewStats();
+
                 if (!config.apiURL || !config.apiKey) {
-                    document.getElementById('mainUI').style.display = 'none';
-                    document.getElementById('wizardUI').style.display = 'block';
+                    $('mainUI').style.display = 'none';
+                    $('wizardUI').style.display = 'block';
                     goWizardStep(1);
                 } else {
-                    document.getElementById('mainUI').style.display = 'block';
-                    document.getElementById('wizardUI').style.display = 'none';
+                    $('mainUI').style.display = 'block';
+                    $('wizardUI').style.display = 'none';
                 }
+                clearDirty();
             } catch (err) {
                 console.error(err);
-                alert('Error loading configuration');
+                showToast('Could not load configuration', true);
             }
-        }
-
-        function goWizardStep(stepNumber) {
-            document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
-            document.getElementById('wizard-' + stepNumber).classList.add('active');
-        }
-
-        function finishWizard() {
-            const apiUrl = document.getElementById('wizApiURL').value;
-            const apiKey = document.getElementById('wizApiKey').value;
-            if (!apiUrl || !apiKey) {
-                alert("Please provide the Immich API URL and Key in Step 1.");
-                goWizardStep(2);
-                return;
-            }
-
-            document.getElementById('apiURL').value = apiUrl;
-            document.getElementById('apiKey').value = apiKey;
-            
-            const wpUrl = document.getElementById('wizAlbumUrl').value;
-            const wpName = document.getElementById('wizAlbumName').value;
-            
-            // Default configuration empty
-            document.querySelector('#albumsTable tbody').innerHTML = '';
-            
-            if (wpUrl) {
-                addAlbumRow({ url: wpUrl, albumName: wpName, syncInterval: '12h' });
-            }
-
-            document.getElementById('wizardUI').style.display = 'none';
-            document.getElementById('mainUI').style.display = 'block';
-            
-            // Auto save on finish
-            saveConfig();
-        }
-
-        function addAlbumRow(gp = {url: '', albumName: '', syncInterval: '120h'}) {
-            const tbody = document.querySelector('#albumsTable tbody');
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><input type="text" name="url" value="${escapeHtml(gp.url)}" placeholder="https://photos.app.goo.gl/..." required></td>
-                <td><input type="text" name="albumName" value="${escapeHtml(gp.albumName)}" placeholder="Album Name"></td>
-                <td><input type="text" name="syncInterval" value="${escapeHtml(gp.syncInterval)}" placeholder="12h" style="width: 80px;"></td>
-                <td><button type="button" class="btn btn-danger" onclick="this.closest('tr').remove()">Remove</button></td>
-            `;
-            tbody.appendChild(tr);
         }
 
         async function saveConfig() {
-            const form = document.getElementById('configForm');
-            if (!form.reportValidity()) return;
+            const form = $('configForm');
+            if (form && !form.reportValidity()) return;
 
+            const mode = qs('input[name="dedupMode"]:checked')?.value || 'safe';
             const config = {
-                apiURL: document.getElementById('apiURL').value,
-                apiKey: document.getElementById('apiKey').value,
-                workers: parseInt(document.getElementById('workers').value, 10),
-                debug: document.getElementById('debug').checked,
-                googlePhotos: []
+                apiURL: $('apiURL').value.trim(),
+                apiKey: $('apiKey').value.trim(),
+                debug: $('debug').checked,
+                workers: parseInt($('workers').value, 10) || 1,
+                albumWorkers: parseInt($('albumWorkers').value, 10) || 1,
+                strictMetadata: $('strictMetadata').checked,
+                skipVideos: $('skipVideos').checked,
+                dataDir: $('dataDir').value.trim(),
+                dedupMode: mode,
+                updateExistingMetadata: $('updateExistingMetadata').checked,
+                googlePhotos: qsa('#albumList .album-row').map(row => ({
+                    url: row.querySelector('[data-field="url"]').value.trim(),
+                    albumName: row.querySelector('[data-field="albumName"]').value.trim(),
+                    syncInterval: row.querySelector('[data-field="syncInterval"]').value.trim(),
+                    immichAlbumId: row.querySelector('[data-field="immichAlbumId"]').value.trim()
+                })).filter(gp => gp.url)
             };
-
-            const rows = document.querySelectorAll('#albumsTable tbody tr');
-            rows.forEach(row => {
-                config.googlePhotos.push({
-                    url: row.querySelector('input[name="url"]').value,
-                    albumName: row.querySelector('input[name="albumName"]').value,
-                    syncInterval: row.querySelector('input[name="syncInterval"]').value
-                });
-            });
 
             try {
                 const res = await fetch('/api/config', {
@@ -432,16 +1201,79 @@
                     body: JSON.stringify(config)
                 });
                 if (!res.ok) {
-                    const errText = await res.text();
-                    throw new Error(errText || 'Failed to save');
+                    const text = await res.text();
+                    throw new Error(text || 'Failed to save');
                 }
-                
-                const toast = document.getElementById('toast');
-                toast.style.display = 'block';
-                setTimeout(() => toast.style.display = 'none', 3000);
+                state.config = config;
+                clearDirty();
+                updateOverviewStats();
+                showToast('Configuration saved');
+                setTimeout(pollStatus, 800);
             } catch (err) {
                 console.error(err);
-                alert('Error saving configuration: ' + err.message);
+                showToast('Could not save: ' + err.message, true);
+            }
+        }
+
+        async function testConnection() {
+            const btn = $('testConnectionBtn');
+            const result = $('testConnectionResult');
+            const apiURL = $('apiURL').value.trim();
+            const apiKey = $('apiKey').value.trim();
+            if (!apiURL || !apiKey) {
+                result.textContent = 'Fill in the URL and API key first.';
+                result.className = 'test-result danger';
+                return;
+            }
+            btn.disabled = true;
+            result.textContent = 'Testing...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiURL, apiKey })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Connection failed');
+                result.textContent = `Connected as ${data.user || data.userId || 'Immich user'}`;
+                result.className = 'test-result success';
+                $('connectionPill').className = 'pill pill-success';
+                $('connectionPill').innerHTML = '<span class="status-dot"></span>Connected';
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+                $('connectionPill').className = 'pill pill-danger';
+                $('connectionPill').innerHTML = '<span class="status-dot"></span>Not connected';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function testWizardConnection() {
+            const result = $('wizTestResult');
+            const apiURL = $('wizApiURL').value.trim();
+            const apiKey = $('wizApiKey').value.trim();
+            if (!apiURL || !apiKey) {
+                result.textContent = 'Fill in the URL and API key first.';
+                result.className = 'test-result danger';
+                return;
+            }
+            result.textContent = 'Testing...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiURL, apiKey })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Connection failed');
+                result.textContent = `Connected as ${data.user || data.userId || 'Immich user'}`;
+                result.className = 'test-result success';
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
             }
         }
 
@@ -449,32 +1281,148 @@
             try {
                 const res = await fetch('/api/sync', { method: 'POST' });
                 if (!res.ok) throw new Error('Failed to trigger sync');
-                const toast = document.getElementById('toast');
-                toast.textContent = 'Sync triggered!';
-                toast.style.display = 'block';
-                setTimeout(() => {
-                    toast.style.display = 'none';
-                    toast.textContent = 'Saved successfully!';
-                }, 3000);
+                showToast('Sync triggered');
                 pollStatus();
             } catch (err) {
                 console.error(err);
-                alert('Error triggering sync');
+                showToast('Could not trigger sync', true);
             }
         }
 
-        function escapeHtml(unsafe) {
-            if (!unsafe) return '';
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+        function formatDate(value, fallback) {
+            if (!value) return fallback;
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return fallback;
+            return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
-        // Load config on startup
+        async function pollStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const syncing = !!data.album && data.total > 0 && data.processed < data.total;
+                const finishing = !!data.album && data.total > 0 && data.processed >= data.total;
+                let label = 'Idle';
+                let pillClass = 'pill pill-muted';
+                if (syncing) {
+                    label = 'Syncing';
+                    pillClass = 'pill pill-accent';
+                } else if (finishing) {
+                    label = 'Finishing';
+                    pillClass = 'pill pill-accent';
+                }
+                $('statusPill').className = pillClass;
+                $('statusPillText').textContent = label;
+                $('syncStatePill').className = pillClass;
+                $('syncStateText').textContent = label;
+
+                $('statusAlbum').textContent = data.album || 'No album is syncing';
+                $('statusAlbum').classList.toggle('muted', !data.album);
+                const percent = data.total > 0 ? Math.min(100, Math.round((data.processed / data.total) * 100)) : 0;
+                $('statusProgressBar').style.width = percent + '%';
+                $('statusPercent').textContent = percent + '%';
+                $('statusPercentSmall').textContent = percent + '%';
+                $('statusItems').textContent = `${data.processed || 0} / ${data.total || 0} items`;
+                $('statusLastRun').textContent = formatDate(data.lastRun, 'Never');
+                $('statusNextRun').textContent = formatDate(data.nextRun, 'Pending');
+                $('statUser').textContent = data.immichUser || 'Unknown';
+                $('statusSideNote').textContent = data.album ? 'Live progress of the current album' : 'Waiting for the next run';
+                $('statusUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                // Silent: the next poll will try again.
+            }
+        }
+
+        async function refreshLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                if (!res.ok) return;
+                const text = await res.text();
+                const pre = $('appLogs');
+                pre.textContent = text || 'No log output yet.';
+                if ($('autoScrollLogs').checked) pre.scrollTop = pre.scrollHeight;
+            } catch (err) {
+                // Silent: the next refresh will try again.
+            }
+        }
+
+        async function copyLogs() {
+            try {
+                await navigator.clipboard.writeText($('appLogs').textContent);
+                showToast('Logs copied');
+            } catch (err) {
+                showToast('Could not copy logs', true);
+            }
+        }
+
+        function togglePassword() {
+            const input = $('apiKey');
+            const button = $('toggleKeyBtn');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            button.innerHTML = `<svg class="icon"><use href="#icon-${show ? 'eye-off' : 'eye'}"/></svg>`;
+            button.title = show ? 'Hide API key' : 'Show API key';
+        }
+
+        function finishWizard() {
+            const apiURL = $('wizApiURL').value.trim();
+            const apiKey = $('wizApiKey').value.trim();
+            if (!apiURL || !apiKey) {
+                showToast('Fill in the Immich URL and API key', true);
+                goWizardStep(2);
+                return;
+            }
+            $('apiURL').value = apiURL;
+            $('apiKey').value = apiKey;
+            const url = $('wizAlbumUrl').value.trim();
+            const name = $('wizAlbumName').value.trim();
+            $('albumList').innerHTML = '';
+            if (url) addAlbumRow({ url, albumName: name, syncInterval: '12h' });
+            $('wizardUI').style.display = 'none';
+            $('mainUI').style.display = 'block';
+            saveConfig().then(() => setTimeout(loadConfig, 600));
+        }
+
+        qsa('.nav-item').forEach(item => {
+            item.addEventListener('click', () => goToSection(item.dataset.section));
+        });
+
+        $('configForm').addEventListener('submit', event => {
+            event.preventDefault();
+            saveConfig();
+        });
+
+        $('workers').addEventListener('input', updateOverviewStats);
+
+        qsa('input[name="dedupMode"]').forEach(input => {
+            input.addEventListener('change', () => {
+                qsa('.mode-card').forEach(card => card.classList.toggle('selected', card.querySelector('input').checked));
+                updateOverviewStats();
+                setDirty();
+            });
+        });
+
+        document.addEventListener('input', event => {
+            if (event.target.closest('#configForm')) setDirty();
+        });
+
+        document.addEventListener('change', event => {
+            if (event.target.closest('#configForm')) setDirty();
+        });
+
+        window.addEventListener('beforeunload', event => {
+            if (!state.dirty) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+
         loadConfig();
+        pollStatus();
+        setInterval(pollStatus, 5000);
+        setInterval(() => {
+            if (state.activeSection === 'logs') refreshLogs();
+        }, 5000);
     </script>
 </body>
 </html>

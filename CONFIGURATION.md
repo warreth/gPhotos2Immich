@@ -2,7 +2,7 @@
 
 For advanced setups, environments where a Web UI is undesirable, or fully automated deployments, you can configure `gPhotos2Immich` strictly via a `config.json` file.
 
-If you don't use the Web UI, you can disable it entirely by setting the `DISABLE_WEBUI=true` environment variable.
+If you don't use the Web UI, you can disable it entirely by setting the `DISABLE_WEBUI=true` environment variable. Every option below can also be edited from the built-in Web UI, which includes a connection test and live logs.
 
 ## Environment Variables
 
