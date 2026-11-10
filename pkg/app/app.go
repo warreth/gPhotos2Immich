@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,16 +17,23 @@ import (
 	"warreth.dev/gphotos2immich/pkg/immich"
 	"warreth.dev/gphotos2immich/pkg/progress"
 	"warreth.dev/gphotos2immich/pkg/state"
-	"warreth.dev/gphotos2immich/pkg/util"
 )
 
 type App struct {
-	Cfg      *config.Config
-	Client   *immich.Client
-	GPClient *googlephotos.Client
-	Logger   *slog.Logger
-	State    *state.SyncState
-	syncCh   chan struct{}
+	Cfg           *config.Config
+	Client        *immich.Client
+	GPClient      *googlephotos.Client
+	Logger        *slog.Logger
+	State         *state.SyncState
+	syncCh        chan struct{}
+	descriptionCh chan descriptionUpdate
+}
+
+type descriptionUpdate struct {
+	assetID         string
+	description     string
+	waitForMetadata bool
+	force           bool
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -65,12 +74,13 @@ func New(cfg *config.Config) (*App, error) {
 	logger.Info("Loaded persistent dedup state", "entries", syncState.Count())
 
 	return &App{
-		Cfg:      cfg,
-		Client:   client,
-		GPClient: gpClient,
-		Logger:   logger,
-		State:    syncState,
-		syncCh:   make(chan struct{}, 1),
+		Cfg:           cfg,
+		Client:        client,
+		GPClient:      gpClient,
+		Logger:        logger,
+		State:         syncState,
+		syncCh:        make(chan struct{}, 1),
+		descriptionCh: make(chan descriptionUpdate, 10000),
 	}, nil
 }
 
@@ -82,11 +92,195 @@ func (a *App) TriggerSync() {
 	}
 }
 
+// queueDescription schedules an asset description update without blocking the
+// upload workers. Immich v3 ignores the description field on upload and its
+// metadata-extraction job can overwrite a description written too early, so
+// updates are applied asynchronously after extraction has finished.
+func (a *App) queueDescription(update descriptionUpdate) {
+	if update.assetID == "" || update.description == "" {
+		return
+	}
+	select {
+	case a.descriptionCh <- update:
+	default:
+		a.Logger.Warn("Description update queue is full, skipping", "asset_id", update.assetID)
+	}
+}
+
+func (a *App) descriptionWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update := <-a.descriptionCh:
+			a.applyDescriptionUpdate(ctx, update)
+		}
+	}
+}
+
+func (a *App) applyDescriptionUpdate(ctx context.Context, update descriptionUpdate) {
+	if update.waitForMetadata {
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			asset, err := a.Client.GetAsset(ctx, update.assetID)
+			if err == nil && asset.HasMetadata {
+				break
+			}
+			var httpErr *immich.HTTPError
+			if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+				return
+			}
+			if time.Now().After(deadline) {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}
+
+	if !update.force {
+		asset, err := a.Client.GetAsset(ctx, update.assetID)
+		if err == nil {
+			current := asset.ExifInfo.Description
+			if current != "" && current != update.description && !strings.Contains(current, "Source Album:") {
+				a.Logger.Debug("Leaving user-edited description untouched", "asset_id", update.assetID)
+				return
+			}
+		}
+	}
+
+	if err := a.Client.UpdateAssetDescription(ctx, update.assetID, update.description); err != nil {
+		a.Logger.Warn("Failed to update asset description", "asset_id", update.assetID, "error", err)
+	}
+}
+
+func (a *App) queueUploadDescription(assetID, description string, isDup bool) {
+	if description == "" || assetID == "" {
+		return
+	}
+	if isDup && !a.Cfg.UpdateExistingMetadata {
+		return
+	}
+	a.queueDescription(descriptionUpdate{
+		assetID:         assetID,
+		description:     description,
+		waitForMetadata: !isDup,
+		force:           !isDup,
+	})
+}
+
+func (a *App) maybeQueueDescription(assetID string, p googlephotos.Photo, albumTitle, albumURL string, globalAssets *immich.AssetIndex) {
+	if !a.Cfg.UpdateExistingMetadata || assetID == "" {
+		return
+	}
+	description := buildDescription(p, albumTitle, albumURL)
+	if description == "" {
+		return
+	}
+	if globalAssets != nil {
+		if current, ok := globalAssets.Descriptions[assetID]; ok && descriptionAlreadySet(current, p.Photographer) {
+			return
+		}
+	}
+	a.queueDescription(descriptionUpdate{
+		assetID:     assetID,
+		description: description,
+	})
+}
+
+func descriptionAlreadySet(current, photographer string) bool {
+	if current == "" {
+		return false
+	}
+	if !strings.Contains(current, "Source Album:") {
+		// A custom caption is left untouched by updateExistingMetadata.
+		return true
+	}
+	if photographer == "" {
+		return true
+	}
+	return strings.Contains(current, "Photographer: "+photographer)
+}
+
+func buildDescription(p googlephotos.Photo, albumTitle, albumURL string) string {
+	parts := make([]string, 0, 3)
+	if p.Description != "" {
+		parts = append(parts, p.Description)
+	}
+	if p.Photographer != "" {
+		parts = append(parts, "Photographer: "+p.Photographer)
+	}
+	parts = append(parts, fmt.Sprintf("Source Album: %s (%s)", albumTitle, albumURL))
+	return strings.Join(parts, "\n\n")
+}
+
+const (
+	immichConnectInitialDelay = 2 * time.Second
+	immichConnectMaxDelay     = 30 * time.Second
+)
+
+// waitForImmich waits for Immich to accept requests. The sync container is
+// often started at the same time as Immich, which then still needs to boot, so
+// connection failures are retried with backoff instead of aborting startup.
+// Client errors (bad API key, wrong URL) are returned immediately because
+// retrying them cannot succeed.
+func (a *App) waitForImmich(ctx context.Context) (string, string, error) {
+	delay := immichConnectInitialDelay
+	for attempt := 1; ; attempt++ {
+		id, name, err := a.Client.GetUser(ctx)
+		if err == nil {
+			return id, name, nil
+		}
+		if ctx.Err() != nil {
+			return "", "", ctx.Err()
+		}
+		if isPermanentImmichError(err) {
+			return "", "", err
+		}
+
+		a.Logger.Warn("Immich is not reachable yet, retrying",
+			"attempt", attempt,
+			"retry_in", delay.Round(time.Second),
+			"error", err,
+		)
+
+		select {
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		case <-time.After(delay):
+		}
+
+		delay *= 2
+		if delay > immichConnectMaxDelay {
+			delay = immichConnectMaxDelay
+		}
+	}
+}
+
+// isPermanentImmichError reports whether retrying the request cannot help,
+// for example when the API key is rejected or the API URL does not exist.
+func isPermanentImmichError(err error) bool {
+	var httpErr *immich.HTTPError
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.StatusCode >= 400 &&
+		httpErr.StatusCode < 500 &&
+		httpErr.StatusCode != http.StatusTooManyRequests
+}
+
 func (a *App) Run(ctx context.Context) error {
 	a.Logger.Info("Starting Immich Sync")
 
-	id, name, err := a.Client.GetUser(ctx)
+	id, name, err := a.waitForImmich(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			a.Logger.Info("Shutdown requested, stopping sync loop")
+			return nil
+		}
 		return fmt.Errorf("failed to connect to Immich: %w", err)
 	}
 	a.Logger.Info("Connected to Immich", "user_id", id, "name", name)
@@ -94,6 +288,12 @@ func (a *App) Run(ctx context.Context) error {
 	if len(a.Cfg.GooglePhotos) == 0 {
 		a.Logger.Warn("No albums configured")
 		return nil
+	}
+
+	// Description updates are applied asynchronously so a slow metadata
+	// extraction job never blocks the upload workers.
+	for i := 0; i < 4; i++ {
+		go a.descriptionWorker(ctx)
 	}
 
 	// Initialize schedule - all albums due immediately
@@ -137,12 +337,13 @@ func (a *App) Run(ctx context.Context) error {
 				a.Logger.Warn("Failed to fetch Immich album list", "error", err)
 			}
 
-			globalAssets, err := a.Client.SearchAssetsByDevice(ctx, "gphotos2immich-go")
+			globalAssets, err := a.Client.SearchAssets(ctx, "gphotos2immich-go")
 			if err != nil {
-				a.Logger.Warn("Failed to fetch global assets, will fall back to re-upload for duplicates", "error", err)
-				globalAssets = make(map[string]string)
+				a.Logger.Warn("Failed to fetch global assets, dedup state will be trusted without verification", "error", err)
+				globalAssets = nil
+			} else {
+				a.Logger.Debug("Pre-fetched global assets from Immich", "count", globalAssets.Count)
 			}
-			a.Logger.Debug("Pre-fetched global assets from Immich", "count", len(globalAssets))
 
 			a.Logger.Info("Processing due albums", "count", len(due), "album_workers", albumWorkers)
 
@@ -229,34 +430,25 @@ func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, 
 	return newAlbum.Id
 }
 
-// prefetchAlbumAssets fetches existing asset names from an Immich album for deduplication
-func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *slog.Logger) map[string]string {
-	existingFiles := make(map[string]string)
+// prefetchAlbumAssets fetches existing assets from an Immich album for deduplication.
+func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *slog.Logger) *immich.AssetIndex {
+	index := immich.NewAssetIndex()
 	if albumId == "" {
-		return existingFiles
+		return index
 	}
 	albumDetails, err := a.Client.GetAlbum(ctx, albumId)
 	if err != nil {
 		logger.Warn("Failed to fetch album details", "error", err)
-		return existingFiles
+		return index
 	}
 	for _, asset := range albumDetails.Assets {
-		var name string
-		if util.IsVideoFilename(asset.OriginalFileName) {
-			// For videos, use full filename to avoid colliding with image basenames
-			// (especially motion photo containers like "photo.mp.jpg")
-			name = asset.OriginalFileName
-		} else {
-			// For images, use basename without extension (existing behavior)
-			name = util.StripExtension(asset.OriginalFileName)
-		}
-		existingFiles[name] = asset.Id
+		index.Add(asset.Id, asset.OriginalFileName, "", "")
 	}
-	logger.Debug("Pre-fetched album assets", "count", len(existingFiles))
-	return existingFiles
+	logger.Debug("Pre-fetched album assets", "count", index.Count)
+	return index
 }
 
-func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, albumCache []immich.Album, globalAssets map[string]string) {
+func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, albumCache []immich.Album, globalAssets *immich.AssetIndex) {
 	logger := a.Logger.With("album_url", ac.URL)
 	logger.Info("Syncing Google Photos Album")
 
@@ -280,7 +472,11 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	albumId := a.resolveAlbumID(ctx, ac, albumTitle, albumCache, logger)
 	existingFiles := a.prefetchAlbumAssets(ctx, albumId, logger)
 
-	logger.Debug("Dedup cache loaded", "album_assets", len(existingFiles), "global_assets", len(globalAssets))
+	globalCount := 0
+	if globalAssets != nil {
+		globalCount = globalAssets.Count
+	}
+	logger.Debug("Dedup cache loaded", "album_assets", existingFiles.Count, "global_assets", globalCount)
 
 	var newAssetIds []string
 
@@ -407,26 +603,46 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	}
 }
 
-func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle, albumURL string, existingFiles map[string]string, globalAssets map[string]string) (string, bool, int64, int64, error) {
+func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {
 	safeId := strings.ReplaceAll(p.ID, "/", "_")
 	safeId = strings.ReplaceAll(safeId, ":", "_")
 	baseName := fmt.Sprintf("gp_%s", safeId)
+	isVideoItem := p.IsVideo
 
-	// Dedup checks against Immich (album-level, global device search, and persistent state)
-	if assetId, exists := existingFiles[baseName]; exists {
+	// Album-level dedup: the album is fetched fresh from Immich, so a hit here
+	// is authoritative even when the persistent state is stale.
+	if assetId, exists := findIndexedAsset(albumAssets, baseName, isVideoItem); exists {
 		a.Logger.Debug("Asset already in album (Immich album lookup)", "id", assetId, "filename", baseName)
+		a.State.Set(baseName, assetId)
+		a.maybeQueueDescription(assetId, p, albumTitle, albumURL, globalAssets)
 		return "", false, 0, 0, nil
 	}
 
-	if assetId, exists := globalAssets[baseName]; exists {
-		a.Logger.Debug("Asset exists in Immich (device search), adding to album", "id", assetId, "filename", baseName)
+	// Global dedup: assets uploaded by this tool, including compressed
+	// replacements whose filename carries a ".cmp" marker.
+	if assetId, exists := findIndexedAsset(globalAssets, baseName, isVideoItem); exists {
+		a.Logger.Debug("Asset exists in Immich (global search), adding to album", "id", assetId, "filename", baseName)
+		a.State.Set(baseName, assetId)
+		a.maybeQueueDescription(assetId, p, albumTitle, albumURL, globalAssets)
 		return assetId, false, 0, 0, nil
 	}
 
-	// Persistent local state catches assets uploaded under a different deviceId/filename
-	if assetId, exists := a.State.Get(baseName); exists {
-		a.Logger.Debug("Asset found in persistent dedup cache", "id", assetId, "filename", baseName)
-		return assetId, false, 0, 0, nil
+	// Persistent local state catches assets uploaded under a different
+	// deviceId/filename. Verify it when the global index is available so
+	// deletions and compressed replacements are handled correctly.
+	stateAssetID, stateAction := a.resolveStateAsset(baseName, isVideoItem, globalAssets)
+	switch stateAction {
+	case stateUse:
+		a.Logger.Debug("Asset found in persistent dedup cache", "id", stateAssetID, "filename", baseName)
+		a.maybeQueueDescription(stateAssetID, p, albumTitle, albumURL, globalAssets)
+		return stateAssetID, false, 0, 0, nil
+	case stateSkip:
+		a.Logger.Debug("State asset no longer exists in Immich, skipping (dedupMode=safe)",
+			"id", stateAssetID, "filename", baseName)
+		return "", false, 0, 0, nil
+	case stateReupload:
+		a.Logger.Info("State asset no longer exists in Immich, re-uploading",
+			"old_id", stateAssetID, "filename", baseName)
 	}
 
 	a.Logger.Debug("Asset not found in dedup, will download",
@@ -452,16 +668,17 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 		bytesDownloaded += int64(len(media.VideoData))
 	}
 
-	// For videos, also check both existingFiles and globalAssets by full filename to catch video dedup
-	if isVideo {
-		filename := baseName + ext
-		if assetId, exists := existingFiles[filename]; exists {
-			a.Logger.Debug("Video already in album (album-level dedup by filename)", "id", assetId, "filename", filename)
-			return "", false, bytesDownloaded, 0, nil
-		}
-		if assetId, exists := globalAssets[filename]; exists {
-			a.Logger.Debug("Video exists in Immich (device search by filename), adding to album", "id", assetId, "filename", filename)
-			return assetId, false, bytesDownloaded, 0, nil
+	// If a type-mismatched state entry turns out to match the media we just
+	// downloaded (for example a video whose album metadata said image), keep
+	// the existing asset instead of re-uploading it on every sync.
+	if stateAssetID != "" && globalAssets != nil && globalAssets.IDs[stateAssetID] {
+		downloadedIsVideo := media.Kind == "video"
+		stateType := globalAssets.Types[stateAssetID]
+		if (downloadedIsVideo && stateType == "VIDEO") || (!downloadedIsVideo && stateType == "IMAGE") {
+			a.Logger.Debug("Downloaded media matches existing state asset, skipping upload",
+				"id", stateAssetID, "filename", baseName)
+			a.maybeQueueDescription(stateAssetID, p, albumTitle, albumURL, globalAssets)
+			return stateAssetID, false, bytesDownloaded, 0, nil
 		}
 	}
 
@@ -479,12 +696,7 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 		)
 	}
 
-	description := p.Description
-	sep := "\n"
-	if description != "" {
-		sep = "\n\n"
-	}
-	description += fmt.Sprintf("%sSource Album: %s (%s)", sep, albumTitle, albumURL)
+	description := buildDescription(p, albumTitle, albumURL)
 
 	if p.TakenAt.IsZero() {
 		a.Logger.Warn("Uploading item with missing metadata date (using current time)",
@@ -579,6 +791,7 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 				bytesUploaded += int64(len(videoData))
 			}
 			a.State.Set(baseName, uploadedId)
+			a.queueUploadDescription(uploadedId, description, isDup)
 			if isDup {
 				a.Logger.Debug("Motion photo deduplicated by Immich", "filename", filename, "id", uploadedId)
 				return uploadedId, false, bytesDownloaded, bytesUploaded, nil
@@ -601,6 +814,7 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	bytesUploaded := int64(len(data))
 	a.State.Set(baseName, uploadedId)
+	a.queueUploadDescription(uploadedId, description, isDup)
 
 	if isDup {
 		a.Logger.Debug("Asset deduplicated by Immich", "filename", filename, "id", uploadedId)
@@ -609,4 +823,65 @@ func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle,
 
 	a.Logger.Debug("Uploaded item", "filename", filename, "id", uploadedId)
 	return uploadedId, true, bytesDownloaded, bytesUploaded, nil
+}
+
+func findIndexedAsset(index *immich.AssetIndex, baseName string, isVideo bool) (string, bool) {
+	if index == nil {
+		return "", false
+	}
+	if isVideo {
+		return index.FindVideo(baseName, "")
+	}
+	return index.FindImage(baseName)
+}
+
+type stateAction int
+
+const (
+	stateNone stateAction = iota
+	stateUse
+	stateSkip
+	stateReupload
+)
+
+// resolveStateAsset decides what to do with a persistent state entry for an
+// item. It returns the asset ID and one of:
+//   - stateNone: no state entry, continue with a normal download.
+//   - stateUse: the entry is still valid (or a replacement was adopted).
+//   - stateSkip: the asset was deleted and safe mode says to respect that.
+//   - stateReupload: the asset is missing and repair mode wants it back.
+func (a *App) resolveStateAsset(baseName string, isVideo bool, globalAssets *immich.AssetIndex) (string, stateAction) {
+	assetID, exists := a.State.Get(baseName)
+	if !exists {
+		return "", stateNone
+	}
+
+	if !a.Cfg.VerifyDedupState() || globalAssets == nil {
+		return assetID, stateUse
+	}
+
+	if globalAssets.IDs[assetID] {
+		stateType := globalAssets.Types[assetID]
+		if (isVideo && stateType == "VIDEO") || (!isVideo && stateType == "IMAGE") {
+			return assetID, stateUse
+		}
+		// The state points at a different media type. This is the old HEIC
+		// Live Photo bug (an image item recorded as its .mov clip), so
+		// re-process the item instead of skipping it. Keep the ID so the
+		// post-download check can still avoid a needless re-upload when the
+		// downloaded media actually matches the existing asset.
+		return assetID, stateReupload
+	}
+
+	if a.Cfg.AdoptReplacements() {
+		if replacement, ok := globalAssets.FindReplacement(baseName, isVideo); ok {
+			a.State.Set(baseName, replacement)
+			return replacement, stateUse
+		}
+	}
+
+	if a.Cfg.ReuploadMissing() {
+		return "", stateReupload
+	}
+	return "", stateSkip
 }

@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -190,6 +191,9 @@ func scrapeIPhoneAlbum(t *testing.T) *Album {
 	defer cancel()
 	album, err := ScrapeAlbum(ctx, client, iphoneAlbumURL)
 	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			t.Skip("iPhone test album is no longer publicly available")
+		}
 		t.Fatalf("failed to scrape iPhone test album: %v", err)
 	}
 	integrationIPhoneAlbum = album

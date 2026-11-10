@@ -21,7 +21,7 @@ func main() {
 	os.Stdout = w
 	os.Stderr = w
 	log.SetOutput(w)
-	
+
 	go func() {
 		buf := make([]byte, 1024)
 		for {
@@ -70,8 +70,16 @@ func main() {
 			if appl != nil {
 				log.Println("Manual sync requested via API/Web UI.")
 				appl.TriggerSync()
-			} else {
-				log.Println("Manual sync requested but application is not initialized yet.")
+				return
+			}
+
+			// The app is not running yet (e.g. it is waiting for a
+			// configuration update). Re-run the startup path so a manual
+			// sync also works before the first successful connection.
+			log.Println("Manual sync requested, reinitializing application...")
+			select {
+			case reloadCh <- struct{}{}:
+			default:
 			}
 		}
 

@@ -33,13 +33,16 @@ type Album struct {
 }
 
 type Photo struct {
-	ID          string
-	URL         string
-	Width       int
-	Height      int
-	IsVideo     bool
-	TakenAt     time.Time
-	Description string
+	ID      string
+	URL     string
+	Width   int
+	Height  int
+	IsVideo bool
+	TakenAt time.Time
+	// Description is reserved for a per-item caption. Google's shared-album
+	// page does not expose captions inline, so this is normally empty.
+	Description  string
+	Photographer string
 }
 
 // ScrapeAlbum parses a Google Photos shared album URL and returns the Album structure.
@@ -168,8 +171,12 @@ func ScrapeAlbum(ctx context.Context, client *Client, albumURL string) (*Album, 
 		}
 	}
 
+	// Parse the album's contributor list so every item can carry the name of
+	// the person who added (and normally took) the photo.
+	contributors := parseContributors(data)
+
 	// Parse initial batch of items from embedded page data
-	photos := parsePhotoItems(list)
+	photos := parsePhotoItems(list, contributors)
 
 	// Extract pagination tokens for fetching remaining album items
 	wiz := extractWizTokens(htmlContent)
@@ -220,7 +227,7 @@ func ScrapeAlbum(ctx context.Context, client *Client, albumURL string) (*Album, 
 			const maxPages = 500
 			for page := 0; page < maxPages && continueToken != ""; page++ {
 				client.logger.Debug("Fetching album page", "page", page+2, "total_items", len(photos))
-				nextPhotos, nextToken, fetchErr := fetchNextPage(ctx, client, mediaKey, authKey, continueToken, sourcePath, wiz)
+				nextPhotos, nextToken, fetchErr := fetchNextPage(ctx, client, mediaKey, authKey, continueToken, sourcePath, wiz, contributors)
 				if fetchErr != nil {
 					client.logger.Warn("Pagination stopped", "page", page+2, "error", fetchErr)
 					break
@@ -270,8 +277,116 @@ func normalizeTimestamp(t int64) int64 {
 	return t
 }
 
-// parsePhotoItems extracts Photo structs from a list of raw scraped item arrays
-func parsePhotoItems(list []interface{}) []Photo {
+func firstString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case []interface{}:
+		for _, item := range val {
+			if s, ok := item.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// parseContributors extracts the album's contributor list. Google stores one
+// or more contributor entries in the album metadata; the exact index varies
+// between page versions (data[3][9] holds a list of entries on current pages,
+// while data[3][21] has been seen on others). Each entry carries the user ID
+// at index 0 or 5 and the display-name details at index 3 or 11.
+func parseContributors(data []interface{}) map[string]string {
+	contributors := make(map[string]string)
+	if len(data) <= 3 {
+		return contributors
+	}
+	meta, ok := data[3].([]interface{})
+	if !ok {
+		return contributors
+	}
+
+	// contributorID accepts both layouts: the owner object has the ID (or an
+	// ID pair) at index 0, while the contributor list may also carry the pair
+	// at index 5.
+	contributorID := func(entry []interface{}) string {
+		if len(entry) == 0 {
+			return ""
+		}
+		if id := firstString(entry[0]); id != "" {
+			return id
+		}
+		if len(entry) > 5 {
+			if id := firstString(entry[5]); id != "" {
+				return id
+			}
+		}
+		return ""
+	}
+
+	// contributorName accepts the owner layout (index 11) and the
+	// contributor-list layout (index 3).
+	contributorName := func(entry []interface{}) string {
+		for _, idx := range []int{3, 11} {
+			if len(entry) <= idx {
+				continue
+			}
+			if details, ok := entry[idx].([]interface{}); ok && len(details) > 0 {
+				if name, ok := details[0].(string); ok && name != "" {
+					return name
+				}
+			}
+		}
+		return ""
+	}
+
+	var addAll func(interface{})
+	addAll = func(v interface{}) {
+		entry, ok := v.([]interface{})
+		if !ok {
+			return
+		}
+		if id := contributorID(entry); id != "" {
+			if name := contributorName(entry); name != "" {
+				contributors[id] = name
+				return
+			}
+		}
+		// Not a single entry: recurse into a list of contributor entries.
+		for _, child := range entry {
+			addAll(child)
+		}
+	}
+
+	if len(meta) > 21 {
+		addAll(meta[21])
+	}
+	if len(meta) > 9 {
+		addAll(meta[9])
+	}
+	return contributors
+}
+
+// itemContributorID returns the contributor ID stored on a scraped item.
+// Google puts it in the item's index 6 list.
+func itemContributorID(itemArr []interface{}) string {
+	if len(itemArr) <= 6 {
+		return ""
+	}
+	list, ok := itemArr[6].([]interface{})
+	if !ok {
+		return ""
+	}
+	for _, v := range list {
+		if id, ok := v.(string); ok && id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+// parsePhotoItems extracts Photo structs from a list of raw scraped item arrays.
+func parsePhotoItems(list []interface{}, contributors map[string]string) []Photo {
 	var photos []Photo
 	for _, item := range list {
 		itemArr, ok := item.([]interface{})
@@ -300,23 +415,23 @@ func parsePhotoItems(list []interface{}) []Photo {
 
 		timestamp := extractTimestamp(itemArr)
 
-		var description string
-		for i := 3; i < len(itemArr); i++ {
-			if d, ok := itemArr[i].(string); ok && d != "" {
-				description = d
-				break
+		photographer := contributors[itemContributorID(itemArr)]
+		if photographer == "" && len(contributors) == 1 {
+			// Older album payloads do not carry a per-item contributor ID.
+			for _, name := range contributors {
+				photographer = name
 			}
 		}
 
 		if photoURL != "" {
 			photos = append(photos, Photo{
-				ID:          id,
-				URL:         photoURL,
-				Width:       w,
-				Height:      h,
-				IsVideo:     itemIsVideo(itemArr),
-				TakenAt:     timestamp,
-				Description: description,
+				ID:           id,
+				URL:          photoURL,
+				Width:        w,
+				Height:       h,
+				IsVideo:      itemIsVideo(itemArr),
+				TakenAt:      timestamp,
+				Photographer: photographer,
 			})
 		}
 	}
@@ -417,7 +532,7 @@ func extractAuthKeyFromURL(rawURL string) string {
 }
 
 // fetchNextPage calls Google's internal batchexecute API to get the next page of album items
-func fetchNextPage(ctx context.Context, client *Client, mediaKey, authKey, pageToken, sourcePath string, wiz wizTokens) ([]Photo, string, error) {
+func fetchNextPage(ctx context.Context, client *Client, mediaKey, authKey, pageToken, sourcePath string, wiz wizTokens, contributors map[string]string) ([]Photo, string, error) {
 	// Build the inner request payload
 	innerData := []interface{}{mediaKey, pageToken, nil, authKey}
 	innerJSON, err := json.Marshal(innerData)
@@ -466,11 +581,11 @@ func fetchNextPage(ctx context.Context, client *Client, mediaKey, authKey, pageT
 		return nil, "", fmt.Errorf("failed to read batchexecute response: %w", err)
 	}
 
-	return parseBatchResponse(string(respBody))
+	return parseBatchResponse(string(respBody), contributors)
 }
 
 // parseBatchResponse parses Google's batchexecute multi-line RPC response format
-func parseBatchResponse(body string) ([]Photo, string, error) {
+func parseBatchResponse(body string, contributors map[string]string) ([]Photo, string, error) {
 	lines := strings.Split(body, "\n")
 
 	for _, line := range lines {
@@ -515,7 +630,7 @@ func parseBatchResponse(body string) ([]Photo, string, error) {
 		var photos []Photo
 		if len(payload) > 1 {
 			if items, ok := payload[1].([]interface{}); ok {
-				photos = parsePhotoItems(items)
+				photos = parsePhotoItems(items, contributors)
 			}
 		}
 
@@ -733,16 +848,14 @@ func isImageMagicBytes(data []byte) bool {
 	if string(data[0:4]) == "RIFF" && len(data) >= 12 && string(data[8:12]) == "WEBP" {
 		return true
 	}
-	// HEIC/HEIF: ftyp box with heic/mif1/heif brand
+	// HEIC/HEIF: ftyp box with an ISO BMFF image brand. Besides the common
+	// heic/mif1/heif brands, cover the HEVC image-sequence and AVIF brands so
+	// they are never mistaken for a video container.
 	if string(data[4:8]) == "ftyp" && len(data) >= 12 {
-		brand := string(data[8:12])
-		if brand == "heic" || brand == "mif1" || brand == "heif" || brand == "heix" {
+		switch string(data[8:12]) {
+		case "heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1", "heif", "avif", "avis":
 			return true
 		}
-	}
-	// AVIF: ftyp box with avif brand
-	if string(data[4:8]) == "ftyp" && len(data) >= 12 && string(data[8:12]) == "avif" {
-		return true
 	}
 	// TIFF: II (little-endian) or MM (big-endian)
 	if (data[0] == 0x49 && data[1] == 0x49 && data[2] == 0x2A && data[3] == 0x00) ||
@@ -874,7 +987,7 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 	}
 
 	// If =d is actually a video item, prefer =dv for the original video stream.
-	isVideo := isVideoMagicBytes(data)
+	isVideo := isVideoBytes(data)
 	if isVideo {
 		resp2, err := client.Get(ctx, baseUrl+"=dv")
 		if err != nil {
@@ -906,9 +1019,17 @@ func DownloadMedia(ctx context.Context, client *Client, baseUrl string) ([]byte,
 
 	// Fallback: determine if this is video by checking both Content-Type and magic bytes.
 	// If =dv retry failed but Content-Type indicated video, trust that classification.
-	isVideoFinal := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoMagicBytes(data)
+	isVideoFinal := strings.HasPrefix(strings.ToLower(ct), "video/") || isVideoBytes(data)
 	ext := extensionFromContentType(ct)
 	return data, ext, isVideoFinal, false, nil
+}
+
+// isVideoBytes reports whether a =d payload is a video container. HEIC, HEIF
+// and AVIF images share the ISO BMFF ftyp box with MP4 and MOV, so a payload
+// that matches an image brand is an image even though isVideoMagicBytes
+// accepts it. Fixes iPhone HEIC Live Photos being imported as the .mov only.
+func isVideoBytes(data []byte) bool {
+	return isVideoMagicBytes(data) && !isImageMagicBytes(data)
 }
 
 func isLikelyLivePhotoSidecar(data []byte) bool {

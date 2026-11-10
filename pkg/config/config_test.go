@@ -96,6 +96,43 @@ func TestMissingFileAndEnvFails(t *testing.T) {
 	}
 }
 
+func TestDedupModes(t *testing.T) {
+	tests := []struct {
+		mode         string
+		wantMode     string
+		wantVerify   bool
+		wantAdopt    bool
+		wantReupload bool
+	}{
+		{"", DedupModeSafe, true, true, false},
+		{"safe", DedupModeSafe, true, true, false},
+		{"repair", DedupModeRepair, true, true, true},
+		{"fast", DedupModeFast, false, false, false},
+	}
+	for _, tt := range tests {
+		cfg := &Config{DedupMode: tt.mode}
+		if got := cfg.EffectiveDedupMode(); got != tt.wantMode {
+			t.Errorf("mode %q: EffectiveDedupMode() = %q, want %q", tt.mode, got, tt.wantMode)
+		}
+		if got := cfg.VerifyDedupState(); got != tt.wantVerify {
+			t.Errorf("mode %q: VerifyDedupState() = %v", tt.mode, got)
+		}
+		if got := cfg.AdoptReplacements(); got != tt.wantAdopt {
+			t.Errorf("mode %q: AdoptReplacements() = %v", tt.mode, got)
+		}
+		if got := cfg.ReuploadMissing(); got != tt.wantReupload {
+			t.Errorf("mode %q: ReuploadMissing() = %v", tt.mode, got)
+		}
+	}
+}
+
+func TestValidateRejectsUnknownDedupMode(t *testing.T) {
+	cfg := &Config{ApiKey: "k", ApiURL: "http://x/api", DedupMode: "nonsense"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unknown dedupMode must fail validation")
+	}
+}
+
 func TestValidate(t *testing.T) {
 	cfg := &Config{ApiKey: "k", ApiURL: "http://x/api"}
 	if err := cfg.Validate(); err != nil {

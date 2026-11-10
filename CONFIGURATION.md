@@ -12,7 +12,7 @@ The `IMMICH_API_KEY` and `IMMICH_API_URL` environment variables override the cor
 
 Your Immich API key needs these permissions (or use "All" for simplicity):
 
-`asset.read` · `asset.upload` · `album.create` · `album.read` · `album.update` · `albumAsset.create` · `user.read`
+`asset.read` · `asset.upload` · `asset.update` · `album.create` · `album.read` · `album.update` · `albumAsset.create` · `user.read`
 
 ## Example `config.json`
 
@@ -25,6 +25,8 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
   "albumWorkers": 3,
   "strictMetadata": false,
   "skipVideos": false,
+  "dedupMode": "safe",
+  "updateExistingMetadata": false,
   "googlePhotos": [
     {
       "url": "https://photos.app.goo.gl/YourAlbumLink1",
@@ -51,6 +53,22 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 | `albumWorkers` | int | `1` | Number of albums processed **concurrently**. Controls how many albums are synced at the same time. Useful when you have many albums configured and want to process several in parallel. |
 | `strictMetadata` | bool | `false` | Skip items with missing/invalid dates instead of uploading with current date. Skipped URLs are logged for manual review. |
 | `skipVideos` | bool | `false` | Skip all video items entirely. Useful if you only want photos. |
+| `dedupMode` | string | `safe` | How the persistent dedup state is reconciled with Immich. See [Dedup modes](#dedup-modes). |
+| `updateExistingMetadata` | bool | `false` | Backfill the photographer/source-album description on assets that already exist in Immich. User-edited descriptions are left untouched. |
+
+## Dedup modes
+
+The app keeps a persistent map of Google Photos item IDs to Immich asset IDs in `data/sync-state.json`. `dedupMode` controls what happens when that map points at an asset that no longer exists in Immich.
+
+| Mode | Deleted by you | Replaced by immich-compressor | Best for |
+| --- | --- | --- | --- |
+| `safe` (default) | Stays deleted; the app does not re-upload it. | The compressed replacement is found by its `gp_<id>` filename and adopted automatically, so the original is not downloaded again. | Most users. Respects intentional deletions and compression. |
+| `repair` | Re-downloaded and uploaded again. | The compressed replacement is adopted first, so no duplicate is created. | Restoring photos you deleted by accident. |
+| `fast` | The app trusts the local state without checking Immich. | Not detected; the old asset ID stays in the state. | Very large libraries where the verification search is too expensive. |
+
+What about duplicates? Immich deduplicates uploaded bytes by SHA-1 checksum. When you delete a duplicate in Immich, `safe` mode does **not** bring it back. If the deleted asset was the app's copy and the original remains, the app treats the item as intentionally deleted and skips it. If you want the app to restore anything missing, use `repair`.
+
+If you compress originals with a tool such as [immich-compressor](https://github.com/Navilois/immich-compressor), the compressed asset gets a new Immich ID and a filename like `gp_<id>.cmp.jpg`. `safe` and `repair` both recognise that filename and adopt the new ID, so the original is not re-downloaded.
 
 ## Album Options
 

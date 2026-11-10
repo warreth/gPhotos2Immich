@@ -41,12 +41,19 @@ func NewClient(logger *slog.Logger, maxConnsPerHost int) *Client {
 				return nil
 			},
 			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: maxConnsPerHost,
-				IdleConnTimeout:     90 * time.Second,
-				ForceAttemptHTTP2:   true,
+				MaxIdleConns:          100,
+				MaxIdleConnsPerHost:   maxConnsPerHost,
+				IdleConnTimeout:       90 * time.Second,
+				ResponseHeaderTimeout: 60 * time.Second,
+				TLSHandshakeTimeout:   15 * time.Second,
+				ExpectContinueTimeout: time.Second,
+				ForceAttemptHTTP2:     true,
 			},
-			Timeout: 120 * time.Second,
+			// No overall client timeout: shared-album videos can be several
+			// gigabytes and legitimately take longer than the old 120s limit.
+			// Header/TLS timeouts above still bound connection setup, and the
+			// sync context cancels downloads on shutdown.
+			Timeout: 0,
 		},
 		logger: logger,
 	}

@@ -47,7 +47,7 @@ func TestItemIsVideoFalseForPhotosAndMotionPhotos(t *testing.T) {
 // parsePhotoItems must carry the video flag through to the Photo struct.
 func TestParsePhotoItemsSetsIsVideo(t *testing.T) {
 	list := parseRawItems(t, `[["id1",["url1",1080,1920,null,null,null,null,null,[null,null,1],[1645601]],1654019272000,"x",14400000,1784785332472,["a"],[[2]],2,{"76647426":[46929,null,1080,1920,null,4,134]}],["id2",["url2",400,300,null,null,null,null,null,[null,null,1],[9740727]],1262300400000,"x",3600000,1788502661928,["a"],[[2]],2,{"15":29}]]`)
-	photos := parsePhotoItems(list)
+	photos := parsePhotoItems(list, nil)
 	if len(photos) != 2 {
 		t.Fatalf("expected 2 photos, got %d", len(photos))
 	}
@@ -93,6 +93,63 @@ func TestDownloadItemMediaVideoWithAppleLivePhotoTags(t *testing.T) {
 	}
 	if media.VideoData != nil {
 		t.Fatal("a standalone video must not carry a live-photo sidecar")
+	}
+}
+
+// Issue #21 end-to-end: an iPhone HEIC Live Photo must produce a live photo
+// with the HEIC still as primary data, not the .mov clip.
+func TestDownloadItemMediaHeicLivePhoto(t *testing.T) {
+	heic := append(ftypBox("heic"), bytes.Repeat([]byte{0x11}, 2048)...)
+	sidecar := videoPayload("qt  ")
+	sidecar = append(sidecar, []byte("com.apple.quicktime.content.identifier")...)
+	client := newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/item=d":
+			w.Header().Set("Content-Type", "image/heif")
+			w.Write(heic)
+		case "/item=dv":
+			w.Header().Set("Content-Type", "video/quicktime")
+			w.Write(sidecar)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	media, err := DownloadItemMedia(context.Background(), client, Photo{URL: "/item"})
+	if err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
+	if media.Kind != "live" {
+		t.Fatalf("expected live photo, got kind %q", media.Kind)
+	}
+	if !bytes.Equal(media.Data, heic) {
+		t.Fatal("expected the HEIC still as primary data")
+	}
+	if !bytes.Equal(media.VideoData, sidecar) {
+		t.Fatal("expected the QuickTime clip as sidecar data")
+	}
+}
+
+// A plain HEIC photo must be an image, not a video.
+func TestDownloadItemMediaPlainHeic(t *testing.T) {
+	heic := append(ftypBox("heic"), bytes.Repeat([]byte{0x11}, 2048)...)
+	client := newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/item=d":
+			w.Header().Set("Content-Type", "image/heif")
+			w.Write(heic)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	media, err := DownloadItemMedia(context.Background(), client, Photo{URL: "/item"})
+	if err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
+	if media.Kind != "image" {
+		t.Fatalf("expected image, got kind %q", media.Kind)
+	}
+	if media.Ext != ".heic" {
+		t.Fatalf("expected .heic extension, got %q", media.Ext)
 	}
 }
 
@@ -174,7 +231,7 @@ func TestDownloadItemMediaPlainImage(t *testing.T) {
 }
 
 // If the album metadata says video but =dv serves nothing usable, the item
-	// must fail loudly instead of silently uploading a poster frame.
+// must fail loudly instead of silently uploading a poster frame.
 func TestDownloadItemMediaVideoItemWithoutStream(t *testing.T) {
 	client := newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

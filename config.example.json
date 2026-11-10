@@ -6,6 +6,8 @@
   "albumWorkers": 3,
   "strictMetadata": false,
   "skipVideos": false,
+  "dedupMode": "safe",
+  "updateExistingMetadata": false,
   "googlePhotos": [
     {
       "url": "https://photos.app.goo.gl/example-share-link-1",

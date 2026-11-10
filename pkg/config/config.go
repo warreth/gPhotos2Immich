@@ -11,21 +11,70 @@ import (
 
 type GooglePhotosConfig struct {
 	URL           string `json:"url"`
-	ImmichAlbumID string `json:"immichAlbumId"`     // Optional, if existing
-	AlbumName     string `json:"albumName"`         // Optional, to create new
-	SyncInterval  string `json:"syncInterval"`      // e.g., "12h", "60m"
+	ImmichAlbumID string `json:"immichAlbumId"` // Optional, if existing
+	AlbumName     string `json:"albumName"`     // Optional, to create new
+	SyncInterval  string `json:"syncInterval"`  // e.g., "12h", "60m"
 }
 
+// Dedup modes control what happens when the persistent state points at an
+// asset that is no longer present in Immich.
+const (
+	// DedupModeSafe respects deletions: a missing asset is skipped, but a
+	// replacement with the same Google item ID (for example a compressed
+	// asset created by immich-compressor) is adopted automatically.
+	DedupModeSafe = "safe"
+	// DedupModeRepair re-uploads assets that are missing from Immich and have
+	// no replacement. Use this to restore photos you deleted by accident.
+	DedupModeRepair = "repair"
+	// DedupModeFast trusts the local state without checking Immich. It is the
+	// fastest mode, but stale IDs are not repaired automatically.
+	DedupModeFast = "fast"
+)
+
 type Config struct {
-	ApiKey         string               `json:"apiKey"`
-	ApiURL         string               `json:"apiURL"`
-	Debug          bool                 `json:"debug"`          // Optional, enable verbose logging
-	Workers        int                  `json:"workers"`        // Optional, default 1
-	AlbumWorkers   int                  `json:"albumWorkers"`   // Optional, concurrent album processing (default 1)
-	StrictMetadata bool                 `json:"strictMetadata"` // Optional, skip items with missing dates
-	SkipVideos     bool                 `json:"skipVideos"`     // Optional, skip video items entirely
-	DataDir        string               `json:"dataDir"`        // Optional, directory for persistent state (default "./data")
-	GooglePhotos   []GooglePhotosConfig `json:"googlePhotos"`
+	ApiKey                 string               `json:"apiKey"`
+	ApiURL                 string               `json:"apiURL"`
+	Debug                  bool                 `json:"debug"`                  // Optional, enable verbose logging
+	Workers                int                  `json:"workers"`                // Optional, default 1
+	AlbumWorkers           int                  `json:"albumWorkers"`           // Optional, concurrent album processing (default 1)
+	StrictMetadata         bool                 `json:"strictMetadata"`         // Optional, skip items with missing dates
+	SkipVideos             bool                 `json:"skipVideos"`             // Optional, skip video items entirely
+	DataDir                string               `json:"dataDir"`                // Optional, directory for persistent state (default "./data")
+	DedupMode              string               `json:"dedupMode"`              // Optional: safe (default), repair, fast
+	UpdateExistingMetadata bool                 `json:"updateExistingMetadata"` // Optional, backfill descriptions of existing assets
+	GooglePhotos           []GooglePhotosConfig `json:"googlePhotos"`
+}
+
+// EffectiveDedupMode returns the configured dedup mode, defaulting to safe.
+func (c *Config) EffectiveDedupMode() string {
+	switch strings.ToLower(strings.TrimSpace(c.DedupMode)) {
+	case DedupModeSafe, "":
+		return DedupModeSafe
+	case DedupModeRepair:
+		return DedupModeRepair
+	case DedupModeFast:
+		return DedupModeFast
+	default:
+		return DedupModeSafe
+	}
+}
+
+// VerifyDedupState reports whether state entries should be checked against
+// the assets that currently exist in Immich.
+func (c *Config) VerifyDedupState() bool {
+	return c.EffectiveDedupMode() != DedupModeFast
+}
+
+// AdoptReplacements reports whether a missing state asset may be replaced by
+// an existing asset with the same Google item ID (e.g. a compressed copy).
+func (c *Config) AdoptReplacements() bool {
+	return c.EffectiveDedupMode() != DedupModeFast
+}
+
+// ReuploadMissing reports whether missing assets without a replacement should
+// be downloaded and uploaded again.
+func (c *Config) ReuploadMissing() bool {
+	return c.EffectiveDedupMode() == DedupModeRepair
 }
 
 func ReadConfig(path string) (*Config, error) {
@@ -35,11 +84,11 @@ func ReadConfig(path string) (*Config, error) {
 			// Try ENV vars for basic config
 			apiKey := os.Getenv("IMMICH_API_KEY")
 			apiURL := os.Getenv("IMMICH_API_URL")
-			
+
 			if apiKey == "" || apiURL == "" {
 				return nil, fmt.Errorf("config file not found and ENV vars missing")
 			}
-			
+
 			return &Config{
 				ApiKey: apiKey,
 				ApiURL: apiURL,
@@ -48,7 +97,7 @@ func ReadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	defer file.Close()
-	
+
 	bytefile, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config: %w", err)
@@ -70,13 +119,14 @@ func ReadConfig(path string) (*Config, error) {
 
 	config.ApiKey = strings.TrimSpace(config.ApiKey)
 	config.ApiURL = strings.TrimSpace(config.ApiURL)
+	config.DedupMode = strings.TrimSpace(config.DedupMode)
 	for i := range config.GooglePhotos {
 		config.GooglePhotos[i].URL = strings.TrimSpace(config.GooglePhotos[i].URL)
 		config.GooglePhotos[i].ImmichAlbumID = strings.TrimSpace(config.GooglePhotos[i].ImmichAlbumID)
 		config.GooglePhotos[i].AlbumName = strings.TrimSpace(config.GooglePhotos[i].AlbumName)
 		config.GooglePhotos[i].SyncInterval = strings.TrimSpace(config.GooglePhotos[i].SyncInterval)
 	}
-	
+
 	return &config, nil
 }
 
@@ -93,6 +143,11 @@ func (c *Config) Validate() error {
 	}
 	if c.AlbumWorkers < 0 {
 		return fmt.Errorf("albumWorkers must be non-negative")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.DedupMode)) {
+	case "", DedupModeSafe, DedupModeRepair, DedupModeFast:
+	default:
+		return fmt.Errorf("dedupMode must be one of %q, %q or %q", DedupModeSafe, DedupModeRepair, DedupModeFast)
 	}
 	for i, gp := range c.GooglePhotos {
 		if gp.URL == "" {

@@ -30,6 +30,144 @@ type Album struct {
 	} `json:"assets"`
 }
 
+// HTTPError is returned when Immich responds with a non-2xx status code.
+// Callers can use errors.As to distinguish client errors (e.g. an invalid API
+// key) from transient connection failures.
+type HTTPError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("API error: %s - %s", e.Status, e.Body)
+}
+
+// AssetIndex is an in-memory view of the assets uploaded by this tool. It is
+// built from album details or from a metadata search and is used for dedup and
+// for checking whether persistent state entries still exist in Immich.
+type AssetIndex struct {
+	Images       map[string]string // normalized Google item name -> image asset ID
+	Videos       map[string]string // normalized Google item name -> video asset ID
+	VideoFiles   map[string]string // full video filename -> video asset ID
+	IDs          map[string]bool   // every asset ID in the index
+	Types        map[string]string // asset ID -> IMAGE or VIDEO
+	Descriptions map[string]string // asset ID -> current description (optional)
+	Count        int
+}
+
+// NewAssetIndex creates an empty asset index.
+func NewAssetIndex() *AssetIndex {
+	return &AssetIndex{
+		Images:       make(map[string]string),
+		Videos:       make(map[string]string),
+		VideoFiles:   make(map[string]string),
+		IDs:          make(map[string]bool),
+		Types:        make(map[string]string),
+		Descriptions: make(map[string]string),
+	}
+}
+
+// NormalizeAssetName reduces an Immich filename to the stable Google item name
+// used by this tool. It strips the extension and any compressor marker such as
+// ".cmp" from "gp_<id>.cmp.jpg", yielding "gp_<id>".
+func NormalizeAssetName(filename string) string {
+	base := util.StripExtension(filename)
+	if strings.HasPrefix(base, "gp_") {
+		if dot := strings.Index(base, "."); dot > 0 {
+			base = base[:dot]
+		}
+	}
+	return base
+}
+
+// Add registers one asset in the index.
+func (i *AssetIndex) Add(id, filename, assetType, deviceAssetID string) {
+	if i == nil || id == "" {
+		return
+	}
+	i.Count++
+	i.IDs[id] = true
+	if assetType == "" {
+		if util.IsVideoFilename(filename) {
+			assetType = "VIDEO"
+		} else {
+			assetType = "IMAGE"
+		}
+	}
+	i.Types[id] = assetType
+	if filename != "" {
+		base := NormalizeAssetName(filename)
+		if assetType == "VIDEO" {
+			i.Videos[base] = id
+			i.VideoFiles[filename] = id
+		} else {
+			i.Images[base] = id
+		}
+	}
+	// Older Immich versions expose deviceAssetId; use it as a fallback for
+	// images so old-format names such as "gp_<id>.jpg-12345" still match.
+	if deviceAssetID != "" {
+		daid := stripNumericSuffix(deviceAssetID)
+		if !util.IsVideoFilename(daid) {
+			base := NormalizeAssetName(daid)
+			if _, exists := i.Images[base]; !exists {
+				i.Images[base] = id
+			}
+		}
+	}
+}
+
+// FindImage looks up an image by its normalized Google item name.
+func (i *AssetIndex) FindImage(baseName string) (string, bool) {
+	if i == nil {
+		return "", false
+	}
+	id, ok := i.Images[baseName]
+	return id, ok
+}
+
+// FindVideo looks up a video by its normalized Google item name or full filename.
+func (i *AssetIndex) FindVideo(baseName, filename string) (string, bool) {
+	if i == nil {
+		return "", false
+	}
+	if filename != "" {
+		if id, ok := i.VideoFiles[filename]; ok {
+			return id, true
+		}
+	}
+	id, ok := i.Videos[baseName]
+	return id, ok
+}
+
+// FindReplacement looks up an existing asset of the same media type when the
+// persistent state entry is stale.
+func (i *AssetIndex) FindReplacement(baseName string, isVideo bool) (string, bool) {
+	if isVideo {
+		return i.FindVideo(baseName, "")
+	}
+	return i.FindImage(baseName)
+}
+
+// stripNumericSuffix removes an old-style "-<size>" suffix from a deviceAssetId.
+func stripNumericSuffix(s string) string {
+	if dash := strings.LastIndex(s, "-"); dash > 0 {
+		suffix := s[dash+1:]
+		allDigits := suffix != ""
+		for _, c := range suffix {
+			if c < '0' || c > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return s[:dash]
+		}
+	}
+	return s
+}
+
 type Client struct {
 	APIURL string
 	APIKey string
@@ -86,7 +224,11 @@ func (c *Client) doHTTP(ctx context.Context, method, path string, body io.Reader
 	}
 
 	if res.StatusCode >= 400 {
-		return respBody, res.StatusCode, fmt.Errorf("API error: %s - %s", res.Status, string(respBody))
+		return respBody, res.StatusCode, &HTTPError{
+			StatusCode: res.StatusCode,
+			Status:     res.Status,
+			Body:       string(respBody),
+		}
 	}
 
 	return respBody, res.StatusCode, nil
@@ -344,105 +486,202 @@ func (c *Client) LinkLivePhotoToAsset(ctx context.Context, assetId string, liveP
 	return nil
 }
 
-// SearchAssetsByDevice fetches all assets uploaded by the given deviceId.
-// Returns a map of baseName (without extension) -> asset ID.
-func (c *Client) SearchAssetsByDevice(ctx context.Context, deviceId string) (map[string]string, error) {
-	result := make(map[string]string)
+type assetSearchItem struct {
+	Id               string `json:"id"`
+	OriginalFileName string `json:"originalFileName"`
+	DeviceAssetId    string `json:"deviceAssetId"`
+	Type             string `json:"type"`
+	ExifInfo         struct {
+		Description string `json:"description"`
+	} `json:"exifInfo"`
+}
+
+type assetSearchResponse struct {
+	Assets struct {
+		Items      []assetSearchItem `json:"items"`
+		NextPage   interface{}       `json:"nextPage"`
+		NextCursor *string           `json:"nextCursor"`
+	} `json:"assets"`
+}
+
+// SearchAssets fetches the assets uploaded by this tool. Immich v3 removed
+// deviceId from the search API, so it first tries the filename filter
+// ("gp_...") and falls back to the legacy deviceId search for older servers.
+func (c *Client) SearchAssets(ctx context.Context, deviceId string) (*AssetIndex, error) {
+	index, filtered, err := c.searchAssetsFiltered(ctx)
+	if err == nil && filtered {
+		return index, nil
+	}
+
+	legacy, legacyErr := c.searchAssetsLegacy(ctx, deviceId)
+	if legacyErr == nil {
+		return legacy, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("filtered search failed (%v); legacy search failed: %w", err, legacyErr)
+	}
+	return nil, legacyErr
+}
+
+// searchAssetsFiltered uses the Immich v3.2+ metadata filter. The bool result
+// reports whether the server honoured the filter; older servers ignore it and
+// return the whole library, in which case the caller must use the legacy path.
+func (c *Client) searchAssetsFiltered(ctx context.Context) (*AssetIndex, bool, error) {
+	index := NewAssetIndex()
+	cursor := ""
+
+	for page := 0; page < 10000; page++ {
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
+
+		payload := map[string]interface{}{
+			"filter": map[string]interface{}{
+				"originalFileName": map[string]interface{}{"startsWith": "gp_"},
+			},
+			"size":     1000,
+			"withExif": true,
+		}
+		if cursor != "" {
+			payload["cursor"] = cursor
+		}
+		jsonPayload, err := json.Marshal(payload)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to marshal search payload: %w", err)
+		}
+
+		body, err := c.request(ctx, "POST", "search/metadata", jsonPayload, "")
+		if err != nil {
+			return nil, false, err
+		}
+
+		var resp assetSearchResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, false, fmt.Errorf("failed to parse search response: %w", err)
+		}
+
+		if page == 0 {
+			for _, asset := range resp.Assets.Items {
+				if asset.OriginalFileName != "" && !strings.HasPrefix(asset.OriginalFileName, "gp_") {
+					// The filter was ignored; this is an older Immich server.
+					return nil, false, nil
+				}
+			}
+		}
+
+		for _, asset := range resp.Assets.Items {
+			index.Add(asset.Id, asset.OriginalFileName, asset.Type, asset.DeviceAssetId)
+			index.Descriptions[asset.Id] = asset.ExifInfo.Description
+		}
+
+		if resp.Assets.NextCursor != nil && *resp.Assets.NextCursor != "" {
+			cursor = *resp.Assets.NextCursor
+			continue
+		}
+		// A server that returns nextPage instead of nextCursor does not support
+		// cursor pagination; let the legacy path handle it.
+		if resp.Assets.NextPage != nil {
+			return nil, false, nil
+		}
+		break
+	}
+
+	return index, true, nil
+}
+
+// searchAssetsLegacy uses the pre-v3 deviceId filter with page pagination.
+func (c *Client) searchAssetsLegacy(ctx context.Context, deviceId string) (*AssetIndex, error) {
+	index := NewAssetIndex()
 	page := 1
-	pageSize := 1000
+	const pageSize = 1000
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return result, err
+			return nil, err
 		}
 
 		payload := map[string]interface{}{
 			"deviceId": deviceId,
 			"page":     page,
 			"size":     pageSize,
+			"withExif": true,
 		}
 		jsonPayload, err := json.Marshal(payload)
 		if err != nil {
-			return result, fmt.Errorf("failed to marshal search payload: %w", err)
+			return nil, fmt.Errorf("failed to marshal search payload: %w", err)
 		}
 
 		body, err := c.request(ctx, "POST", "search/metadata", jsonPayload, "")
 		if err != nil {
-			return result, fmt.Errorf("search metadata failed on page %d: %w", page, err)
+			return nil, fmt.Errorf("search metadata failed on page %d: %w", page, err)
 		}
 
-		var searchResp struct {
-			Assets struct {
-				Items []struct {
-					Id               string `json:"id"`
-					OriginalFileName string `json:"originalFileName"`
-					DeviceAssetId    string `json:"deviceAssetId"`
-				} `json:"items"`
-				NextPage interface{} `json:"nextPage"`
-			} `json:"assets"`
-		}
-		if err := json.Unmarshal(body, &searchResp); err != nil {
-			return result, fmt.Errorf("failed to parse search response: %w", err)
+		var resp assetSearchResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("failed to parse search response: %w", err)
 		}
 
-		if page == 1 && len(searchResp.Assets.Items) == 0 {
+		if page == 1 && len(resp.Assets.Items) == 0 {
 			var raw map[string]interface{}
 			if json.Unmarshal(body, &raw) == nil {
 				if _, hasAssets := raw["assets"]; !hasAssets && len(raw) > 0 {
-					return result, fmt.Errorf("unexpected search response format (missing 'assets' key)")
+					return nil, fmt.Errorf("unexpected search response format (missing 'assets' key)")
 				}
 			}
 		}
 
-		for _, asset := range searchResp.Assets.Items {
-			var name string
-			if util.IsVideoFilename(asset.OriginalFileName) {
-				// For videos, use full filename to avoid colliding with image basenames
-				// (especially motion photo containers like "photo.mp.jpg")
-				name = asset.OriginalFileName
-			} else {
-				// For images, use basename without extension (existing behavior)
-				name = util.StripExtension(asset.OriginalFileName)
-			}
-			result[name] = asset.Id
-
-			// Also index by deviceAssetId to handle old format "gp_xxx.jpg-12345"
-			if asset.DeviceAssetId != "" {
-				// Strip numeric size suffix from old-format deviceAssetId
-				daid := asset.DeviceAssetId
-				if dashIdx := strings.LastIndex(daid, "-"); dashIdx > 0 {
-					suffix := daid[dashIdx+1:]
-					allDigits := true
-					for _, c := range suffix {
-						if c < '0' || c > '9' {
-							allDigits = false
-							break
-						}
-					}
-					if allDigits && len(suffix) > 0 {
-						daid = daid[:dashIdx]
-					}
-				}
-				if util.IsVideoFilename(daid) {
-					continue
-				}
-				daidBase := util.StripExtension(daid)
-				if _, exists := result[daidBase]; !exists {
-					result[daidBase] = asset.Id
-				}
-			}
+		for _, asset := range resp.Assets.Items {
+			index.Add(asset.Id, asset.OriginalFileName, asset.Type, asset.DeviceAssetId)
+			index.Descriptions[asset.Id] = asset.ExifInfo.Description
 		}
 
-		// Stop if no more pages
-		nextPageEmpty := searchResp.Assets.NextPage == nil
-		if np, ok := searchResp.Assets.NextPage.(string); ok && np == "" {
+		nextPageEmpty := resp.Assets.NextPage == nil
+		if np, ok := resp.Assets.NextPage.(string); ok && np == "" {
 			nextPageEmpty = true
 		}
-		if nextPageEmpty || len(searchResp.Assets.Items) < pageSize {
+		if nextPageEmpty || len(resp.Assets.Items) < pageSize {
 			break
 		}
 		page++
 	}
 
-	return result, nil
+	return index, nil
+}
+
+// Asset is the subset of an Immich asset needed for description updates.
+type Asset struct {
+	Id               string `json:"id"`
+	OriginalFileName string `json:"originalFileName"`
+	Type             string `json:"type"`
+	HasMetadata      bool   `json:"hasMetadata"`
+	ExifInfo         struct {
+		Description string `json:"description"`
+	} `json:"exifInfo"`
+}
+
+// GetAsset fetches a single asset.
+func (c *Client) GetAsset(ctx context.Context, assetID string) (*Asset, error) {
+	body, err := c.request(ctx, "GET", fmt.Sprintf("assets/%s", assetID), nil, "")
+	if err != nil {
+		return nil, err
+	}
+	var asset Asset
+	if err := json.Unmarshal(body, &asset); err != nil {
+		return nil, err
+	}
+	return &asset, nil
+}
+
+// UpdateAssetDescription replaces an asset's description. Immich v3 no longer
+// accepts description on upload, so this is called after metadata extraction.
+func (c *Client) UpdateAssetDescription(ctx context.Context, assetID, description string) error {
+	payload, err := json.Marshal(map[string]string{"description": description})
+	if err != nil {
+		return fmt.Errorf("failed to marshal description payload: %w", err)
+	}
+	_, err = c.request(ctx, "PUT", fmt.Sprintf("assets/%s", assetID), payload, "")
+	if err != nil {
+		return fmt.Errorf("failed to update description for asset %s: %w", assetID, err)
+	}
+	return nil
 }

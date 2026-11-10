@@ -115,6 +115,93 @@ func TestDownloadMediaLivePhotoSidecar(t *testing.T) {
 	}
 }
 
+// Issue #21: an iPhone HEIC Live Photo serves the HEIC still on "=d" and the
+// QuickTime clip on "=dv". The HEIC ftyp box must not be mistaken for a video.
+func TestDownloadMediaHeicLivePhoto(t *testing.T) {
+	heic := append(ftypBox("heic"), bytes.Repeat([]byte{0x11}, 2048)...)
+	data, ext, isVideo, isLive, err := DownloadMedia(context.Background(),
+		newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/item=d":
+				w.Header().Set("Content-Type", "image/heif")
+				w.Write(heic)
+			case "/item=dv":
+				w.Header().Set("Content-Type", "video/quicktime")
+				w.Write(videoPayload("qt  "))
+				w.Write([]byte("com.apple.quicktime.content.identifier"))
+			}
+		})), "http://test/item")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isVideo {
+		t.Fatal("HEIC still must not be replaced by its video sidecar")
+	}
+	if !isLive {
+		t.Fatal("expected live photo sidecar to be detected")
+	}
+	if ext != ".heic" {
+		t.Fatalf("expected .heic extension, got %s", ext)
+	}
+	if !bytes.Equal(data, heic) {
+		t.Fatal("primary asset must be the HEIC bytes")
+	}
+}
+
+// A plain HEIC photo with no "=dv" stream must be stored as an image.
+func TestDownloadMediaPlainHeic(t *testing.T) {
+	heic := append(ftypBox("heic"), bytes.Repeat([]byte{0x11}, 2048)...)
+	data, ext, isVideo, isLive, err := DownloadMedia(context.Background(),
+		newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/item=d":
+				w.Header().Set("Content-Type", "image/heif")
+				w.Write(heic)
+			case "/item=dv":
+				http.Error(w, "not found", http.StatusNotFound)
+			}
+		})), "http://test/item")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isVideo || isLive {
+		t.Fatalf("plain HEIC misclassified (isVideo=%v isLive=%v)", isVideo, isLive)
+	}
+	if ext != ".heic" {
+		t.Fatalf("expected .heic extension, got %s", ext)
+	}
+	if !bytes.Equal(data, heic) {
+		t.Fatal("expected HEIC bytes")
+	}
+}
+
+// AVIF is also an ISO BMFF image and must not be treated as a video.
+func TestDownloadMediaPlainAVIF(t *testing.T) {
+	avif := append(ftypBox("avif"), bytes.Repeat([]byte{0x22}, 2048)...)
+	data, ext, isVideo, isLive, err := DownloadMedia(context.Background(),
+		newTestClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/item=d":
+				w.Header().Set("Content-Type", "image/avif")
+				w.Write(avif)
+			case "/item=dv":
+				http.Error(w, "not found", http.StatusNotFound)
+			}
+		})), "http://test/item")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isVideo || isLive {
+		t.Fatalf("AVIF misclassified (isVideo=%v isLive=%v)", isVideo, isLive)
+	}
+	if ext != ".avif" {
+		t.Fatalf("expected .avif extension, got %s", ext)
+	}
+	if !bytes.Equal(data, avif) {
+		t.Fatal("expected AVIF bytes")
+	}
+}
+
 // A plain image whose "=dv" probe fails must be returned untouched as an image.
 func TestDownloadMediaPlainImage(t *testing.T) {
 	data, ext, isVideo, isLive, err := DownloadMedia(context.Background(),

@@ -63,7 +63,7 @@ To test a pre-release, use `ghcr.io/warreth/gphotos2immich:beta` in your compose
 ## API Key Permissions
 
 To sync photos, generate an Immich API key with the following permissions (or just select "All"):
-`asset.read` · `asset.upload` · `album.create` · `album.read` · `album.update` · `albumAsset.create` · `user.read`
+`asset.read` · `asset.upload` · `asset.update` · `album.create` · `album.read` · `album.update` · `albumAsset.create` · `user.read`
 
 ---
 
@@ -75,13 +75,30 @@ Only public shared album links work. The tool scrapes shared-album URLs without 
 **Why do I get duplicates in Immich when I already have the same photos?**
 Google Photos serves re-encoded (compressed) copies for shared albums, so their checksums differ from your originals and Immich's content-hash duplicate detection cannot match them. Nothing can be fixed on this tool's side; use Immich's built-in duplicate review after syncing to clean them up.
 
+**Why does the log show `connect: connection refused` to Immich after a restart?**
+The sync container started before Immich finished booting. The app now retries the connection with backoff until Immich is reachable, so this resolves itself; no restart is needed. If it keeps retrying, verify `apiURL` in `config.json` (or `IMMICH_API_URL`) and the API key. A rejected key or a wrong URL is reported immediately instead of being retried.
+
+**What happens if I delete a photo in Immich?**
+By default (`dedupMode: "safe"`) the app respects the deletion and does not upload the photo again. If you want the sync to restore anything that is missing, set `dedupMode: "repair"`. See [Dedup modes](CONFIGURATION.md#dedup-modes).
+
+**What happens if I delete duplicates in Immich?**
+`safe` mode does not bring a deleted duplicate back. If the app's copy was deleted and the original remains, the app treats the item as intentionally removed. `repair` mode re-uploads missing items and may recreate a duplicate you deliberately deleted, so use it only when you want a full mirror of the Google Photos album.
+
+**What happens if I compress photos with immich-compressor?**
+The compressor creates a new asset with a new Immich ID and a filename such as `gp_<id>.cmp.jpg`. `safe` and `repair` both find that replacement by its stable `gp_<id>` name, update the local state to the new ID, and skip downloading the original again. See [Dedup modes](CONFIGURATION.md#dedup-modes).
+
+**Does the app download the original file?**
+It downloads the `=d` variant from Google Photos, which is the full-size file Google serves for a shared album, not a thumbnail. Whether that file is byte-identical to the uploader's original depends on Google: shared albums can be re-encoded or compressed. The app cannot obtain a better copy than Google exposes. If Google serves a re-encoded copy, its checksum differs from your original, so Immich's checksum-based duplicate detection will not merge them; use Immich's duplicate review or import the originals yourself.
+
 ## Features
 
 - **No Google API Keys:** We scrape directly from shared album URLs, so there's no complex Google Cloud setup required!
 - **Web UI & Hot Reloading:** Manage your albums from a sleek web interface on port 8080. Check live logs, trigger an instant sync with "Sync Now", and tweak settings; everything applies instantly without restarting the container.
 - **Trigger Sync API:** Trigger a sync on demand outside the regular schedule via `POST /api/sync` or `GET /sync_now` (ideal for Home Assistant buttons, webhooks, or automation scripts). See [home-assistant.yaml](home-assistant.yaml) for a ready-to-use Home Assistant configuration.
 - **Smart Syncing:** We pull down the full images and videos (no compressed thumbnails), extract the correct "taken" dates, and smoothly avoid Google's rate limits.
+- **Photographer Metadata:** The person who added each photo to the shared album is written to the Immich description as `Photographer: <name>`, next to the source album. Enable `updateExistingMetadata` to backfill photos that were imported before this feature.
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
+- **Deletion-aware Dedup:** The default `safe` mode respects photos you delete in Immich and automatically adopts compressed replacements created by tools such as `immich-compressor`. Use `repair` mode to re-upload anything that is missing.
 
 
 ---
