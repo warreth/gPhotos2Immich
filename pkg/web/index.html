@@ -936,6 +936,7 @@
                             <div class="button-row">
                                 <button class="btn btn-secondary btn-sm" type="button" onclick="refreshLogs()">Refresh</button>
                                 <button class="btn btn-ghost btn-sm" type="button" onclick="copyLogs()">Copy</button>
+                                <span class="muted" id="logsUpdated"></span>
                             </div>
                             <label class="inline-check"><input type="checkbox" id="autoScrollLogs" checked> Auto-scroll</label>
                         </div>
@@ -1335,15 +1336,17 @@
         }
 
         async function refreshLogs() {
+            const pre = $('appLogs');
             try {
-                const res = await fetch('/api/logs');
-                if (!res.ok) return;
+                const res = await fetch('/api/logs', { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const text = await res.text();
-                const pre = $('appLogs');
-                pre.textContent = text || 'No log output yet.';
+                pre.textContent = text || 'No log output yet. Logs appear here after the app starts a sync.';
                 if ($('autoScrollLogs').checked) pre.scrollTop = pre.scrollHeight;
+                $('logsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
             } catch (err) {
-                // Silent: the next refresh will try again.
+                pre.textContent = 'Could not load logs: ' + err.message;
+                $('logsUpdated').textContent = 'Update failed';
             }
         }
 
