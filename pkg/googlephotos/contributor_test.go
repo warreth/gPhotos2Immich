@@ -12,13 +12,14 @@ func contributorObject(id, name string) []interface{} {
 	return obj
 }
 
-// contributorListEntry matches the real data[3][21] layout: the ID pair is at
-// index 0 and the display-name details are at index 3.
+// contributorListEntry matches the real contributor-list layout: the ID is a
+// string at index 0, the ID pair is at index 5 and the display-name details
+// are at index 11.
 func contributorListEntry(id, name string) []interface{} {
-	obj := make([]interface{}, 12)
-	obj[0] = []interface{}{id, "user-" + id}
-	obj[3] = []interface{}{name, 1, nil, name}
-	obj[11] = []interface{}{"https://example.test/avatar"}
+	obj := make([]interface{}, 18)
+	obj[0] = id
+	obj[5] = []interface{}{id, "user-" + id}
+	obj[11] = []interface{}{name, 1, nil, name}
 	return obj
 }
 
@@ -55,17 +56,27 @@ func TestParseContributors(t *testing.T) {
 }
 
 func TestParseContributorsListLayout(t *testing.T) {
-	alice := contributorListEntry("alice-id", "Alice")
-	bob := contributorListEntry("bob-id", "Bob")
+	people := []struct{ id, name string }{
+		{"alice-id", "Alice"},
+		{"bob-id", "Bob"},
+		{"carol-id", "Carol"},
+		{"dave-id", "Dave"},
+	}
+	entries := make([]interface{}, 0, len(people))
+	for _, person := range people {
+		entries = append(entries, contributorListEntry(person.id, person.name))
+	}
+
 	meta := make([]interface{}, 22)
-	meta[9] = alice
-	meta[10] = []interface{}{"Alice", 1, nil, "Alice"}
-	meta[21] = []interface{}{alice, bob}
+	meta[9] = entries
+	meta[21] = 663
 	data := []interface{}{nil, nil, "", meta}
 
 	got := parseContributors(data)
-	if got["alice-id"] != "Alice" || got["bob-id"] != "Bob" {
-		t.Fatalf("unexpected contributors from list layout: %#v", got)
+	for _, person := range people {
+		if got[person.id] != person.name {
+			t.Fatalf("contributor %s = %q, want %q (map: %#v)", person.id, got[person.id], person.name, got)
+		}
 	}
 }
 

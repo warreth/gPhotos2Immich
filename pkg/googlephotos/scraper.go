@@ -343,16 +343,34 @@ func parseContributors(data []interface{}) map[string]string {
 	var addAll func(interface{})
 	addAll = func(v interface{}) {
 		entry, ok := v.([]interface{})
-		if !ok {
+		if !ok || len(entry) == 0 {
 			return
 		}
-		if id := contributorID(entry); id != "" {
-			if name := contributorName(entry); name != "" {
-				contributors[id] = name
-				return
+
+		// A single contributor entry starts with a string ID, or with an ID
+		// pair of exactly two strings. A list of entries starts with another
+		// entry, so the first element is a longer list.
+		isSingle := false
+		switch first := entry[0].(type) {
+		case string:
+			isSingle = true
+		case []interface{}:
+			if len(first) == 2 {
+				_, idOK := first[0].(string)
+				_, userOK := first[1].(string)
+				isSingle = idOK && userOK
 			}
 		}
-		// Not a single entry: recurse into a list of contributor entries.
+
+		if isSingle {
+			if id := contributorID(entry); id != "" {
+				if name := contributorName(entry); name != "" {
+					contributors[id] = name
+				}
+			}
+			return
+		}
+
 		for _, child := range entry {
 			addAll(child)
 		}
