@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 go build -o gphotos2immich main.go
 # The optional Immich -> Google Photos uploader. Pinned and checksum-verified.
 FROM alpine:3.20 AS gotohp
 
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 ARG GOTOHP_VERSION=v0.11.0
 ARG GOTOHP_SHA256=945021d5dbc36a96f53121eb4f907ace39d9457cea1b43107ed1986441b29030
 
