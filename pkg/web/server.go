@@ -60,6 +60,7 @@ type Server struct {
 	OnConfigChange func()
 	OnSyncTrigger  func()
 	SyncBack       *syncback.Service
+	PrivateImport  PrivateImportManager
 }
 
 func NewServer(configPath string) *Server {
@@ -72,6 +73,8 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/logs", s.handleLogs)
+	mux.HandleFunc("/api/activity", s.handleActivity)
+	mux.HandleFunc("/api/live", s.handleLive)
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/sync/status", s.handleStatus)
 	mux.HandleFunc("/api/sync", s.handleSync)
@@ -81,6 +84,11 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/google/verify", s.handleGoogleVerify)
 	mux.HandleFunc("/api/google/upload", s.handleGoogleUpload)
 	mux.HandleFunc("/api/google/web-session", s.handleGoogleWebSession)
+	mux.HandleFunc("/api/google/private/albums", s.handlePrivateAlbums)
+	mux.HandleFunc("/api/google/private/import", s.handlePrivateImport)
+	mux.HandleFunc("/api/google/private/status", s.handlePrivateStatus)
+	mux.HandleFunc("/api/google/private/cancel", s.handlePrivateCancel)
+	mux.HandleFunc("/api/notifications/test", s.handleNotificationTest)
 
 	addr := fmt.Sprintf(":%d", port)
 	srv := &http.Server{
@@ -105,6 +113,19 @@ func (s *Server) syncBack() *syncback.Service {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.SyncBack
+}
+
+// SetPrivateImport replaces the private import manager after a config reload.
+func (s *Server) SetPrivateImport(manager PrivateImportManager) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PrivateImport = manager
+}
+
+func (s *Server) privateImport() PrivateImportManager {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.PrivateImport
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +220,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"total":      total,
 		"lastRun":    lastRunStr,
 		"nextRun":    nextRunStr,
+		"activity":   progress.CurrentSnapshot(),
 	}
 
 	json.NewEncoder(w).Encode(resp)
@@ -261,6 +283,7 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	existingMap["dataDir"] = newCfg.DataDir
 	existingMap["dedupMode"] = newCfg.DedupMode
 	existingMap["updateExistingMetadata"] = newCfg.UpdateExistingMetadata
+	existingMap["notifications"] = newCfg.Notifications
 	// Merge so fields the UI does not expose (binary and credential paths,
 	// retries, auto-update) are preserved.
 	existingMap["googleUpload"] = mergeGoogleUpload(existingMap["googleUpload"], newCfg.GoogleUpload)
@@ -305,6 +328,7 @@ func mergeGoogleUpload(existing interface{}, incoming config.GoogleUploadConfig)
 	merged["storageMode"] = incoming.StorageMode
 	merged["quality"] = incoming.Quality
 	merged["skipLivePhotos"] = incoming.SkipLivePhotos
+	merged["reuploadDeleted"] = incoming.ReuploadDeleted
 	merged["threads"] = incoming.Threads
 	return merged
 }

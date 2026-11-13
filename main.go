@@ -152,6 +152,7 @@ func main() {
 
 		if !disableWebUI {
 			webUI.SetSyncBack(application.SyncBack)
+			webUI.SetPrivateImport(application.PrivateImport)
 		}
 
 		appCtx, cancelApp := context.WithCancel(rootCtx)

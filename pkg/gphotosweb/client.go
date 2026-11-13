@@ -20,6 +20,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +46,30 @@ type Album struct {
 	Title    string `json:"title"`
 	Count    int    `json:"count"`
 	Shared   bool   `json:"shared"`
+	CoverURL string `json:"coverUrl,omitempty"`
 	ShareURL string `json:"shareUrl,omitempty"`
+}
+
+// MediaItem is one item in an album. The list RPC is intentionally cheap; the
+// filename and original download URL are fetched only when an item is imported.
+type MediaItem struct {
+	Key         string    `json:"key"`
+	ThumbURL    string    `json:"thumbUrl,omitempty"`
+	TakenAt     time.Time `json:"takenAt"`
+	IsVideo     bool      `json:"isVideo"`
+	IsLivePhoto bool      `json:"isLivePhoto"`
+}
+
+// MediaInfo is the metadata needed to download one item.
+type MediaInfo struct {
+	Key         string    `json:"key"`
+	Filename    string    `json:"filename"`
+	Description string    `json:"description,omitempty"`
+	TakenAt     time.Time `json:"takenAt"`
+	DownloadURL string    `json:"downloadUrl,omitempty"`
+	Size        int64     `json:"size,omitempty"`
+	Width       int       `json:"width,omitempty"`
+	Height      int       `json:"height,omitempty"`
 }
 
 // Session is the short-lived state read from the photos.google.com page.
@@ -273,6 +297,12 @@ func parseAlbum(raw json.RawMessage) (Album, bool) {
 		return Album{}, false
 	}
 	album := Album{Key: key}
+	if len(fields) > 1 {
+		var cover []json.RawMessage
+		if err := json.Unmarshal(fields[1], &cover); err == nil && len(cover) > 0 {
+			album.CoverURL = rawString(cover, 0)
+		}
+	}
 	for i := len(fields) - 1; i >= 0; i-- {
 		var obj map[string]json.RawMessage
 		if err := json.Unmarshal(fields[i], &obj); err != nil {
@@ -325,6 +355,279 @@ func rawBool(fields []json.RawMessage, idx int) bool {
 	return value
 }
 
+func rawInt64(fields []json.RawMessage, idx int) int64 {
+	if idx < 0 || idx >= len(fields) {
+		return 0
+	}
+	var value int64
+	_ = json.Unmarshal(fields[idx], &value)
+	return value
+}
+
+// AlbumMediaKeys returns every media key currently in an album. It follows
+// the album page token so large albums are covered too. The set is used by the
+// optional re-upload check to see whether a previously uploaded item is still
+// in the album.
+func (c *Client) AlbumMediaKeys(ctx context.Context, albumKey string) (map[string]bool, error) {
+	albumKey = strings.TrimSpace(albumKey)
+	if albumKey == "" {
+		return nil, fmt.Errorf("album key is required")
+	}
+	keys := make(map[string]bool)
+	var page any
+	for pageNum := 0; pageNum < 200; pageNum++ {
+		data, err := c.rpc(ctx, "snAcKc", []any{albumKey, page, nil, nil})
+		if err != nil {
+			return nil, err
+		}
+		var response []json.RawMessage
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("parse album items: %w", err)
+		}
+		if len(response) < 2 {
+			break
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(response[1], &items); err != nil {
+			return nil, fmt.Errorf("parse album item list: %w", err)
+		}
+		for _, raw := range items {
+			var item []json.RawMessage
+			if err := json.Unmarshal(raw, &item); err != nil || len(item) == 0 {
+				continue
+			}
+			var key string
+			if err := json.Unmarshal(item[0], &key); err == nil && key != "" {
+				keys[key] = true
+			}
+		}
+		if len(response) < 3 || string(response[2]) == "null" {
+			break
+		}
+		var next string
+		if err := json.Unmarshal(response[2], &next); err != nil || next == "" {
+			break
+		}
+		page = next
+	}
+	return keys, nil
+}
+
+// ListAlbumItems returns the items in one album, including every page. It is
+// used by the experimental private-album import.
+func (c *Client) ListAlbumItems(ctx context.Context, albumKey string) ([]MediaItem, error) {
+	albumKey = strings.TrimSpace(albumKey)
+	if albumKey == "" {
+		return nil, fmt.Errorf("album key is required")
+	}
+	items := make([]MediaItem, 0)
+	seen := make(map[string]bool)
+	var page any
+	for pageNum := 0; pageNum < 200; pageNum++ {
+		data, err := c.rpc(ctx, "snAcKc", []any{albumKey, page, nil, nil})
+		if err != nil {
+			return nil, err
+		}
+		var response []json.RawMessage
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("parse album items: %w", err)
+		}
+		if len(response) < 2 {
+			break
+		}
+		var rawItems []json.RawMessage
+		if err := json.Unmarshal(response[1], &rawItems); err != nil {
+			return nil, fmt.Errorf("parse album item list: %w", err)
+		}
+		for _, raw := range rawItems {
+			item, ok := parseMediaItem(raw)
+			if !ok || seen[item.Key] {
+				continue
+			}
+			seen[item.Key] = true
+			items = append(items, item)
+		}
+		if len(response) < 3 || string(response[2]) == "null" {
+			break
+		}
+		var next string
+		if err := json.Unmarshal(response[2], &next); err != nil || next == "" {
+			break
+		}
+		page = next
+	}
+	return items, nil
+}
+
+func parseMediaItem(raw json.RawMessage) (MediaItem, bool) {
+	var fields []json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || len(fields) == 0 {
+		return MediaItem{}, false
+	}
+	key := rawString(fields, 0)
+	if key == "" {
+		return MediaItem{}, false
+	}
+	item := MediaItem{Key: key}
+	if len(fields) > 1 {
+		var thumb []json.RawMessage
+		if err := json.Unmarshal(fields[1], &thumb); err == nil && len(thumb) > 0 {
+			item.ThumbURL = rawString(thumb, 0)
+		}
+	}
+	if ms := rawInt64(fields, 2); ms > 0 {
+		item.TakenAt = time.UnixMilli(ms).UTC()
+	}
+	for i := len(fields) - 1; i >= 0; i-- {
+		var ext map[string]json.RawMessage
+		if err := json.Unmarshal(fields[i], &ext); err != nil {
+			continue
+		}
+		if _, ok := ext["76647426"]; ok {
+			item.IsVideo = true
+		}
+		if _, ok := ext["146008172"]; ok {
+			item.IsLivePhoto = true
+		}
+		break
+	}
+	return item, true
+}
+
+// GetMediaInfo returns the filename, date, and original download URL for one
+// item. It batches the two web RPCs the Photos app uses itself.
+func (c *Client) GetMediaInfo(ctx context.Context, mediaKey string) (MediaInfo, error) {
+	mediaKey = strings.TrimSpace(mediaKey)
+	if mediaKey == "" {
+		return MediaInfo{}, fmt.Errorf("media key is required")
+	}
+	results, err := c.rpcBatch(ctx, []rpcRequest{
+		{ID: "fDcn4b", Payload: []any{mediaKey, 1, nil, nil, 1}},
+		{ID: "VrseUb", Payload: []any{mediaKey, nil, nil, nil, nil}},
+	})
+	if err != nil && len(results) == 0 {
+		return MediaInfo{}, err
+	}
+
+	info := MediaInfo{Key: mediaKey}
+	if raw, ok := results["fDcn4b"]; ok {
+		var response []json.RawMessage
+		if err := json.Unmarshal(raw, &response); err == nil && len(response) > 0 {
+			var record []json.RawMessage
+			if err := json.Unmarshal(response[0], &record); err != nil || len(record) == 0 {
+				record = response
+			}
+			info.Filename = rawString(record, 2)
+			info.Description = rawString(record, 1)
+			if ms := rawInt64(record, 3); ms > 0 {
+				info.TakenAt = time.UnixMilli(ms).UTC()
+			}
+			info.Size = rawInt64(record, 5)
+			info.Width = rawInt(record, 6)
+			info.Height = rawInt(record, 7)
+		}
+	}
+
+	if raw, ok := results["VrseUb"]; ok {
+		var response []json.RawMessage
+		if err := json.Unmarshal(raw, &response); err == nil {
+			info.DownloadURL = rawString(response, 7)
+			if info.DownloadURL == "" {
+				info.DownloadURL = rawString(response, 1)
+			}
+			if info.DownloadURL == "" && len(response) > 0 {
+				var record []json.RawMessage
+				if err := json.Unmarshal(response[0], &record); err == nil {
+					info.DownloadURL = rawString(record, 7)
+					if info.DownloadURL == "" {
+						info.DownloadURL = rawString(record, 1)
+					}
+				}
+			}
+		}
+	}
+
+	if info.Filename == "" {
+		info.Filename = mediaKey + ".jpg"
+	}
+	if info.DownloadURL == "" {
+		return info, fmt.Errorf("Google did not return a download URL for this item")
+	}
+	return info, nil
+}
+
+// DownloadMediaToFile streams one original item to destPath. The Photos CDN
+// URL is usually signed; if it rejects the request, the account cookies are
+// retried once because the URL belongs to a Google host.
+func (c *Client) DownloadMediaToFile(ctx context.Context, mediaKey, destPath string) (MediaInfo, error) {
+	info, err := c.GetMediaInfo(ctx, mediaKey)
+	if err != nil {
+		return info, err
+	}
+
+	c.mu.Lock()
+	httpClient, clientErr := c.httpClient()
+	c.mu.Unlock()
+	if clientErr != nil {
+		return info, clientErr
+	}
+
+	download := func(withCookies bool) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, info.DownloadURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", userAgent)
+		if withCookies && httpClient.Jar != nil {
+			photosURL := &url.URL{Scheme: "https", Host: "photos.google.com"}
+			for _, cookie := range httpClient.Jar.Cookies(photosURL) {
+				req.AddCookie(cookie)
+			}
+		}
+		return httpClient.Do(req)
+	}
+
+	resp, err := download(false)
+	if err != nil {
+		return info, fmt.Errorf("download Google Photos item: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		resp.Body.Close()
+		resp, err = download(true)
+		if err != nil {
+			return info, fmt.Errorf("download Google Photos item with cookies: %w", err)
+		}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return info, fmt.Errorf("download Google Photos item returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if strings.HasPrefix(contentType, "text/html") || strings.HasPrefix(contentType, "application/json") {
+		return info, fmt.Errorf("Google returned %s instead of the original file; refresh the browser session and include the googleusercontent.com cookies if Google asks for them", contentType)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return info, fmt.Errorf("create download directory: %w", err)
+	}
+	file, err := os.Create(destPath)
+	if err != nil {
+		return info, fmt.Errorf("create download file: %w", err)
+	}
+	_, copyErr := io.Copy(file, resp.Body)
+	closeErr := file.Close()
+	if copyErr != nil {
+		_ = os.Remove(destPath)
+		return info, fmt.Errorf("write download: %w", copyErr)
+	}
+	if closeErr != nil {
+		_ = os.Remove(destPath)
+		return info, fmt.Errorf("close download: %w", closeErr)
+	}
+	return info, nil
+}
+
 // AddItems adds library media keys to an album. Shared albums use the web
 // app's laUYf call; albums you own use E1Cajb.
 func (c *Client) AddItems(ctx context.Context, albumKey string, shared bool, mediaKeys []string) error {
@@ -374,22 +677,43 @@ func (c *Client) AddItems(ctx context.Context, albumKey string, shared bool, med
 
 // rpc sends one batchexecute request, refreshing the session once when Google
 // reports that it is stale.
+type rpcRequest struct {
+	ID      string
+	Payload any
+}
+
 func (c *Client) rpc(ctx context.Context, rpcID string, payload any) (json.RawMessage, error) {
-	data, err := c.rpcOnce(ctx, rpcID, payload)
-	if err == nil {
+	results, err := c.rpcBatch(ctx, []rpcRequest{{ID: rpcID, Payload: payload}})
+	if data, ok := results[rpcID]; ok {
 		return data, nil
 	}
-	if !errors.Is(err, ErrNoSession) {
+	if err != nil {
 		return nil, err
+	}
+	return nil, fmt.Errorf("Google Photos RPC %s returned no result", rpcID)
+}
+
+// rpcBatch sends several RPCs in one batchexecute request. The caller gets a
+// map keyed by RPC id and the first error Google reported, if any.
+func (c *Client) rpcBatch(ctx context.Context, requests []rpcRequest) (map[string]json.RawMessage, error) {
+	if len(requests) == 0 {
+		return nil, fmt.Errorf("at least one RPC is required")
+	}
+	results, err := c.rpcBatchOnce(ctx, requests)
+	if err == nil {
+		return results, nil
+	}
+	if !errors.Is(err, ErrNoSession) {
+		return results, err
 	}
 	c.mu.Lock()
 	c.session = nil
 	c.sessionAt = time.Time{}
 	c.mu.Unlock()
-	return c.rpcOnce(ctx, rpcID, payload)
+	return c.rpcBatchOnce(ctx, requests)
 }
 
-func (c *Client) rpcOnce(ctx context.Context, rpcID string, payload any) (json.RawMessage, error) {
+func (c *Client) rpcBatchOnce(ctx context.Context, requests []rpcRequest) (map[string]json.RawMessage, error) {
 	c.mu.Lock()
 	session, err := c.ensureSession(ctx)
 	httpClient := c.http
@@ -401,20 +725,26 @@ func (c *Client) rpcOnce(ctx context.Context, rpcID string, payload any) (json.R
 		return nil, errors.New(ErrNotConfigured)
 	}
 
-	inner, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("encode %s payload: %w", rpcID, err)
+	outer := make([]any, 0, len(requests))
+	ids := make([]string, 0, len(requests))
+	for _, request := range requests {
+		inner, err := json.Marshal(request.Payload)
+		if err != nil {
+			return nil, fmt.Errorf("encode %s payload: %w", request.ID, err)
+		}
+		outer = append(outer, []any{request.ID, string(inner), nil, "generic"})
+		ids = append(ids, request.ID)
 	}
-	freq, err := json.Marshal([]any{[]any{[]any{rpcID, string(inner), nil, "generic"}}})
+	freq, err := json.Marshal([]any{outer})
 	if err != nil {
-		return nil, fmt.Errorf("encode %s request: %w", rpcID, err)
+		return nil, fmt.Errorf("encode RPC request: %w", err)
 	}
 	form := url.Values{}
 	form.Set("f.req", string(freq))
 	form.Set("at", session.At)
 
 	endpoint := fmt.Sprintf("%s%s/data/batchexecute?rpcids=%s&source-path=%%2F&f.sid=%s&bl=%s&rt=c",
-		c.baseURL(), session.RPCPrefix, url.QueryEscape(rpcID), url.QueryEscape(session.FSID), url.QueryEscape(session.BL))
+		c.baseURL(), session.RPCPrefix, url.QueryEscape(strings.Join(ids, ",")), url.QueryEscape(session.FSID), url.QueryEscape(session.BL))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
@@ -427,33 +757,45 @@ func (c *Client) rpcOnce(ctx context.Context, rpcID string, payload any) (json.R
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Google Photos RPC %s: %w", rpcID, err)
+		return nil, fmt.Errorf("Google Photos RPC %s: %w", strings.Join(ids, ","), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, ErrNoSession
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Google Photos RPC %s returned %s", rpcID, resp.Status)
+		return nil, fmt.Errorf("Google Photos RPC %s returned %s", strings.Join(ids, ","), resp.Status)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read Google Photos RPC %s: %w", rpcID, err)
+		return nil, fmt.Errorf("read Google Photos RPC %s: %w", strings.Join(ids, ","), err)
 	}
-	return parseRPCResponse(body, rpcID)
+	return parseRPCResponses(body)
 }
 
 func parseRPCResponse(body []byte, rpcID string) (json.RawMessage, error) {
+	results, err := parseRPCResponses(body)
+	if data, ok := results[rpcID]; ok {
+		return data, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("Google Photos RPC %s returned no result", rpcID)
+}
+
+func parseRPCResponses(body []byte) (map[string]json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
-		return nil, fmt.Errorf("Google Photos RPC %s returned an empty response", rpcID)
+		return nil, fmt.Errorf("Google Photos returned an empty response")
 	}
 	if trimmed[0] == '<' {
 		return nil, ErrNoSession
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(trimmed))
 	scanner.Buffer(make([]byte, 64*1024), 32<<20)
-	var rpcErr error
+	results := make(map[string]json.RawMessage)
+	var firstErr error
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 || line[0] != '[' {
@@ -483,35 +825,45 @@ func parseRPCResponse(body []byte, rpcID string) (json.RawMessage, error) {
 				if message == "" {
 					message = fmt.Sprintf("Google returned error code %d", code)
 				}
+				var rpcErr error
 				if code == 401 || code == 403 {
 					rpcErr = ErrNoSession
 				} else {
-					rpcErr = fmt.Errorf("Google Photos RPC %s: %s", rpcID, message)
+					var id string
+					_ = json.Unmarshal(entry[1], &id)
+					rpcErr = fmt.Errorf("Google Photos RPC %s: %s", id, message)
+				}
+				if firstErr == nil {
+					firstErr = rpcErr
 				}
 			case "wrb.fr":
 				var id string
 				_ = json.Unmarshal(entry[1], &id)
-				if id != rpcID {
+				if id == "" {
 					continue
 				}
 				if string(entry[2]) == "null" {
-					return json.RawMessage("null"), nil
+					results[id] = json.RawMessage("null")
+					continue
 				}
 				var data string
 				if err := json.Unmarshal(entry[2], &data); err != nil {
-					return nil, fmt.Errorf("parse Google Photos RPC %s response: %w", rpcID, err)
+					if firstErr == nil {
+						firstErr = fmt.Errorf("parse Google Photos RPC %s response: %w", id, err)
+					}
+					continue
 				}
-				return json.RawMessage(data), nil
+				results[id] = json.RawMessage(data)
 			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read Google Photos RPC %s response: %w", rpcID, err)
+		return results, fmt.Errorf("read Google Photos response: %w", err)
 	}
-	if rpcErr != nil {
-		return nil, rpcErr
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
 	}
-	return nil, fmt.Errorf("Google Photos RPC %s returned no result", rpcID)
+	return results, firstErr
 }
 
 // jarFromCookies parses a Netscape cookies.txt and builds a cookie jar. Google

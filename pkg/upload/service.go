@@ -37,6 +37,18 @@ type SharedAlbumWriter interface {
 	AddItems(ctx context.Context, albumKey string, shared bool, mediaKeys []string) error
 }
 
+// AlbumInspector lists the media keys still present in a Google album.
+type AlbumInspector interface {
+	AlbumMediaKeys(ctx context.Context, albumKey string) (map[string]bool, error)
+}
+
+// ProgressReporter receives live upload progress for the Web UI.
+type ProgressReporter interface {
+	UploadStarted(album string, total int)
+	UploadItem(uploaded, failed bool)
+	UploadFinished(album string, uploaded, failed int)
+}
+
 // ImportedAssetSource tells the uploader which Immich assets came from Google
 // Photos, so they are never uploaded back.
 type ImportedAssetSource interface {
@@ -54,6 +66,13 @@ type AlbumMapping struct {
 	// Shared means the album belongs to someone else and the account can only
 	// add to it through the web API.
 	Shared bool
+	// UseWebAdd means files are uploaded to the library first and then added
+	// through the web API. Shared albums always need this; owned albums use it
+	// when the re-upload check needs album inspection.
+	UseWebAdd bool
+	// ReuploadDeleted checks the target album and uploads items that are no
+	// longer in it. It requires UseWebAdd and an AlbumInspector.
+	ReuploadDeleted bool
 }
 
 // Summary reports one album run.
@@ -72,6 +91,8 @@ type Service struct {
 	State            *State
 	Imported         ImportedAssetSource
 	SharedWriter     SharedAlbumWriter
+	Inspector        AlbumInspector
+	Progress         ProgressReporter
 	Logger           *slog.Logger
 	StagingRoot      string
 	GotohpConfigPath string
@@ -88,8 +109,9 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		return summary, fmt.Errorf("google album key is required; verify the album mapping first")
 	}
 	writerReady := s.SharedWriter != nil && s.SharedWriter.Available()
-	if mapping.Shared && !writerReady {
-		return summary, fmt.Errorf("this album is shared with you; connect a Google Photos browser session first")
+	useWebAdd := mapping.UseWebAdd || mapping.Shared
+	if useWebAdd && !writerReady {
+		return summary, fmt.Errorf("this album needs a Google Photos browser session; connect one first")
 	}
 	logger := s.Logger
 	if logger == nil {
@@ -107,6 +129,12 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		return summary, fmt.Errorf("fetch immich album: %w", err)
 	}
 	summary.Total = len(album.Assets)
+	if s.Progress != nil {
+		s.Progress.UploadStarted(mapping.GoogleAlbumURL, summary.Total)
+		defer func() {
+			s.Progress.UploadFinished(mapping.GoogleAlbumURL, summary.Uploaded, summary.Failed)
+		}()
+	}
 
 	imported := map[string]bool{}
 	if s.Imported != nil {
@@ -117,14 +145,14 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 	// album, finish that add before uploading anything new. The media keys are
 	// already known, so no file is downloaded twice.
 	handled := make(map[string]bool)
-	if mapping.Shared {
+	if useWebAdd {
 		pending := s.State.PendingAlbumAdds(mapping.ImmichAlbumID)
 		if len(pending) > 0 {
 			keys := make([]string, 0, len(pending))
 			for _, item := range pending {
 				keys = append(keys, item.MediaKey)
 			}
-			if err := s.SharedWriter.AddItems(ctx, mapping.GoogleAlbumKey, true, keys); err != nil {
+			if err := s.SharedWriter.AddItems(ctx, mapping.GoogleAlbumKey, mapping.Shared, keys); err != nil {
 				return summary, fmt.Errorf("add previously uploaded items to the shared album: %w", err)
 			}
 			for _, item := range pending {
@@ -137,6 +165,25 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 			}
 			logger.Info("Added previously uploaded items to the shared album",
 				"album", mapping.GoogleAlbumURL, "items", len(pending))
+		}
+	}
+
+	// Optional safety check: if a photo was deleted from Google Photos, decide
+	// whether to upload it again. Off by default, because keeping deletions is
+	// the safer behavior. A missing inspector means the check cannot run, so
+	// the state is trusted.
+	var present map[string]bool
+	if mapping.ReuploadDeleted {
+		if s.Inspector == nil {
+			logger.Warn("Re-upload check is enabled but album inspection is not available")
+		} else {
+			present, err = s.Inspector.AlbumMediaKeys(ctx, mapping.GoogleAlbumKey)
+			if err != nil {
+				logger.Warn("Could not inspect the Google album; skipping the re-upload check", "error", err)
+				present = nil
+			} else {
+				logger.Debug("Loaded album media keys for the re-upload check", "count", len(present))
+			}
 		}
 	}
 
@@ -161,12 +208,25 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 			continue
 		}
 		if state, ok := s.State.Get(mapping.ImmichAlbumID, asset.Id); ok {
-			done := state.Status == "uploaded" && (state.AddedToAlbum || !mapping.Shared)
+			done := state.Status == "uploaded" && (state.AddedToAlbum || !useWebAdd)
 			if done {
-				if !handled[asset.Id] {
-					summary.Skipped++
+				missing := mapping.ReuploadDeleted && present != nil && state.GoogleMediaKey != "" && !present[state.GoogleMediaKey]
+				if missing {
+					logger.Info("Photo is missing from Google Photos; scheduling it again",
+						"asset_id", asset.Id, "media_key", state.GoogleMediaKey)
+					s.State.Set(mapping.ImmichAlbumID, asset.Id, AssetState{
+						GoogleMediaKey: state.GoogleMediaKey,
+						Filename:       state.Filename,
+						IsLivePhoto:    state.IsLivePhoto,
+						Status:         "failed",
+						Error:          "missing from Google Photos album",
+					})
+				} else {
+					if !handled[asset.Id] {
+						summary.Skipped++
+					}
+					continue
 				}
-				continue
 			}
 		}
 		if asset.Type != "" && asset.Type != "IMAGE" && asset.Type != "VIDEO" {
@@ -235,8 +295,8 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		threads = 1
 	}
 	uploadAlbumKey := mapping.GoogleAlbumKey
-	if mapping.Shared {
-		// Upload to the library only; the shared-album add is done below.
+	if useWebAdd {
+		// Upload to the library only; the album add is done below.
 		uploadAlbumKey = ""
 	}
 	results, uploadErr := s.Google.Upload(ctx, gphotos.UploadRequest{
@@ -254,9 +314,10 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 	// shared with us. The web writer can finish the add with the media keys
 	// gotohp already returned.
 	var albumErr *gphotos.AlbumError
-	useWebAdd := mapping.Shared
+	fallbackShared := false
 	if !useWebAdd && errors.As(uploadErr, &albumErr) && writerReady {
 		useWebAdd = true
+		fallbackShared = !mapping.Shared
 	}
 	albumAddFailed := !useWebAdd && errors.As(uploadErr, &albumErr)
 
@@ -284,6 +345,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 				Error:    result.Error,
 			})
 			summary.Failed++
+			s.reportUpload(false, true)
 			continue
 		}
 		if albumAddFailed && result.MediaKey != "" {
@@ -295,6 +357,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 				Error:          albumErr.Error(),
 			})
 			summary.Failed++
+			s.reportUpload(false, true)
 			continue
 		}
 		if result.Skipped {
@@ -310,6 +373,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 					UploadedAt:     time.Now(),
 				})
 				toAdd[assetID] = result.MediaKey
+				s.reportUpload(true, false)
 				continue
 			}
 			s.State.Set(mapping.ImmichAlbumID, assetID, AssetState{
@@ -318,6 +382,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 				Error:    result.SkipReason,
 			})
 			summary.Skipped++
+			s.reportUpload(false, false)
 			continue
 		}
 		s.State.Set(mapping.ImmichAlbumID, assetID, AssetState{
@@ -333,6 +398,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		} else {
 			summary.Uploaded++
 		}
+		s.reportUpload(true, false)
 	}
 
 	// Staged assets that got no result at all are retried next run.
@@ -349,6 +415,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 			Error:  "gotohp returned no result for this asset",
 		})
 		summary.Failed++
+		s.reportUpload(false, true)
 	}
 
 	s.State.SetAlbumMeta(mapping.ImmichAlbumID, mapping.GoogleAlbumKey, mapping.GoogleAlbumURL, time.Now())
@@ -363,7 +430,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		for _, mediaKey := range toAdd {
 			keys = append(keys, mediaKey)
 		}
-		if err := s.SharedWriter.AddItems(ctx, mapping.GoogleAlbumKey, true, keys); err != nil {
+		if err := s.SharedWriter.AddItems(ctx, mapping.GoogleAlbumKey, mapping.Shared || fallbackShared, keys); err != nil {
 			for assetID := range toAdd {
 				if state, ok := s.State.Get(mapping.ImmichAlbumID, assetID); ok {
 					state.Error = err.Error()
@@ -394,6 +461,12 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		return summary, uploadErr
 	}
 	return summary, nil
+}
+
+func (s *Service) reportUpload(uploaded, failed bool) {
+	if s.Progress != nil {
+		s.Progress.UploadItem(uploaded, failed)
+	}
 }
 
 func assetIDFromPath(path string, manifest map[string]string) string {

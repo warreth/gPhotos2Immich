@@ -27,16 +27,27 @@ type GoogleUploadOverrides struct {
 
 // GoogleUploadConfig controls the optional Immich -> Google Photos direction.
 type GoogleUploadConfig struct {
-	Enabled        bool   `json:"enabled"`
-	GotohpBinary   string `json:"gotohpBinary"`
-	GotohpConfig   string `json:"gotohpConfig"`
-	WebCookiesFile string `json:"webCookiesFile"`
-	StorageMode    string `json:"storageMode"` // "quota" (default) or "unlimited"
-	Quality        string `json:"quality"`     // "original" (default) or "saver"
-	SkipLivePhotos bool   `json:"skipLivePhotos"`
-	Threads        int    `json:"threads"`
-	MaxRetries     int    `json:"maxRetries"`
-	AutoUpdate     bool   `json:"autoUpdate"`
+	Enabled         bool   `json:"enabled"`
+	GotohpBinary    string `json:"gotohpBinary"`
+	GotohpConfig    string `json:"gotohpConfig"`
+	WebCookiesFile  string `json:"webCookiesFile"`
+	StorageMode     string `json:"storageMode"` // "quota" (default) or "unlimited"
+	Quality         string `json:"quality"`     // "original" (default) or "saver"
+	SkipLivePhotos  bool   `json:"skipLivePhotos"`
+	ReuploadDeleted bool   `json:"reuploadDeleted"`
+	Threads         int    `json:"threads"`
+	MaxRetries      int    `json:"maxRetries"`
+	AutoUpdate      bool   `json:"autoUpdate"`
+}
+
+// NotificationsConfig controls optional notifications sent through Immich.
+// Immich notifications use the admin notification API, so the API key needs
+// the notification.create permission (or all permissions).
+type NotificationsConfig struct {
+	Immich           bool `json:"immich"`
+	OnSyncFailed     bool `json:"onSyncFailed"`
+	OnImportComplete bool `json:"onImportComplete"`
+	OnUploadComplete bool `json:"onUploadComplete"`
 }
 
 const (
@@ -72,6 +83,7 @@ type Config struct {
 	DataDir                string               `json:"dataDir"`                // Optional, directory for persistent state (default "./data")
 	DedupMode              string               `json:"dedupMode"`              // Optional: safe (default), repair, fast
 	UpdateExistingMetadata bool                 `json:"updateExistingMetadata"` // Optional, backfill descriptions of existing assets
+	Notifications          NotificationsConfig  `json:"notifications"`
 	GoogleUpload           GoogleUploadConfig   `json:"googleUpload"`
 	GooglePhotos           []GooglePhotosConfig `json:"googlePhotos"`
 }

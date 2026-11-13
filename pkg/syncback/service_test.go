@@ -309,6 +309,43 @@ func TestSyncAlbumPassesSharedMapping(t *testing.T) {
 	if !uploader.mapping.Shared {
 		t.Fatalf("mapping = %#v", uploader.mapping)
 	}
+	if !uploader.mapping.UseWebAdd {
+		t.Fatalf("shared album must use the web add path: %#v", uploader.mapping)
+	}
+}
+
+func TestSyncAlbumReuploadEnablesWebAddForOwnedAlbum(t *testing.T) {
+	cfg := testConfig()
+	cfg.GoogleUpload.ReuploadDeleted = true
+	uploader := &fakeUploader{}
+	web := &fakeWeb{available: true, albums: []gphotosweb.Album{{Key: "owned-key", Shared: false}}}
+	service := New(Options{
+		Google: &fakeGoogle{}, Resolver: &fakeResolver{}, Uploader: uploader, Web: web,
+	})
+
+	if _, err := service.SyncAlbum(context.Background(), cfg, 0, "owned-key"); err != nil {
+		t.Fatalf("SyncAlbum failed: %v", err)
+	}
+	if uploader.mapping.Shared || !uploader.mapping.UseWebAdd || !uploader.mapping.ReuploadDeleted {
+		t.Fatalf("mapping = %#v", uploader.mapping)
+	}
+}
+
+func TestSyncAlbumReuploadWithoutWebSessionIsSkipped(t *testing.T) {
+	cfg := testConfig()
+	cfg.GoogleUpload.ReuploadDeleted = true
+	uploader := &fakeUploader{}
+	web := &fakeWeb{available: false}
+	service := New(Options{
+		Google: &fakeGoogle{}, Resolver: &fakeResolver{}, Uploader: uploader, Web: web,
+	})
+
+	if _, err := service.SyncAlbum(context.Background(), cfg, 0, "owned-key"); err != nil {
+		t.Fatalf("SyncAlbum failed: %v", err)
+	}
+	if uploader.mapping.UseWebAdd || uploader.mapping.ReuploadDeleted {
+		t.Fatalf("without a session the check must be skipped: %#v", uploader.mapping)
+	}
 }
 
 func TestSyncAlbumRejectsUnjoinedAlbum(t *testing.T) {

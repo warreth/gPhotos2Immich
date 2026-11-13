@@ -16,9 +16,16 @@
     "storageMode": "quota",
     "quality": "original",
     "skipLivePhotos": false,
+    "reuploadDeleted": false,
     "threads": 1,
     "maxRetries": 3,
     "autoUpdate": false
+  },
+  "notifications": {
+    "immich": false,
+    "onSyncFailed": false,
+    "onImportComplete": false,
+    "onUploadComplete": false
   },
   "googlePhotos": [
     {

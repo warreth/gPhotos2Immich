@@ -14,7 +14,10 @@ import (
 
 	"warreth.dev/gphotos2immich/pkg/config"
 	"warreth.dev/gphotos2immich/pkg/googlephotos"
+	"warreth.dev/gphotos2immich/pkg/gphotosweb"
 	"warreth.dev/gphotos2immich/pkg/immich"
+	"warreth.dev/gphotos2immich/pkg/notify"
+	"warreth.dev/gphotos2immich/pkg/privateimport"
 	"warreth.dev/gphotos2immich/pkg/progress"
 	"warreth.dev/gphotos2immich/pkg/state"
 	"warreth.dev/gphotos2immich/pkg/syncback"
@@ -27,6 +30,8 @@ type App struct {
 	Logger        *slog.Logger
 	State         *state.SyncState
 	SyncBack      *syncback.Service
+	PrivateImport *privateimport.Manager
+	Notifier      *notify.Service
 	syncCh        chan struct{}
 	descriptionCh chan descriptionUpdate
 }
@@ -84,7 +89,16 @@ func New(cfg *config.Config) (*App, error) {
 		syncCh:        make(chan struct{}, 1),
 		descriptionCh: make(chan descriptionUpdate, 10000),
 	}
-	application.SyncBack = NewSyncBack(cfg, syncState, logger)
+	webClient := gphotosweb.NewClient(cfg.EffectiveWebCookiesFile())
+	application.Notifier = notify.New(client, cfg.Notifications, logger)
+	application.SyncBack = NewSyncBack(cfg, syncState, logger, application.Notifier, webClient)
+	application.PrivateImport = privateimport.NewManager(&privateimport.Service{
+		Web:         webClient,
+		Immich:      client,
+		State:       syncState,
+		Logger:      logger,
+		StagingRoot: filepath.Join(dataDir, "private-staging"),
+	})
 	return application, nil
 }
 
@@ -307,6 +321,10 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to Immich: %w", err)
 	}
 	a.Logger.Info("Connected to Immich", "user_id", id, "name", name)
+	if a.Notifier != nil {
+		a.Notifier.SetUserID(id)
+	}
+	progress.AddEvent("info", "system", "Connected to Immich", map[string]any{"name": name})
 
 	if len(a.Cfg.GooglePhotos) == 0 {
 		a.Logger.Warn("No albums configured")
@@ -354,6 +372,7 @@ func (a *App) Run(ctx context.Context) error {
 		}
 
 		if len(due) > 0 {
+			progress.BeginCycle(len(due))
 			// Fetch album list and global assets from Immich once per sync cycle
 			albumCache, err := a.Client.GetAlbums(ctx)
 			if err != nil {
@@ -377,16 +396,50 @@ func (a *App) Run(ctx context.Context) error {
 			// Process due albums concurrently with bounded concurrency
 			sem := make(chan struct{}, albumWorkers)
 			var wg sync.WaitGroup
+			resultsCh := make(chan albumRunResult, len(due))
 			for _, ac := range due {
 				wg.Add(1)
 				go func(ac config.GooglePhotosConfig) {
 					defer wg.Done()
 					sem <- struct{}{}
 					defer func() { <-sem }()
-					a.processAlbum(ctx, ac, albumCache, globalAssets)
+					resultsCh <- a.processAlbum(ctx, ac, albumCache, globalAssets)
 				}(ac)
 			}
 			wg.Wait()
+			close(resultsCh)
+
+			var added, skipped, failed int
+			var failedAlbums []string
+			for result := range resultsCh {
+				added += result.Added
+				skipped += result.Skipped
+				failed += result.Failed
+				if result.Err != nil {
+					failedAlbums = append(failedAlbums, fmt.Sprintf("%s: %v", result.Album, result.Err))
+				}
+			}
+			if a.Notifier != nil {
+				if len(failedAlbums) > 0 || failed > 0 {
+					description := fmt.Sprintf("%d added, %d skipped, %d failed.", added, skipped, failed)
+					if len(failedAlbums) > 0 {
+						shown := failedAlbums
+						if len(shown) > 3 {
+							shown = shown[:3]
+						}
+						description += " " + strings.Join(shown, "; ")
+					}
+					a.Notifier.Send(ctx, notify.EventSyncFailed, "error",
+						"gPhotos2Immich sync failed", description,
+						map[string]any{"added": added, "skipped": skipped, "failed": failed})
+				} else if added > 0 {
+					a.Notifier.Send(ctx, notify.EventImportComplete, "success",
+						"gPhotos2Immich import complete",
+						fmt.Sprintf("Added %d photos from %d albums.", added, len(due)),
+						map[string]any{"added": added, "albums": len(due)})
+				}
+			}
+			progress.FinishCycle(added, skipped, failed)
 
 			// Schedule next runs and record completion
 			nowCompleted := time.Now()
@@ -421,6 +474,7 @@ func (a *App) Run(ctx context.Context) error {
 			return nil
 		case <-a.syncCh:
 			a.Logger.Info("Sync triggered manually, running all albums immediately")
+			progress.AddEvent("info", "system", "Sync triggered manually", nil)
 			now := time.Now()
 			for _, ac := range a.Cfg.GooglePhotos {
 				nextRun[ac.URL] = now
@@ -475,14 +529,27 @@ func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *s
 	return index
 }
 
-func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, albumCache []immich.Album, globalAssets *immich.AssetIndex) {
+type albumRunResult struct {
+	Album   string
+	Added   int
+	Skipped int
+	Failed  int
+	Err     error
+}
+
+func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, albumCache []immich.Album, globalAssets *immich.AssetIndex) albumRunResult {
 	logger := a.Logger.With("album_url", ac.URL)
 	logger.Info("Syncing Google Photos Album")
 
 	album, err := googlephotos.ScrapeAlbum(ctx, a.GPClient, ac.URL)
 	if err != nil {
 		logger.Error("Error scraping album", "error", err)
-		return
+		label := ac.AlbumName
+		if label == "" {
+			label = ac.URL
+		}
+		progress.FailAlbum(label, err)
+		return albumRunResult{Album: label, Err: err}
 	}
 
 	albumTitle := album.Title
@@ -493,7 +560,8 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 
 	if len(album.Photos) == 0 {
 		logger.Info("No photos found, skipping")
-		return
+		progress.FinishAlbum(albumTitle, 0, 0, 0)
+		return albumRunResult{Album: albumTitle}
 	}
 
 	albumId := a.resolveAlbumID(ctx, ac, albumTitle, albumCache, logger)
@@ -512,6 +580,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	added := 0
 	skipped := 0
 	failed := 0
+	progress.StartAlbum(albumTitle, total)
 
 	numWorkers := a.Cfg.Workers
 	if numWorkers < 1 {
@@ -592,6 +661,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 
 		// Update progress tracker
 		tracker.RecordItem(res.BytesDownloaded, res.BytesUploaded, wasAdded, wasSkipped, wasFailed)
+		progress.RecordImport(albumTitle, wasAdded, wasSkipped, wasFailed)
 
 		// Flush new assets to album periodically for incremental progress
 		if albumId != "" && len(newAssetIds) > lastFlushCount && processed%flushInterval == 0 {
@@ -628,6 +698,9 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	if err := a.State.Save(); err != nil {
 		logger.Warn("Failed to save dedup state", "error", err)
 	}
+
+	progress.FinishAlbum(albumTitle, added, skipped, failed)
+	return albumRunResult{Album: albumTitle, Added: added, Skipped: skipped, Failed: failed}
 }
 
 func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {

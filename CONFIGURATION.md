@@ -62,9 +62,14 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 | `googleUpload.storageMode` | string | `quota` | `quota` counts uploads against Google storage. `unlimited` uses the unofficial mobile-API behaviour and is off by default. |
 | `googleUpload.quality` | string | `original` | `original` or `saver`. |
 | `googleUpload.skipLivePhotos` | bool | `false` | Upload only the still of a Live Photo instead of the linked still + video pair. |
+| `googleUpload.reuploadDeleted` | bool | `false` | Off by default, so deleting a photo in Google Photos is respected. When on, each run checks the target album and uploads items that are no longer there. Requires a browser session. |
 | `googleUpload.threads` | int | `1` | Concurrent uploads. Keep at 1 unless uploads are slow. |
 | `googleUpload.maxRetries` | int | `3` | Reserved. A failed asset is retried on the next scheduled run. |
 | `googleUpload.autoUpdate` | bool | `false` | Reserved. Updating the pinned binary is done through the app image, not at runtime. |
+| `notifications.immich` | bool | `false` | Send notifications through Immich's admin notification API. |
+| `notifications.onSyncFailed` | bool | `false` | Notify when an album cannot be read or an item fails. |
+| `notifications.onImportComplete` | bool | `false` | Notify when new photos were imported into Immich. |
+| `notifications.onUploadComplete` | bool | `false` | Notify when an Immich album finished uploading to Google Photos. |
 
 ## Dedup modes
 
@@ -119,6 +124,24 @@ Live Photos are uploaded as a linked still + video pair by default. Set `skipLiv
 
 Deletions are never propagated. Removing a photo from Immich or Google Photos does not delete it on the other side.
 
+### Unlimited storage
+
+The optional `unlimited` storage mode makes the uploader identify as a Pixel phone. Google then stores the upload without charging your storage quota. This is an unofficial mobile-API behavior, not a Google feature. There are no known reports of accounts being banned for using it, but Google can change or enforce this at any time. The default is `quota`; enable `unlimited` only if you accept that risk.
+
+## Notifications
+
+Notifications are optional and sent through Immich's admin notification API. Enable **Notifications** in the Web UI and choose which events you want. The Immich API key needs `notification.create`, which Immich currently grants to admin keys with all permissions. The **Send test notification** button reports the exact error if the key is not allowed.
+
+A failed notification never interrupts a sync. If Immich rejects the call, the error is written to the log and the sync continues.
+
+## Private album import (experimental)
+
+Private albums are the albums in your own Google Photos account. They use the same browser session as shared-album uploads: open **Google upload**, **Shared album access**, export a `cookies.txt` for `photos.google.com`, and connect it. The cookies file is stored at `googleUpload.webCookiesFile` with mode 0600.
+
+Open **Private albums**, choose an album, pick an existing Immich album or create a new one, and press **Import**. The importer downloads the original files, skips items it already imported, and shows progress on the same page. It is manual only, has no schedule, and does not propagate deletions.
+
+Limitations: Live Photo motion is imported as the still only. If Google asks for a fresh browser session, export the cookies again and reconnect. The feature is experimental.
+
 ## Web API Endpoints
 
 When the Web UI is enabled, the embedded server provides the following endpoints:
@@ -129,5 +152,17 @@ When the Web UI is enabled, the embedded server provides the following endpoints
 | `/sync_now` | `POST` / `GET` | Alias for `/api/sync`, convenient for Home Assistant buttons or curl commands. |
 | `/api/status` | `GET` | Return current album synchronization progress, Immich connection status, and `lastRun`/`nextRun` timestamps. |
 | `/sync/status` | `GET` | Alias for `/api/status`. |
-| `/api/logs` | `GET` | Return the latest application logs. |
+| `/api/logs` | `GET` | Return the latest raw application logs. |
+| `/api/activity` | `GET` | Return the structured activity snapshot used by the dashboard. |
+| `/api/live` | `GET` | Server-Sent Events stream with activity snapshots and structured events. |
 | `/api/config` | `GET` / `POST` | Retrieve or update the application configuration. |
+| `/api/notifications/test` | `POST` | Send one test notification through Immich. |
+| `/api/google/account` | `GET` / `POST` / `DELETE` | Read, connect, or remove the gotohp Google credential. |
+| `/api/google/web-session` | `GET` / `POST` / `DELETE` | Read, connect, or remove the optional photos.google.com browser session. |
+| `/api/google/albums` | `GET` | List Immich albums for the upload mapping dropdown. |
+| `/api/google/verify` | `POST` | Resolve a share URL and classify the album as owned or shared. |
+| `/api/google/upload` | `POST` | Run the Immich to Google Photos upload for one configured album. |
+| `/api/google/private/albums` | `GET` | List private albums in the connected Google account. |
+| `/api/google/private/import` | `POST` | Start importing one private album into Immich. |
+| `/api/google/private/status` | `GET` | Return the private import job status. |
+| `/api/google/private/cancel` | `POST` | Cancel the running private import. |

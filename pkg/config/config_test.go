@@ -165,6 +165,12 @@ func TestGoogleUploadDefaults(t *testing.T) {
 	if cfg.GoogleUpload.WebCookiesFile != "./data/gphotos-web-cookies.txt" {
 		t.Fatalf("webCookiesFile = %q", cfg.GoogleUpload.WebCookiesFile)
 	}
+	if cfg.GoogleUpload.ReuploadDeleted {
+		t.Fatal("reuploadDeleted must default to false")
+	}
+	if cfg.Notifications.Immich {
+		t.Fatal("Immich notifications must default to false")
+	}
 	if cfg.EffectiveStorageMode() != StorageModeQuota {
 		t.Fatalf("effective storage mode = %q", cfg.EffectiveStorageMode())
 	}

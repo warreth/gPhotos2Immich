@@ -388,12 +388,28 @@ func (c *Client) UploadAssetWithVisibility(ctx context.Context, data []byte, fil
 }
 
 func (c *Client) uploadAssetWithOptions(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
+	return c.uploadWithRetry(ctx, func() (io.Reader, error) {
+		return bytes.NewReader(data), nil
+	}, filename, createdAt, description, livePhotoVideoId, visibility)
+}
+
+// UploadAssetFromFile uploads a file without reading it into memory. The file
+// is reopened for each retry so a transient failure does not send an empty body.
+func (c *Client) UploadAssetFromFile(ctx context.Context, path, filename string, createdAt time.Time, description string) (string, bool, error) {
+	if filename == "" {
+		filename = filepath.Base(path)
+	}
+	return c.uploadWithRetry(ctx, func() (io.Reader, error) {
+		return os.Open(path)
+	}, filename, createdAt, description, "", "")
+}
+
+func (c *Client) uploadWithRetry(ctx context.Context, open func() (io.Reader, error), filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
 	var lastErr error
 	for attempt := 0; attempt <= uploadMaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return "", false, err
 		}
-
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
@@ -401,18 +417,24 @@ func (c *Client) uploadAssetWithOptions(ctx context.Context, data []byte, filena
 			case <-time.After(uploadRetryDelay * time.Duration(attempt)):
 			}
 		}
-
-		id, isDup, err := c.doUpload(ctx, data, filename, createdAt, description, livePhotoVideoId, visibility)
-		if err == nil {
+		source, err := open()
+		if err != nil {
+			return "", false, err
+		}
+		id, isDup, uploadErr := c.doUpload(ctx, source, filename, createdAt, description, livePhotoVideoId, visibility)
+		if closer, ok := source.(io.Closer); ok {
+			_ = closer.Close()
+		}
+		if uploadErr == nil {
 			return id, isDup, nil
 		}
-		lastErr = err
+		lastErr = uploadErr
 	}
 	return "", false, fmt.Errorf("upload of %s failed after %d retries: %w", filename, uploadMaxRetries, lastErr)
 }
 
-// doUpload performs a single multipart upload attempt
-func (c *Client) doUpload(ctx context.Context, data []byte, filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
+// doUpload performs a single multipart upload attempt. The caller owns source.
+func (c *Client) doUpload(ctx context.Context, source io.Reader, filename string, createdAt time.Time, description string, livePhotoVideoId string, visibility string) (string, bool, error) {
 	pr, pw := io.Pipe()
 	multipartWriter := multipart.NewWriter(pw)
 
@@ -446,7 +468,7 @@ func (c *Client) doUpload(ctx context.Context, data []byte, filename string, cre
 			pw.CloseWithError(err)
 			return
 		}
-		if _, err := io.Copy(part, bytes.NewReader(data)); err != nil {
+		if _, err := io.Copy(part, source); err != nil {
 			pw.CloseWithError(err)
 			return
 		}

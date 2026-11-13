@@ -85,13 +85,14 @@ type WebClient interface {
 // Options wires the service. Only Google is essential for the account flow;
 // every other field may be nil when the caller does not need that part.
 type Options struct {
-	Google         gphotos.Client
-	Resolver       AlbumResolver
-	Albums         ImmichAlbums
-	Uploader       AlbumUploader
-	Web            WebClient
-	WebCookiesPath string
-	Logger         *slog.Logger
+	Google           gphotos.Client
+	Resolver         AlbumResolver
+	Albums           ImmichAlbums
+	Uploader         AlbumUploader
+	Web              WebClient
+	WebCookiesPath   string
+	Logger           *slog.Logger
+	OnUploadComplete func(ctx context.Context, albumURL string, summary upload.Summary, err error)
 }
 
 // Service coordinates the sync-back feature.
@@ -102,7 +103,8 @@ type Service struct {
 	Uploader AlbumUploader
 	Web      WebClient
 
-	webCookiesPath string
+	webCookiesPath   string
+	onUploadComplete func(ctx context.Context, albumURL string, summary upload.Summary, err error)
 
 	mu          sync.Mutex
 	status      AccountStatus
@@ -112,6 +114,9 @@ type Service struct {
 	webAlbumsAt time.Time
 	running     map[string]bool
 	logger      *slog.Logger
+	// reuploadWarnOnce keeps a missing browser session from producing the same
+	// warning on every scheduled run.
+	reuploadWarnOnce sync.Once
 }
 
 // New creates a service.
@@ -121,14 +126,15 @@ func New(opts Options) *Service {
 		logger = slog.Default()
 	}
 	return &Service{
-		Google:         opts.Google,
-		Resolver:       opts.Resolver,
-		Albums:         opts.Albums,
-		Uploader:       opts.Uploader,
-		Web:            opts.Web,
-		webCookiesPath: strings.TrimSpace(opts.WebCookiesPath),
-		running:        make(map[string]bool),
-		logger:         logger,
+		Google:           opts.Google,
+		Resolver:         opts.Resolver,
+		Albums:           opts.Albums,
+		Uploader:         opts.Uploader,
+		Web:              opts.Web,
+		webCookiesPath:   strings.TrimSpace(opts.WebCookiesPath),
+		onUploadComplete: opts.OnUploadComplete,
+		running:          make(map[string]bool),
+		logger:           logger,
 	}
 }
 
@@ -517,6 +523,14 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 		shared = webAlbum.Shared
 	}
 
+	webReady := s.Web != nil && s.Web.Available()
+	useWebAdd := shared || (webReady && cfg.GoogleUpload.ReuploadDeleted)
+	if cfg.GoogleUpload.ReuploadDeleted && !webReady {
+		s.reuploadWarnOnce.Do(func() {
+			s.logger.Warn("Re-upload check is enabled but no Google Photos browser session is connected; the check is skipped")
+		})
+	}
+
 	albumID := gp.ImmichAlbumID
 	s.mu.Lock()
 	if s.running[albumID] {
@@ -532,13 +546,19 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 	}()
 
 	mapping := upload.AlbumMapping{
-		ImmichAlbumID:  albumID,
-		GoogleAlbumURL: gp.URL,
-		GoogleAlbumKey: googleKey,
-		UseQuota:       cfg.AlbumStorageMode(gp) == config.StorageModeQuota,
-		Saver:          cfg.AlbumQuality(gp) == config.QualitySaver,
-		SkipLivePhotos: cfg.AlbumSkipLivePhotos(gp),
-		Shared:         shared,
+		ImmichAlbumID:   albumID,
+		GoogleAlbumURL:  gp.URL,
+		GoogleAlbumKey:  googleKey,
+		UseQuota:        cfg.AlbumStorageMode(gp) == config.StorageModeQuota,
+		Saver:           cfg.AlbumQuality(gp) == config.QualitySaver,
+		SkipLivePhotos:  cfg.AlbumSkipLivePhotos(gp),
+		Shared:          shared,
+		UseWebAdd:       useWebAdd,
+		ReuploadDeleted: cfg.GoogleUpload.ReuploadDeleted && webReady,
 	}
-	return s.Uploader.SyncAlbum(ctx, mapping)
+	summary, err := s.Uploader.SyncAlbum(ctx, mapping)
+	if s.onUploadComplete != nil {
+		s.onUploadComplete(ctx, gp.URL, summary, err)
+	}
+	return summary, err
 }

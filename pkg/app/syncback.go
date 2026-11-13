@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -11,6 +13,8 @@ import (
 	"warreth.dev/gphotos2immich/pkg/gphotos"
 	"warreth.dev/gphotos2immich/pkg/gphotosweb"
 	"warreth.dev/gphotos2immich/pkg/immich"
+	"warreth.dev/gphotos2immich/pkg/notify"
+	"warreth.dev/gphotos2immich/pkg/progress"
 	"warreth.dev/gphotos2immich/pkg/syncback"
 	"warreth.dev/gphotos2immich/pkg/upload"
 )
@@ -33,7 +37,7 @@ func resolveGotohpBinary(configured string) string {
 // configuration. It is always created so the web UI can connect an account and
 // resolve tight album mappings; the per-album uploadToGoogle switch is the real
 // opt-in, and GoogleUpload.Enabled only controls the automatic schedule.
-func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger *slog.Logger) *syncback.Service {
+func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger *slog.Logger, notifier *notify.Service, web *gphotosweb.Client) *syncback.Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -44,7 +48,6 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 	}
 
 	google := gphotos.NewCLIClient(resolveGotohpBinary(cfg.EffectiveGotohpBinary()), cfg.EffectiveGotohpConfig())
-	web := gphotosweb.NewClient(cfg.EffectiveWebCookiesFile())
 	gpClient := googlephotos.NewClient(logger, cfg.EffectiveThreads())
 	immichClient := immich.NewClient(cfg.ApiURL, cfg.ApiKey, cfg.EffectiveThreads())
 
@@ -59,6 +62,8 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 		State:            uploadState,
 		Imported:         imported,
 		SharedWriter:     web,
+		Inspector:        web,
+		Progress:         uploadProgressReporter{},
 		Logger:           logger,
 		StagingRoot:      filepath.Join(dataDir, "upload-staging"),
 		GotohpConfigPath: cfg.EffectiveGotohpConfig(),
@@ -73,5 +78,39 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 		Web:            web,
 		WebCookiesPath: cfg.EffectiveWebCookiesFile(),
 		Logger:         logger,
+		OnUploadComplete: func(ctx context.Context, albumURL string, summary upload.Summary, err error) {
+			if notifier == nil {
+				return
+			}
+			if err != nil {
+				notifier.Send(ctx, notify.EventSyncFailed, "error",
+					"Google Photos upload failed",
+					fmt.Sprintf("%s: %v", albumURL, err),
+					map[string]any{"album": albumURL})
+				return
+			}
+			if summary.Uploaded > 0 {
+				notifier.Send(ctx, notify.EventUploadComplete, "success",
+					"Photos uploaded to Google Photos",
+					fmt.Sprintf("%d added to %s.", summary.Uploaded, albumURL),
+					map[string]any{"album": albumURL, "uploaded": summary.Uploaded})
+			}
+		},
 	})
+}
+
+// uploadProgressReporter adapts the upload service to the shared activity
+// store used by the Web UI.
+type uploadProgressReporter struct{}
+
+func (uploadProgressReporter) UploadStarted(album string, total int) {
+	progress.BeginUpload(album, total)
+}
+
+func (uploadProgressReporter) UploadItem(uploaded, failed bool) {
+	progress.RecordUpload(uploaded, failed)
+}
+
+func (uploadProgressReporter) UploadFinished(album string, uploaded, failed int) {
+	progress.FinishUpload(album, uploaded, failed)
 }

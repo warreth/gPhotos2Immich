@@ -2,7 +2,7 @@
 ![Docker Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads&label=Total%20Downloads&color=blue)
 ![Docker Daily Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads_day&label=Daily%20Downloads&color=teal)
 
-Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance automatically, with an optional per-album upload back to Google Photos.
+Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance automatically. Optionally upload new Immich additions back to Google Photos, or import albums from your own Google Photos account with a connected browser session.
 
 ---
 
@@ -65,12 +65,14 @@ To test a pre-release, use `ghcr.io/warreth/gphotos2immich:beta` in your compose
 To sync photos, generate an Immich API key with the following permissions (or just select "All"):
 `asset.read` · `asset.upload` · `asset.update` · `album.create` · `album.read` · `album.update` · `albumAsset.create` · `user.read`
 
+For Immich notifications, also add `notification.create`. Immich currently treats notification creation as an admin-only action.
+
 ---
 
 ## Frequently Asked Questions
 
 **Can this sync albums I don't own, or private albums?**
-Only public shared album links work. The tool scrapes shared-album URLs without any Google authentication by design, so an album must be viewable by anyone with the link (test it in an incognito window). Private albums and links that require signing in return 404 and cannot be supported without full Google account authentication, which is out of scope.
+Public shared albums work without Google authentication; the link must be viewable in an incognito window. Private albums are supported experimentally when a browser session is connected, under **Private albums**. The importer downloads the originals into Immich. Live Photo motion is imported as the still only, and there is no schedule. See [Private album import](#private-album-import-experimental).
 
 **Why do I get duplicates in Immich when I already have the same photos?**
 Google Photos serves re-encoded (compressed) copies for shared albums, so their checksums differ from your originals and Immich's content-hash duplicate detection cannot match them. Nothing can be fixed on this tool's side; use Immich's built-in duplicate review after syncing to clean them up.
@@ -100,6 +102,31 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 - **Deletion-aware Dedup:** The default `safe` mode respects photos you delete in Immich and automatically adopts compressed replacements created by tools such as `immich-compressor`. Use `repair` mode to re-upload anything that is missing.
 - **Optional Immich to Google Photos upload:** Link an Immich album to a Google Photos album and upload new additions back on a schedule. Albums you own use the connected Google account; albums shared with you use an optional browser session. Live Photos are uploaded as a linked still and video pair, and deletions never sync in either direction.
+- **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging.
+- **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification in Immich.
+- **Private album import (experimental):** Import albums from your own Google Photos account into Immich from a separate tab. Originals are downloaded, items are deduplicated, and progress is shown live.
+- **Guided setup:** The Overview page shows a first-run checklist and a short What's new card when a release adds features.
+- **Re-upload control:** Photos deleted from Google Photos stay deleted by default. Turn on the check per Google upload if you want missing items restored.
+
+## Google Photos upload
+
+The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Albums you own use the connected Google account. Albums shared with you use a browser session, because Google's mobile API cannot add to them. The browser session is also used for **Private albums**. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
+
+### Unlimited storage
+
+The optional `unlimited` storage mode makes the uploader identify as a Pixel phone. Google then stores the upload without charging your storage quota. This is an unofficial mobile-API behavior, not a Google feature. There are no known reports of accounts being banned for using it, but Google can change or enforce this at any time. The default is `quota`; enable `unlimited` only if you accept that risk.
+
+## Private album import (experimental)
+
+Private albums live in your own Google Photos account. They need the same browser session used for shared-album uploads: open **Google upload**, **Shared album access**, export a `cookies.txt` for `photos.google.com`, and connect it.
+
+Open **Private albums**, choose an album, pick an existing Immich album or create a new one, and press **Import**. The importer downloads the original files, skips items it already imported, and shows progress on the same page. It is manual only, has no schedule, and does not propagate deletions.
+
+Limitations: Live Photo motion is imported as the still only. If Google asks for a fresh browser session, export the cookies again and reconnect. The feature is experimental.
+
+## Notifications
+
+Enable **Notifications** in the Web UI to get an Immich notification when a sync fails, an import finishes, or a Google Photos upload finishes. The Immich API key needs `notification.create`, which Immich currently grants to admin keys. The test button shows the exact error if the key is not allowed.
 
 
 ---

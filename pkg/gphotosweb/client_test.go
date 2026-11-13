@@ -38,6 +38,16 @@ func rpcBody(rpcID string, data any) string {
 	return ")]}'\n\n" + strconv.Itoa(len(chunk)) + "\n" + string(chunk) + "\n"
 }
 
+func rpcBatchBody(entries ...map[string]any) string {
+	chunk := make([]any, 0, len(entries))
+	for _, entry := range entries {
+		inner, _ := json.Marshal(entry["data"])
+		chunk = append(chunk, []any{"wrb.fr", entry["id"], string(inner), nil, nil, nil, "generic"})
+	}
+	data, _ := json.Marshal(chunk)
+	return ")]}'\n\n" + strconv.Itoa(len(data)) + "\n" + string(data) + "\n"
+}
+
 func newTestClient(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) (*Client, *httptest.Server) {
 	t.Helper()
 	var server *httptest.Server
@@ -190,6 +200,185 @@ func TestListAlbumsNotConfigured(t *testing.T) {
 	_, err := client.ListAlbums(context.Background())
 	if err == nil || !strings.Contains(err.Error(), ErrNotConfigured) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAlbumMediaKeysPaginates(t *testing.T) {
+	calls := 0
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		body := rpcBody("snAcKc", []any{
+			nil,
+			[]any{[]any{"key-1"}, []any{"key-2"}},
+			"next-page",
+			nil,
+		})
+		if calls == 1 {
+			fmt.Fprint(w, body)
+			return
+		}
+		if !strings.Contains(r.FormValue("f.req"), "next-page") {
+			t.Errorf("second call did not carry the page token: %s", r.FormValue("f.req"))
+		}
+		fmt.Fprint(w, rpcBody("snAcKc", []any{
+			nil,
+			[]any{[]any{"key-3"}},
+			"",
+			nil,
+		}))
+	})
+
+	keys, err := client.AlbumMediaKeys(context.Background(), "AF1QipAlbum")
+	if err != nil {
+		t.Fatalf("AlbumMediaKeys failed: %v", err)
+	}
+	if len(keys) != 3 || !keys["key-1"] || !keys["key-2"] || !keys["key-3"] {
+		t.Fatalf("keys = %#v", keys)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+}
+
+func TestAlbumMediaKeysRequiresAlbum(t *testing.T) {
+	client := NewClient("unused")
+	if _, err := client.AlbumMediaKeys(context.Background(), "  "); err == nil {
+		t.Fatal("expected an error for an empty album key")
+	}
+}
+
+func TestListAlbumItems(t *testing.T) {
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, rpcBody("snAcKc", []any{
+			nil,
+			[]any{
+				[]any{"media-1", []any{"https://thumb/1"}, int64(1700000000000), nil, nil, nil, nil, nil, nil, map[string]any{"76647426": []any{1000}}},
+				[]any{"media-2", []any{"https://thumb/2"}, int64(1700000001000), nil, nil, nil, nil, nil, nil, map[string]any{"146008172": []any{}}},
+				[]any{"media-2", []any{"https://thumb/2"}, int64(1700000001000), nil, nil, nil, nil, nil, nil, map[string]any{}},
+			},
+			"",
+			nil,
+		}))
+	})
+
+	items, err := client.ListAlbumItems(context.Background(), "AF1QipAlbum")
+	if err != nil {
+		t.Fatalf("ListAlbumItems failed: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items = %#v", items)
+	}
+	if !items[0].IsVideo || items[0].ThumbURL != "https://thumb/1" {
+		t.Fatalf("video item = %#v", items[0])
+	}
+	if !items[1].IsLivePhoto || items[1].IsVideo {
+		t.Fatalf("live item = %#v", items[1])
+	}
+	if items[1].TakenAt.UnixMilli() != 1700000001000 {
+		t.Fatalf("taken at = %v", items[1].TakenAt)
+	}
+}
+
+func TestGetMediaInfo(t *testing.T) {
+	var server *httptest.Server
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, rpcBatchBody(
+			map[string]any{
+				"id": "fDcn4b",
+				"data": []any{
+					[]any{"ignored", "A description", "photo.jpg", int64(1700000000000), int64(0), int64(1234), 100, 200},
+				},
+			},
+			map[string]any{
+				"id":   "VrseUb",
+				"data": []any{nil, server.URL + "/fallback", nil, nil, nil, nil, nil, server.URL + "/original", nil, nil, nil, nil, "thumb"},
+			},
+		))
+	})
+
+	info, err := client.GetMediaInfo(context.Background(), "media-1")
+	if err != nil {
+		t.Fatalf("GetMediaInfo failed: %v", err)
+	}
+	if info.Filename != "photo.jpg" || info.Description != "A description" {
+		t.Fatalf("info = %#v", info)
+	}
+	if info.DownloadURL != server.URL+"/original" {
+		t.Fatalf("download URL = %q", info.DownloadURL)
+	}
+	if info.Size != 1234 || info.Width != 100 || info.Height != 200 {
+		t.Fatalf("info = %#v", info)
+	}
+}
+
+func TestDownloadMediaToFile(t *testing.T) {
+	payload := []byte("image-bytes")
+	var server *httptest.Server
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/original" {
+			w.Write(payload)
+			return
+		}
+		fmt.Fprint(w, rpcBatchBody(
+			map[string]any{
+				"id": "fDcn4b",
+				"data": []any{
+					[]any{"ignored", "", "photo.jpg", int64(1700000000000), int64(0), int64(len(payload)), 10, 10},
+				},
+			},
+			map[string]any{
+				"id":   "VrseUb",
+				"data": []any{nil, nil, nil, nil, nil, nil, nil, server.URL + "/original"},
+			},
+		))
+	})
+
+	dest := filepath.Join(t.TempDir(), "photo.jpg")
+	info, err := client.DownloadMediaToFile(context.Background(), "media-1", dest)
+	if err != nil {
+		t.Fatalf("DownloadMediaToFile failed: %v", err)
+	}
+	if info.Filename != "photo.jpg" {
+		t.Fatalf("info = %#v", info)
+	}
+	content, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != string(payload) {
+		t.Fatalf("content = %q", content)
+	}
+}
+
+func TestDownloadMediaToFileRejectsHTML(t *testing.T) {
+	var server *httptest.Server
+	client, server := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/original" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte("<!doctype html><title>Sign in</title>"))
+			return
+		}
+		fmt.Fprint(w, rpcBatchBody(
+			map[string]any{
+				"id": "fDcn4b",
+				"data": []any{
+					[]any{"ignored", "", "photo.jpg", int64(1700000000000), int64(0), int64(0), 10, 10},
+				},
+			},
+			map[string]any{
+				"id":   "VrseUb",
+				"data": []any{nil, server.URL + "/original"},
+			},
+		))
+	})
+
+	dest := filepath.Join(t.TempDir(), "photo.jpg")
+	_, err := client.DownloadMediaToFile(context.Background(), "media-1", dest)
+	if err == nil {
+		t.Fatal("expected an HTML response to be rejected")
+	}
+	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
+		t.Fatal("no file should be written for an HTML response")
 	}
 }
 

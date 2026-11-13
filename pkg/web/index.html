@@ -617,12 +617,197 @@
             background: var(--surface-2);
         }
 
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .whats-new-list {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .whats-new-list li { margin-bottom: 8px; }
+        .whats-new-list li:last-child { margin-bottom: 0; }
+        .whats-new-list .whats-new-title { color: var(--text); font-weight: 600; }
+
+        .setup-list { display: flex; flex-direction: column; }
+
+        .setup-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .setup-row:last-child { border-bottom: 0; padding-bottom: 0; }
+        .setup-row:first-child { padding-top: 0; }
+
+        .setup-check {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            border: 1px solid var(--border-strong);
+            color: transparent;
+        }
+
+        .setup-row.done .setup-check {
+            background: var(--success-soft);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .setup-check .icon { width: 14px; height: 14px; }
+        .setup-text { flex: 1; min-width: 0; }
+        .setup-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+        .setup-desc { margin-top: 2px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+        .private-album-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .private-album {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-2);
+        }
+
+        .private-album-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+        .private-album-meta { margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+
+        @media (max-width: 720px) {
+            .private-album { flex-wrap: wrap; }
+            .private-album .btn { width: 100%; }
+        }
+
+        @media (max-width: 720px) {
+            .setup-row { flex-wrap: wrap; }
+            .setup-text { flex: 1 1 calc(100% - 34px); }
+            .setup-row .btn { margin-left: 34px; }
+        }
+
         .logs-toolbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             margin-bottom: 12px;
+        }
+
+        .activity-block { margin-top: 14px; }
+        .activity-block:first-child { margin-top: 0; }
+
+        .activity-label {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 6px;
+            font-size: 12.5px;
+            color: var(--text-secondary);
+        }
+
+        .activity-detail {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .activity-counters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 16px;
+            font-size: 12.5px;
+            color: var(--text-secondary);
+        }
+
+        .activity-counters strong { color: var(--text); }
+
+        .activity-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .activity-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .activity-search { max-width: 260px; }
+
+        .event-list {
+            max-height: 440px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-2);
+        }
+
+        .event-row {
+            display: grid;
+            grid-template-columns: 76px 72px minmax(0, 1fr);
+            gap: 10px;
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 12.5px;
+        }
+
+        .event-row:last-child { border-bottom: 0; }
+        .event-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+        .event-message { color: var(--text); line-height: 1.45; }
+        .event-fields { margin-top: 2px; color: var(--text-muted); line-height: 1.5; word-break: break-word; }
+        .event-row.level-error { background: var(--danger-soft); }
+        .event-row.level-warning { background: var(--warning-soft); }
+
+        .event-badge {
+            align-self: start;
+            display: inline-flex;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--surface);
+            color: var(--text-secondary);
+        }
+
+        .event-badge.level-success { background: var(--success-soft); color: var(--success); }
+        .event-badge.level-error { background: var(--danger-soft); color: var(--danger); }
+        .event-badge.level-warning { background: var(--warning-soft); color: var(--warning); }
+
+        @media (max-width: 720px) {
+            .event-row { grid-template-columns: 64px minmax(0, 1fr); }
+            .event-time { grid-row: 1 / span 2; }
+            .event-badge { grid-column: 2; justify-self: start; }
+            .event-body { grid-column: 2; }
+            .activity-search { max-width: none; width: 100%; }
+            .activity-filters .btn { min-height: 44px; }
         }
 
         .inline-check {
@@ -717,13 +902,18 @@
         @media (max-width: 760px) {
             .app { padding: 16px; padding-bottom: 88px; }
             .topbar { flex-wrap: wrap; }
-            .shell { grid-template-columns: 1fr; }
+            .shell { grid-template-columns: 1fr; min-width: 0; }
+            .content, .sidebar { min-width: 0; }
             .sidebar {
                 position: static;
                 display: flex;
-                overflow-x: auto;
+                flex-wrap: wrap;
+                width: 100%;
+                max-width: 100%;
+                overflow-x: visible;
                 gap: 4px;
                 padding: 8px;
+                box-sizing: border-box;
             }
             .nav-item { width: auto; white-space: nowrap; }
             .nav-count { display: none; }
@@ -771,6 +961,8 @@
         <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
         <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
         <symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+        <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10.3 21a2 2 0 0 0 3.4 0"/></symbol>
+        <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
         <symbol id="icon-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
         <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
         <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
@@ -801,6 +993,8 @@
                 <button class="nav-item" data-section="dedup" type="button"><svg class="icon"><use href="#icon-copy"/></svg>Deduplication</button>
                 <button class="nav-item" data-section="albums" type="button"><svg class="icon"><use href="#icon-albums"/></svg>Albums <span class="nav-count" id="albumCount">0</span></button>
                 <button class="nav-item" data-section="google" type="button"><svg class="icon"><use href="#icon-plug"/></svg>Google upload</button>
+                <button class="nav-item" data-section="private" type="button"><svg class="icon"><use href="#icon-lock"/></svg>Private albums</button>
+                <button class="nav-item" data-section="notifications" type="button"><svg class="icon"><use href="#icon-bell"/></svg>Notifications</button>
                 <button class="nav-item" data-section="advanced" type="button"><svg class="icon"><use href="#icon-database"/></svg>Advanced</button>
                 <button class="nav-item" data-section="logs" type="button"><svg class="icon"><use href="#icon-terminal"/></svg>Logs</button>
                 <div class="sidebar-footer">
@@ -815,6 +1009,23 @@
                         <div class="section-header">
                             <h2>Overview</h2>
                             <p>What the sync is doing right now and what happens next.</p>
+                            <button class="btn btn-ghost btn-sm" type="button" onclick="showGettingStarted()" style="margin-top:8px"><svg class="icon"><use href="#icon-check"/></svg>Setup guide</button>
+                        </div>
+
+                        <div class="card" id="whatsNewCard" style="display:none">
+                            <div class="card-header">
+                                <div><h3 id="whatsNewTitle">What's new</h3><p>Recent changes in this version.</p></div>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="dismissWhatsNew()">Dismiss</button>
+                            </div>
+                            <ul class="whats-new-list" id="whatsNewList"></ul>
+                        </div>
+
+                        <div class="card" id="gettingStartedCard" style="display:none">
+                            <div class="card-header">
+                                <div><h3>Getting started</h3><p>Finish these steps to get the first sync running.</p></div>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="dismissGettingStarted()">Dismiss</button>
+                            </div>
+                            <div class="setup-list" id="setupList"></div>
                         </div>
 
                         <div class="card status-card">
@@ -999,7 +1210,7 @@
                     <section id="section-google" class="section">
                         <div class="section-header">
                             <h2>Google upload</h2>
-                            <p>Send new additions from an Immich album back to its shared Google Photos album.</p>
+                            <p>Send new additions from an Immich album back to its Google Photos album.</p>
                         </div>
 
                         <div class="card">
@@ -1159,7 +1370,7 @@
                                         <option value="quota">Count against Google storage (default)</option>
                                         <option value="unlimited">Unlimited storage (unofficial)</option>
                                     </select>
-                                    <div class="hint">Unlimited storage is off by default. It relies on an unofficial mobile-API behaviour.</div>
+                                    <div class="hint">Unlimited storage is off by default. It makes the uploader identify as a Pixel phone, so Google does not charge your quota. This is unofficial and can change at any time; use at your own risk.</div>
                                 </div>
                                 <div class="field">
                                     <label for="googleQuality">Quality</label>
@@ -1181,6 +1392,123 @@
                                 </div>
                                 <span class="switch"><input type="checkbox" id="googleSkipLivePhotos"><span class="switch-track"></span></span>
                             </label>
+                            <label class="toggle" style="margin-top:8px">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Re-upload photos deleted from Google Photos</div>
+                                    <div class="toggle-desc">Off by default, so deleting a photo in Google Photos is respected. When on, each run checks the album and uploads items that are no longer there. Requires a browser session.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="googleReuploadDeleted"><span class="switch-track"></span></span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section id="section-private" class="section">
+                        <div class="section-header">
+                            <h2>Private albums</h2>
+                            <p>Import albums from your own Google Photos account into Immich.</p>
+                            <span class="pill pill-warning" style="margin-top:8px">Experimental</span>
+                        </div>
+
+                        <div class="card" id="privateSessionCard" style="display:none">
+                            <div class="card-header">
+                                <div><h3>Browser session required</h3><p>Private albums are not public. Connect the Google Photos browser session first.</p></div>
+                            </div>
+                            <button class="btn btn-secondary" type="button" onclick="goToSection('google')">Open Google upload</button>
+                        </div>
+
+                        <div id="privateWorkspace" style="display:none">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div><h3>Choose an album</h3><p>Only albums in the connected Google account are listed.</p></div>
+                                    <button class="btn btn-secondary btn-sm" type="button" onclick="loadPrivateAlbums()">Refresh</button>
+                                </div>
+                                <div class="field-grid">
+                                    <div class="field">
+                                        <label for="privateTarget">Import into</label>
+                                        <select class="input" id="privateTarget">
+                                            <option value="__new__">Create a new Immich album</option>
+                                        </select>
+                                    </div>
+                                    <div class="field" id="privateNewNameField">
+                                        <label for="privateNewName">New album name</label>
+                                        <input class="input" type="text" id="privateNewName" placeholder="Google Photos album title">
+                                    </div>
+                                </div>
+                                <div class="hint">The new album name defaults to the Google Photos album title.</div>
+                                <div id="privateAlbumsLoading" class="empty-state" style="display:none">Loading private albums...</div>
+                                <div id="privateAlbumsError" class="test-result danger" style="margin-top:12px"></div>
+                                <div id="privateAlbumList" class="private-album-list"></div>
+                                <div id="privateAlbumsEmpty" class="empty-state" style="display:none">No private albums found in this Google account.</div>
+                            </div>
+
+                            <div class="card" id="privateProgressCard" style="display:none">
+                                <div class="card-header">
+                                    <div><h3 id="privateProgressTitle">Importing album</h3><p id="privateProgressAlbum"></p></div>
+                                    <button class="btn btn-danger btn-sm" type="button" id="privateCancelBtn" onclick="cancelPrivateImport()">Cancel</button>
+                                </div>
+                                <div class="progress"><div class="progress-fill" id="privateProgressBar"></div></div>
+                                <div class="activity-detail" id="privateProgressDetail">0 / 0 items</div>
+                                <div class="activity-counters">
+                                    <span><strong id="privateImported">0</strong> imported</span>
+                                    <span><strong id="privateSkipped">0</strong> skipped</span>
+                                    <span><strong id="privateFailed">0</strong> failed</span>
+                                </div>
+                                <div class="test-result" id="privateProgressError" style="margin-top:10px" role="status" aria-live="polite"></div>
+                            </div>
+
+                            <div class="note" style="margin-top:16px">
+                                <svg viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                <div><strong>Experimental import.</strong> Photos and videos are downloaded as originals. Live Photo motion is imported as the still only. Deletions are not propagated, and there is no schedule.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="section-notifications" class="section">
+                        <div class="section-header">
+                            <h2>Notifications</h2>
+                            <p>Get a message in Immich when a run needs your attention or finishes.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Immich notifications</h3><p>Shown in the Immich web app for your user.</p></div>
+                                <span class="pill pill-muted" id="notificationPill"><span class="status-dot"></span>Off</span>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Send notifications through Immich</div>
+                                    <div class="toggle-desc">Uses Immich's admin notification API. The API key needs the <code>notification.create</code> permission, or all permissions.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="notificationsImmich"><span class="switch-track"></span></span>
+                            </label>
+                            <div id="notificationEvents" style="margin-top:14px">
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When a sync fails</div>
+                                        <div class="toggle-desc">An album could not be read, or one or more items failed.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="notificationsSyncFailed"><span class="switch-track"></span></span>
+                                </label>
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When an import finishes</div>
+                                        <div class="toggle-desc">New photos were added from Google Photos to Immich.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="notificationsImportComplete"><span class="switch-track"></span></span>
+                                </label>
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When photos are uploaded to Google Photos</div>
+                                        <div class="toggle-desc">An Immich album finished uploading back to Google Photos.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="notificationsUploadComplete"><span class="switch-track"></span></span>
+                                </label>
+                            </div>
+                            <div class="button-row" style="margin-top:12px">
+                                <button class="btn btn-secondary" type="button" id="notificationTestBtn" onclick="sendTestNotification()">Send test notification</button>
+                                <span class="test-result" id="notificationTestResult" role="status" aria-live="polite"></span>
+                            </div>
+                            <div class="hint">If the test fails with a permission error, create an Immich API key with <code>notification.create</code> and update the key on the Connection page.</div>
                         </div>
                     </section>
 
@@ -1218,19 +1546,73 @@
 
                 <section id="section-logs" class="section">
                     <div class="section-header">
-                        <h2>Logs</h2>
-                        <p>Live output from the sync process.</p>
+                        <h2>Activity</h2>
+                        <p>Live progress and a structured history of every run.</p>
                     </div>
+
                     <div class="card">
-                        <div class="logs-toolbar">
+                        <div class="card-header">
+                            <div><h3>Current run</h3><p>Import and Google Photos upload progress.</p></div>
+                            <span class="pill pill-muted" id="livePill"><span class="status-dot"></span>Connecting</span>
+                        </div>
+                        <div id="activityEmpty" class="empty-state" style="display:none">No sync has run yet. Use Sync now or wait for the next scheduled run.</div>
+                        <div id="activityLive">
+                            <div class="activity-block">
+                                <div class="activity-label"><span>Import</span><span id="activityAlbumsText">0 / 0 albums</span></div>
+                                <div class="progress"><div class="progress-fill" id="activityAlbumsBar"></div></div>
+                                <div class="activity-detail" id="activityImportText">No album is importing</div>
+                                <div class="progress" style="margin-top:8px"><div class="progress-fill" id="activityImportBar"></div></div>
+                                <div class="activity-detail" id="activityImportDetail">0 / 0 items</div>
+                            </div>
+                            <div class="activity-block" id="activityUploadRow" style="display:none">
+                                <div class="activity-label"><span>Google Photos</span><span id="activityUploadText">0 / 0 items</span></div>
+                                <div class="progress"><div class="progress-fill" id="activityUploadBar"></div></div>
+                                <div class="activity-detail" id="activityUploadDetail">No upload is running</div>
+                            </div>
+                            <div class="activity-counters">
+                                <span><strong id="activityAdded">0</strong> added</span>
+                                <span><strong id="activitySkipped">0</strong> skipped</span>
+                                <span><strong id="activityFailed">0</strong> failed</span>
+                                <span><strong id="activityUploaded">0</strong> uploaded</span>
+                                <span><strong id="activityUploadFailed">0</strong> upload failed</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div><h3>Event stream</h3><p>Newest events at the bottom. Filter or pause while you inspect a failure.</p></div>
+                            <span class="muted" id="activityEventsCount">0 events</span>
+                        </div>
+                        <div class="activity-toolbar">
+                            <div class="activity-filters" role="group" aria-label="Event filter">
+                                <button class="btn btn-secondary btn-sm" type="button" data-activity-filter="all" aria-pressed="true">All</button>
+                                <button class="btn btn-secondary btn-sm" type="button" data-activity-filter="errors" aria-pressed="false">Problems</button>
+                                <button class="btn btn-secondary btn-sm" type="button" data-activity-filter="imports" aria-pressed="false">Imports</button>
+                                <button class="btn btn-secondary btn-sm" type="button" data-activity-filter="uploads" aria-pressed="false">Uploads</button>
+                            </div>
+                            <input class="input activity-search" id="activitySearch" type="search" placeholder="Search events" aria-label="Search events">
+                            <label class="inline-check"><input type="checkbox" id="activityPause"> Pause</label>
+                            <label class="inline-check"><input type="checkbox" id="activityAutoScroll" checked> Auto-scroll</label>
+                            <button class="btn btn-ghost btn-sm" type="button" onclick="copyEvents()">Copy</button>
+                        </div>
+                        <div class="event-list" id="activityEvents" role="log" aria-live="off"></div>
+                        <div class="empty-state" id="activityEventsEmpty">No events yet. Start a sync to see progress and failures here.</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div><h3>Raw log output</h3><p>The terminal view, kept for debugging.</p></div>
                             <div class="button-row">
                                 <button class="btn btn-secondary btn-sm" type="button" onclick="refreshLogs()">Refresh</button>
                                 <button class="btn btn-ghost btn-sm" type="button" onclick="copyLogs()">Copy</button>
                                 <span class="muted" id="logsUpdated"></span>
                             </div>
-                            <label class="inline-check"><input type="checkbox" id="autoScrollLogs" checked> Auto-scroll</label>
                         </div>
-                        <pre class="log-view" id="appLogs">Loading logs...</pre>
+                        <details>
+                            <summary>Show raw logs</summary>
+                            <pre class="log-view" id="appLogs" style="margin-top:12px">Open this panel to load the raw logs.</pre>
+                        </details>
                     </div>
                 </section>
             </main>
@@ -1306,8 +1688,45 @@
             toastTimer: null,
             immichAlbums: [],
             webSession: { connected: false },
-            googleAccount: { connected: false }
+            googleAccount: { connected: false },
+            privateAlbums: [],
+            privateStatus: null,
+            privatePoll: null,
+            privateLoaded: false,
+            privateRunning: false
         };
+
+        const live = {
+            connected: false,
+            source: null,
+            snapshot: null,
+            events: [],
+            filter: 'all',
+            search: '',
+            paused: false
+        };
+
+        // Bump APP_VERSION and add the user-facing changes when a release ships.
+        const APP_VERSION = '1.11.0';
+        let setupSignature = '';
+        const WHATS_NEW = [
+            {
+                title: 'Live activity and clearer logs',
+                body: 'The Activity page shows progress bars and filterable events instead of only a terminal view.'
+            },
+            {
+                title: 'Immich notifications',
+                body: 'Choose whether a failed sync or a finished Google Photos upload sends a notification in Immich.'
+            },
+            {
+                title: 'Re-upload control',
+                body: 'Photos deleted from Google Photos stay deleted by default. Turn on the re-upload check to restore missing items.'
+            },
+            {
+                title: 'Private album import (experimental)',
+                body: 'Import albums from your own Google Photos account into Immich from the Private albums tab.'
+            }
+        ];
 
         function $(id) { return document.getElementById(id); }
         function qs(selector, root = document) { return root.querySelector(selector); }
@@ -1346,7 +1765,11 @@
             qsa('.section').forEach(section => section.classList.toggle('active', section.id === 'section-' + name));
             qsa('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === name));
             state.activeSection = name;
-            if (name === 'logs') refreshLogs();
+            if (name === 'logs') {
+                refreshActivity();
+                refreshLogs();
+            }
+            if (name === 'private') applyPrivateSession();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -1590,6 +2013,225 @@
                 select.value = current;
             }
             select.addEventListener('change', () => updateAlbumBackupState(select.closest('.album-row')));
+            populatePrivateTargets();
+        }
+
+        function populatePrivateTargets() {
+            const select = $('privateTarget');
+            if (!select) return;
+            const current = select.value || '__new__';
+            const albums = state.immichAlbums || [];
+            select.innerHTML = '<option value="__new__">Create a new Immich album</option>' +
+                albums.map(album => `<option value="${escapeHtml(album.id)}">${escapeHtml(album.name)} (${album.items})</option>`).join('');
+            if (current === '__new__' || albums.some(album => album.id === current)) {
+                select.value = current;
+            } else {
+                select.value = '__new__';
+            }
+            updatePrivateNewNameField();
+        }
+
+        function updatePrivateNewNameField() {
+            $('privateNewNameField').style.display = $('privateTarget').value === '__new__' ? 'block' : 'none';
+        }
+
+        function applyPrivateSession() {
+            const connected = !!(state.webSession && state.webSession.connected);
+            $('privateSessionCard').style.display = connected ? 'none' : 'block';
+            $('privateWorkspace').style.display = connected ? 'block' : 'none';
+            if (!connected) {
+                state.privateLoaded = false;
+                state.privateRunning = false;
+                if (state.privatePoll) {
+                    clearInterval(state.privatePoll);
+                    state.privatePoll = null;
+                }
+                return;
+            }
+            if (state.activeSection === 'private') {
+                loadPrivateAlbums();
+                refreshPrivateStatusOnce();
+            }
+        }
+
+        async function loadPrivateAlbums() {
+            if (!state.webSession.connected) {
+                applyPrivateSession();
+                return;
+            }
+            $('privateAlbumsLoading').style.display = 'block';
+            $('privateAlbumsError').textContent = '';
+            $('privateAlbumsEmpty').style.display = 'none';
+            try {
+                const res = await fetch('/api/google/private/albums', { cache: 'no-store' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not load private albums');
+                state.privateAlbums = data.albums || [];
+                state.privateLoaded = true;
+                populatePrivateTargets();
+                renderPrivateAlbums();
+            } catch (err) {
+                state.privateAlbums = [];
+                $('privateAlbumsError').textContent = err.message;
+                $('privateAlbumList').innerHTML = '';
+                $('privateAlbumsEmpty').style.display = 'none';
+            } finally {
+                $('privateAlbumsLoading').style.display = 'none';
+            }
+        }
+
+        function renderPrivateAlbums() {
+            const list = $('privateAlbumList');
+            list.innerHTML = '';
+            const albums = state.privateAlbums || [];
+            $('privateAlbumsEmpty').style.display = albums.length ? 'none' : 'block';
+            for (const album of albums) {
+                const row = document.createElement('div');
+                row.className = 'private-album';
+                const info = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'private-album-title';
+                title.textContent = album.title || album.key;
+                const meta = document.createElement('div');
+                meta.className = 'private-album-meta';
+                meta.textContent = `${album.count || 0} ${album.count === 1 ? 'item' : 'items'}`;
+                info.append(title, meta);
+                const count = album.count || 0;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-secondary btn-sm';
+                button.textContent = 'Import';
+                button.setAttribute('aria-label', `Import ${album.title || 'album'}`);
+                button.disabled = state.privateRunning || count === 0;
+                if (count === 0) button.title = 'This album has no items';
+                button.addEventListener('click', () => startPrivateImport(album));
+                row.append(info, button);
+                list.appendChild(row);
+            }
+        }
+
+        async function startPrivateImport(album) {
+            if (state.privateRunning) return;
+            const target = $('privateTarget').value;
+            const payload = {
+                albumKey: album.key,
+                albumTitle: album.title || '',
+                immichAlbumId: target === '__new__' ? '' : target,
+                immichAlbumName: target === '__new__' ? ($('privateNewName').value.trim() || album.title || '') : ''
+            };
+            if (!payload.immichAlbumId && !payload.immichAlbumName) {
+                showToast('Give the new Immich album a name', true);
+                return;
+            }
+            state.privateRunning = true;
+            renderPrivateAlbums();
+            $('privateProgressError').textContent = '';
+            $('privateProgressError').className = 'test-result';
+            $('privateProgressCard').style.display = 'block';
+            $('privateProgressTitle').textContent = 'Starting import';
+            $('privateProgressAlbum').textContent = album.title || '';
+            $('privateProgressBar').style.width = '0%';
+            $('privateProgressDetail').textContent = '0 / 0 items';
+            try {
+                const res = await fetch('/api/google/private/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not start the import');
+                state.privateStatus = data.status;
+                updatePrivateStatus(data.status);
+                startPrivatePolling();
+            } catch (err) {
+                state.privateRunning = false;
+                renderPrivateAlbums();
+                $('privateProgressTitle').textContent = 'Import failed';
+                $('privateProgressError').textContent = err.message;
+                $('privateProgressError').className = 'test-result danger';
+                $('privateCancelBtn').style.display = 'none';
+            }
+        }
+
+        function startPrivatePolling() {
+            if (state.privatePoll) clearInterval(state.privatePoll);
+            state.privatePoll = setInterval(pollPrivateStatus, 1000);
+        }
+
+        async function pollPrivateStatus() {
+            try {
+                const res = await fetch('/api/google/private/status', { cache: 'no-store' });
+                if (!res.ok) return;
+                const status = await res.json();
+                state.privateStatus = status;
+                updatePrivateStatus(status);
+                if (!status.running) {
+                    if (state.privatePoll) {
+                        clearInterval(state.privatePoll);
+                        state.privatePoll = null;
+                    }
+                    state.privateRunning = false;
+                    renderPrivateAlbums();
+                    setTimeout(() => {
+                        loadPrivateAlbums();
+                        loadImmichAlbums();
+                    }, 600);
+                }
+            } catch (err) {
+                // The next poll tries again.
+            }
+        }
+
+        async function refreshPrivateStatusOnce() {
+            try {
+                const res = await fetch('/api/google/private/status', { cache: 'no-store' });
+                if (!res.ok) return;
+                const status = await res.json();
+                state.privateStatus = status;
+                updatePrivateStatus(status);
+                if (status.running) {
+                    state.privateRunning = true;
+                    startPrivatePolling();
+                }
+            } catch (err) {
+                // The private tab still works without a previous status.
+            }
+        }
+
+        function updatePrivateStatus(status) {
+            if (!status || (!status.id && !status.album && !status.running && !status.total)) return;
+            $('privateProgressCard').style.display = 'block';
+            const running = !!status.running;
+            $('privateProgressTitle').textContent = running ? 'Importing album' : (status.error ? 'Import failed' : 'Import finished');
+            $('privateProgressAlbum').textContent = status.album || '';
+            const total = status.total || 0;
+            const processed = status.processed || 0;
+            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+            $('privateProgressBar').style.width = percent + '%';
+            $('privateProgressDetail').textContent = `${processed} / ${total} items`;
+            $('privateImported').textContent = status.imported || 0;
+            $('privateSkipped').textContent = status.skipped || 0;
+            $('privateFailed').textContent = status.failed || 0;
+            $('privateCancelBtn').style.display = running ? 'inline-flex' : 'none';
+            const error = $('privateProgressError');
+            if (status.error) {
+                error.textContent = status.error;
+                error.className = 'test-result danger';
+            } else {
+                error.textContent = '';
+                error.className = 'test-result';
+            }
+        }
+
+        async function cancelPrivateImport() {
+            try {
+                const res = await fetch('/api/google/private/cancel', { method: 'POST' });
+                const status = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(status.error || 'Could not cancel the import');
+                updatePrivateStatus(status);
+            } catch (err) {
+                showToast(err.message, true);
+            }
         }
 
         async function refreshGoogleAccount() {
@@ -1631,6 +2273,7 @@
                 }
             }
             qsa('#albumList .album-row').forEach(updateAlbumBackupState);
+            updateGettingStarted();
         }
 
         function showGoogleWizard() {
@@ -1736,6 +2379,7 @@
                 error.className = 'test-result';
             }
             qsa('#albumList .album-row').forEach(updateAlbumBackupState);
+            applyPrivateSession();
         }
 
         function showWebWizard() {
@@ -1796,6 +2440,33 @@
             }
         }
 
+        function updateNotificationPill() {
+            const pill = $('notificationPill');
+            const on = $('notificationsImmich').checked;
+            pill.className = on ? 'pill pill-success' : 'pill pill-muted';
+            pill.innerHTML = on ? '<span class="status-dot"></span>On' : '<span class="status-dot"></span>Off';
+        }
+
+        async function sendTestNotification() {
+            const button = $('notificationTestBtn');
+            const result = $('notificationTestResult');
+            button.disabled = true;
+            result.textContent = 'Sending...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/notifications/test', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not send the test notification');
+                result.textContent = 'Sent. Check the notification bell in Immich.';
+                result.className = 'test-result success';
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         async function loadConfig() {
             try {
                 const res = await fetch('/api/config');
@@ -1818,7 +2489,15 @@
                 $('googleStorageMode').value = googleUpload.storageMode || 'quota';
                 $('googleQuality').value = googleUpload.quality || 'original';
                 $('googleSkipLivePhotos').checked = !!googleUpload.skipLivePhotos;
+                $('googleReuploadDeleted').checked = !!googleUpload.reuploadDeleted;
                 $('googleThreads').value = googleUpload.threads || 1;
+
+                const notifications = config.notifications || {};
+                $('notificationsImmich').checked = !!notifications.immich;
+                $('notificationsSyncFailed').checked = !!notifications.onSyncFailed;
+                $('notificationsImportComplete').checked = !!notifications.onImportComplete;
+                $('notificationsUploadComplete').checked = !!notifications.onUploadComplete;
+                updateNotificationPill();
 
                 $('albumList').innerHTML = '';
                 (config.googlePhotos || []).forEach(gp => addAlbumRow(gp));
@@ -1827,6 +2506,9 @@
                 loadImmichAlbums();
                 refreshGoogleAccount();
                 refreshWebSession(false);
+                setupSignature = '';
+                renderWhatsNew();
+                updateGettingStarted();
 
                 if (!config.apiURL || !config.apiKey) {
                     $('mainUI').style.display = 'none';
@@ -1871,7 +2553,14 @@
                     storageMode: $('googleStorageMode').value,
                     quality: $('googleQuality').value,
                     skipLivePhotos: $('googleSkipLivePhotos').checked,
+                    reuploadDeleted: $('googleReuploadDeleted').checked,
                     threads: parseInt($('googleThreads').value, 10) || 1
+                },
+                notifications: {
+                    immich: $('notificationsImmich').checked,
+                    onSyncFailed: $('notificationsSyncFailed').checked,
+                    onImportComplete: $('notificationsImportComplete').checked,
+                    onUploadComplete: $('notificationsUploadComplete').checked
                 }
             };
 
@@ -1889,7 +2578,7 @@
                 clearDirty();
                 updateOverviewStats();
                 showToast('Configuration saved');
-                setTimeout(pollStatus, 800);
+                setTimeout(refreshActivity, 800);
             } catch (err) {
                 console.error(err);
                 showToast('Could not save: ' + err.message, true);
@@ -1970,6 +2659,133 @@
             }
         }
 
+        function renderWhatsNew() {
+            const card = $('whatsNewCard');
+            if (!card) return;
+            if (localStorage.getItem('g2i.whatsNewSeen') === APP_VERSION) {
+                card.style.display = 'none';
+                return;
+            }
+            $('whatsNewTitle').textContent = `What's new in v${APP_VERSION}`;
+            const list = $('whatsNewList');
+            list.innerHTML = '';
+            for (const item of WHATS_NEW) {
+                const li = document.createElement('li');
+                const title = document.createElement('span');
+                title.className = 'whats-new-title';
+                title.textContent = item.title + '. ';
+                const body = document.createElement('span');
+                body.textContent = item.body;
+                li.append(title, body);
+                list.appendChild(li);
+            }
+            card.style.display = 'block';
+        }
+
+        function dismissWhatsNew() {
+            localStorage.setItem('g2i.whatsNewSeen', APP_VERSION);
+            $('whatsNewCard').style.display = 'none';
+        }
+
+        function updateGettingStarted() {
+            const card = $('gettingStartedCard');
+            if (!card) return;
+            if (!state.config) return;
+            if (localStorage.getItem('g2i.gettingStartedDismissed') === '1') {
+                card.style.display = 'none';
+                return;
+            }
+            const config = state.config || {};
+            const hasImmich = !!(config.apiURL && config.apiKey);
+            const hasAlbum = !!(config.googlePhotos && config.googlePhotos.length);
+            const hasGoogle = !!(state.googleAccount && state.googleAccount.connected);
+            const hasRun = !!(live.snapshot && !isZeroTime(live.snapshot.lastRun));
+            const signature = [hasImmich, hasAlbum, hasGoogle, hasRun].join('|');
+            if (signature === setupSignature && card.style.display !== 'none') {
+                return;
+            }
+            setupSignature = signature;
+            const steps = [
+                {
+                    done: hasImmich,
+                    title: 'Connect Immich',
+                    description: 'Add the Immich URL and an API key with upload and album permissions.',
+                    action: 'connection',
+                    label: 'Open Connection'
+                },
+                {
+                    done: hasAlbum,
+                    title: 'Add a shared album',
+                    description: 'Paste a public Google Photos share link and choose how often to sync it.',
+                    action: 'albums',
+                    label: 'Open Albums'
+                },
+                {
+                    done: hasGoogle,
+                    title: 'Connect Google upload (optional)',
+                    description: 'Enable photos from Immich to go back to Google Photos, including albums shared with you.',
+                    action: 'google',
+                    label: 'Open Google upload'
+                },
+                {
+                    done: hasRun,
+                    title: 'Run the first sync',
+                    description: 'Start a sync and watch the result on the Activity page.',
+                    action: 'sync',
+                    label: 'Sync now'
+                }
+            ];
+
+            const list = $('setupList');
+            list.innerHTML = '';
+            for (const step of steps) {
+                const row = document.createElement('div');
+                row.className = 'setup-row' + (step.done ? ' done' : '');
+
+                const check = document.createElement('span');
+                check.className = 'setup-check';
+                check.innerHTML = '<svg class="icon"><use href="#icon-check"/></svg>';
+                const stateText = document.createElement('span');
+                stateText.className = 'sr-only';
+                stateText.textContent = step.done ? 'Done' : 'Not done';
+
+                const text = document.createElement('div');
+                text.className = 'setup-text';
+                const title = document.createElement('div');
+                title.className = 'setup-title';
+                title.textContent = step.title;
+                const description = document.createElement('div');
+                description.className = 'setup-desc';
+                description.textContent = step.description;
+                text.append(title, description);
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-secondary btn-sm';
+                button.textContent = step.done ? 'Review' : step.label;
+                button.addEventListener('click', () => {
+                    if (step.action === 'sync') triggerSync();
+                    else goToSection(step.action);
+                });
+
+                row.append(check, stateText, text, button);
+                list.appendChild(row);
+            }
+            card.style.display = 'block';
+        }
+
+        function showGettingStarted() {
+            localStorage.removeItem('g2i.gettingStartedDismissed');
+            setupSignature = '';
+            updateGettingStarted();
+            $('gettingStartedCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function dismissGettingStarted() {
+            localStorage.setItem('g2i.gettingStartedDismissed', '1');
+            $('gettingStartedCard').style.display = 'none';
+        }
+
         function formatDate(value, fallback) {
             if (!value) return fallback;
             const date = new Date(value);
@@ -1977,41 +2793,265 @@
             return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
+        function isZeroTime(value) {
+            return !value || value.startsWith('0001-01-01');
+        }
+
+        function formatEventTime(value) {
+            if (isZeroTime(value)) return '';
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        }
+
+        function setLivePill(label) {
+            const pill = $('livePill');
+            if (!pill) return;
+            let className = 'pill pill-muted';
+            if (label === 'Live') className = 'pill pill-success';
+            else if (label === 'Polling') className = 'pill pill-warning';
+            pill.className = className;
+            pill.innerHTML = `<span class="status-dot"></span>${label}`;
+        }
+
+        function updateOverview(snap, immichUser) {
+            const active = snap.activeAlbums && snap.activeAlbums.length ? snap.activeAlbums[0] : null;
+            const syncing = !!snap.running || !!snap.uploadRunning;
+            const label = syncing ? (snap.uploadRunning && !snap.running ? 'Uploading' : 'Syncing') : 'Idle';
+            const pillClass = syncing ? 'pill pill-accent' : 'pill pill-muted';
+
+            $('statusPill').className = pillClass;
+            $('statusPillText').textContent = label;
+            $('syncStatePill').className = pillClass;
+            $('syncStateText').textContent = label;
+
+            let albumName = '';
+            if (active) albumName = active.name;
+            else if (snap.uploadRunning) albumName = snap.uploadAlbum || '';
+            $('statusAlbum').textContent = albumName || 'No album is syncing';
+            $('statusAlbum').classList.toggle('muted', !albumName);
+
+            let percent = 0;
+            if (active && active.total > 0) percent = Math.round((active.processed / active.total) * 100);
+            else if (!active && snap.uploadTotal > 0) percent = Math.round((snap.uploadProcessed / snap.uploadTotal) * 100);
+            percent = Math.max(0, Math.min(100, percent));
+            $('statusProgressBar').style.width = percent + '%';
+            $('statusPercent').textContent = percent + '%';
+            $('statusPercentSmall').textContent = percent + '%';
+            if (active) {
+                $('statusItems').textContent = `${active.processed} / ${active.total} items`;
+            } else if (snap.uploadRunning) {
+                $('statusItems').textContent = `${snap.uploadProcessed} / ${snap.uploadTotal} items`;
+            } else {
+                $('statusItems').textContent = '0 / 0 items';
+            }
+            $('statusLastRun').textContent = isZeroTime(snap.lastRun) ? 'Never' : formatDate(snap.lastRun, 'Never');
+            $('statusNextRun').textContent = isZeroTime(snap.nextRun) ? 'Pending' : formatDate(snap.nextRun, 'Pending');
+            if (immichUser) $('statUser').textContent = immichUser;
+            $('statusSideNote').textContent = active
+                ? 'Live progress of the current album'
+                : (snap.uploadRunning ? 'Live progress of the Google Photos upload' : 'Waiting for the next run');
+            $('statusUpdated').textContent = live.connected ? 'Live' : 'Updated ' + new Date().toLocaleTimeString();
+        }
+
+        function updateActivityCard(snap) {
+            const active = snap.activeAlbums && snap.activeAlbums.length ? snap.activeAlbums[0] : null;
+            const albumsTotal = snap.albumsTotal || 0;
+            const albumsDone = snap.albumsDone || 0;
+            const albumPercent = albumsTotal > 0 ? Math.round((albumsDone / albumsTotal) * 100) : 0;
+            $('activityAlbumsBar').style.width = Math.min(100, albumPercent) + '%';
+            $('activityAlbumsText').textContent = `${albumsDone} / ${albumsTotal} albums`;
+
+            if (active) {
+                const extra = snap.activeAlbums.length > 1 ? ` +${snap.activeAlbums.length - 1} more` : '';
+                const itemPercent = active.total > 0 ? Math.round((active.processed / active.total) * 100) : 0;
+                $('activityImportText').textContent = active.name + extra;
+                $('activityImportBar').style.width = Math.min(100, itemPercent) + '%';
+                $('activityImportDetail').textContent =
+                    `${active.processed} / ${active.total} items · ${active.added} added · ${active.skipped} skipped · ${active.failed} failed`;
+            } else {
+                $('activityImportText').textContent = snap.running ? 'Preparing albums...' : 'No album is importing';
+                $('activityImportBar').style.width = '0%';
+                $('activityImportDetail').textContent = '0 / 0 items';
+            }
+
+            const showUpload = !!snap.uploadRunning || !isZeroTime(snap.uploadStartedAt) || (snap.uploadTotal || 0) > 0;
+            $('activityUploadRow').style.display = showUpload ? 'block' : 'none';
+            if (showUpload) {
+                const uploadTotal = snap.uploadTotal || 0;
+                const uploadProcessed = snap.uploadProcessed || 0;
+                const uploadPercent = uploadTotal > 0 ? Math.round((uploadProcessed / uploadTotal) * 100) : 0;
+                $('activityUploadBar').style.width = Math.min(100, uploadPercent) + '%';
+                $('activityUploadText').textContent = `${uploadProcessed} / ${uploadTotal} items`;
+                $('activityUploadDetail').textContent =
+                    `${snap.uploadAlbum || 'Google Photos'} · ${snap.uploaded || 0} uploaded · ${snap.uploadFailed || 0} failed`;
+            }
+
+            $('activityAdded').textContent = snap.added || 0;
+            $('activitySkipped').textContent = snap.skipped || 0;
+            $('activityFailed').textContent = snap.failed || 0;
+            $('activityUploaded').textContent = snap.uploaded || 0;
+            $('activityUploadFailed').textContent = snap.uploadFailed || 0;
+        }
+
+        function syncEvents(incoming) {
+            if (!incoming || !incoming.length) {
+                $('activityEventsCount').textContent = `${live.events.length} events`;
+                return;
+            }
+            const lastLocal = live.events.length ? live.events[live.events.length - 1].id : 0;
+            const lastIncoming = incoming[incoming.length - 1].id;
+            if (lastLocal && lastIncoming < lastLocal) {
+                live.events = [];
+            }
+            const fresh = live.events.length === 0
+                ? incoming.slice(-200)
+                : incoming.filter(event => event.id > lastLocal);
+            if (fresh.length) {
+                live.events = live.events.concat(fresh).slice(-200);
+                renderEvents();
+            }
+            $('activityEventsCount').textContent = `${live.events.length} events`;
+        }
+
+        function levelLabel(level) {
+            switch (level) {
+                case 'success': return 'Done';
+                case 'warning': return 'Warning';
+                case 'error': return 'Error';
+                default: return 'Info';
+            }
+        }
+
+        function formatEventFields(fields) {
+            if (!fields) return '';
+            return Object.entries(fields)
+                .filter(([, value]) => value !== '' && value !== null && value !== undefined)
+                .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+                .join(' · ');
+        }
+
+        function renderEvents() {
+            const list = $('activityEvents');
+            const query = live.search.trim().toLowerCase();
+            const filtered = live.events.filter(event => {
+                if (live.filter === 'errors' && event.level !== 'error' && event.level !== 'warning') return false;
+                if (live.filter === 'imports' && event.category !== 'import') return false;
+                if (live.filter === 'uploads' && event.category !== 'upload') return false;
+                if (query) {
+                    const haystack = `${event.message || ''} ${JSON.stringify(event.fields || {})}`.toLowerCase();
+                    if (!haystack.includes(query)) return false;
+                }
+                return true;
+            });
+            list.innerHTML = '';
+            for (const event of filtered) {
+                const row = document.createElement('div');
+                row.className = `event-row level-${event.level || 'info'}`;
+
+                const time = document.createElement('span');
+                time.className = 'event-time';
+                time.textContent = formatEventTime(event.time);
+
+                const badge = document.createElement('span');
+                badge.className = `event-badge level-${event.level || 'info'}`;
+                badge.textContent = levelLabel(event.level);
+
+                const body = document.createElement('div');
+                body.className = 'event-body';
+                const message = document.createElement('div');
+                message.className = 'event-message';
+                message.textContent = event.message || '';
+                body.appendChild(message);
+                const fields = formatEventFields(event.fields);
+                if (fields) {
+                    const fieldLine = document.createElement('div');
+                    fieldLine.className = 'event-fields';
+                    fieldLine.textContent = fields;
+                    body.appendChild(fieldLine);
+                }
+
+                row.append(time, badge, body);
+                list.appendChild(row);
+            }
+            $('activityEventsEmpty').style.display = filtered.length ? 'none' : 'block';
+            if ($('activityAutoScroll').checked && !live.paused) {
+                requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+            }
+        }
+
+        function applySnapshot(payload) {
+            const snap = payload && payload.snapshot ? payload.snapshot : payload;
+            if (!snap) return;
+            live.snapshot = snap;
+            updateOverview(snap, payload.immichUser);
+            updateActivityCard(snap);
+            if (!live.paused) {
+                syncEvents(snap.events || []);
+            }
+            const hasActivity = !isZeroTime(snap.cycleStartedAt) || !isZeroTime(snap.uploadStartedAt) || (snap.events && snap.events.length > 0);
+            $('activityEmpty').style.display = hasActivity ? 'none' : 'block';
+            $('activityLive').style.display = hasActivity ? 'block' : 'none';
+            updateGettingStarted();
+        }
+
+        function connectLive() {
+            if (!window.EventSource) {
+                setLivePill('Polling');
+                return;
+            }
+            const source = new EventSource('/api/live');
+            live.source = source;
+            source.onopen = () => {
+                live.connected = true;
+                setLivePill('Live');
+            };
+            source.onerror = () => {
+                live.connected = false;
+                setLivePill('Reconnecting');
+            };
+            source.onmessage = event => {
+                live.connected = true;
+                setLivePill('Live');
+                try {
+                    applySnapshot(JSON.parse(event.data));
+                } catch (err) {
+                    console.error('Could not read live activity', err);
+                }
+            };
+        }
+
+        async function refreshActivity() {
+            try {
+                const res = await fetch('/api/activity', { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                applySnapshot(await res.json());
+            } catch (err) {
+                setLivePill('Polling');
+            }
+        }
+
+        async function copyEvents() {
+            const lines = live.events.map(event => {
+                const fields = formatEventFields(event.fields);
+                return `${formatEventTime(event.time)} ${levelLabel(event.level)} ${event.message}${fields ? ' · ' + fields : ''}`;
+            });
+            try {
+                await navigator.clipboard.writeText(lines.join('\n') || 'No events');
+                showToast('Events copied');
+            } catch (err) {
+                showToast('Could not copy events', true);
+            }
+        }
+
         async function pollStatus() {
             try {
                 const res = await fetch('/api/status');
                 if (!res.ok) return;
                 const data = await res.json();
-                const syncing = !!data.album && data.total > 0 && data.processed < data.total;
-                const finishing = !!data.album && data.total > 0 && data.processed >= data.total;
-                let label = 'Idle';
-                let pillClass = 'pill pill-muted';
-                if (syncing) {
-                    label = 'Syncing';
-                    pillClass = 'pill pill-accent';
-                } else if (finishing) {
-                    label = 'Finishing';
-                    pillClass = 'pill pill-accent';
-                }
-                $('statusPill').className = pillClass;
-                $('statusPillText').textContent = label;
-                $('syncStatePill').className = pillClass;
-                $('syncStateText').textContent = label;
-
-                $('statusAlbum').textContent = data.album || 'No album is syncing';
-                $('statusAlbum').classList.toggle('muted', !data.album);
-                const percent = data.total > 0 ? Math.min(100, Math.round((data.processed / data.total) * 100)) : 0;
-                $('statusProgressBar').style.width = percent + '%';
-                $('statusPercent').textContent = percent + '%';
-                $('statusPercentSmall').textContent = percent + '%';
-                $('statusItems').textContent = `${data.processed || 0} / ${data.total || 0} items`;
-                $('statusLastRun').textContent = formatDate(data.lastRun, 'Never');
-                $('statusNextRun').textContent = formatDate(data.nextRun, 'Pending');
-                $('statUser').textContent = data.immichUser || 'Unknown';
-                $('statusSideNote').textContent = data.album ? 'Live progress of the current album' : 'Waiting for the next run';
-                $('statusUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+                if (data.activity) applySnapshot({ snapshot: data.activity, immichUser: data.immichUser });
             } catch (err) {
-                // Silent: the next poll will try again.
+                // Silent: the live stream or the next fallback poll will try again.
             }
         }
 
@@ -2022,7 +3062,6 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const text = await res.text();
                 pre.textContent = text || 'No log output yet. Logs appear here after the app starts a sync.';
-                if ($('autoScrollLogs').checked) pre.scrollTop = pre.scrollHeight;
                 $('logsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
             } catch (err) {
                 pre.textContent = 'Could not load logs: ' + err.message;
@@ -2078,6 +3117,19 @@
 
         $('workers').addEventListener('input', updateOverviewStats);
 
+        $('notificationsImmich').addEventListener('change', () => {
+            if ($('notificationsImmich').checked
+                && !$('notificationsSyncFailed').checked
+                && !$('notificationsImportComplete').checked
+                && !$('notificationsUploadComplete').checked) {
+                $('notificationsSyncFailed').checked = true;
+                $('notificationsUploadComplete').checked = true;
+            }
+            updateNotificationPill();
+        });
+
+        $('privateTarget').addEventListener('change', updatePrivateNewNameField);
+
         qsa('input[name="dedupMode"]').forEach(input => {
             input.addEventListener('change', () => {
                 qsa('.mode-card').forEach(card => card.classList.toggle('selected', card.querySelector('input').checked));
@@ -2100,11 +3152,34 @@
             event.returnValue = '';
         });
 
+        qsa('[data-activity-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                live.filter = button.dataset.activityFilter;
+                qsa('[data-activity-filter]').forEach(other => {
+                    other.setAttribute('aria-pressed', String(other === button));
+                });
+                renderEvents();
+            });
+        });
+
+        $('activitySearch').addEventListener('input', () => {
+            live.search = $('activitySearch').value;
+            renderEvents();
+        });
+
+        $('activityPause').addEventListener('change', () => {
+            live.paused = $('activityPause').checked;
+            if (!live.paused && live.snapshot) {
+                syncEvents(live.snapshot.events || []);
+            }
+        });
+
+        renderWhatsNew();
         loadConfig();
         pollStatus();
-        setInterval(pollStatus, 5000);
+        connectLive();
         setInterval(() => {
-            if (state.activeSection === 'logs') refreshLogs();
+            if (!live.connected) refreshActivity();
         }, 5000);
     </script>
 </body>

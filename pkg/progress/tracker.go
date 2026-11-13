@@ -46,13 +46,24 @@ var (
 // SetScheduleTimes updates global last run and next run timestamps
 func SetScheduleTimes(lastRun, nextRun time.Time) {
 	GlobalTrackerMu.Lock()
-	defer GlobalTrackerMu.Unlock()
 	if !lastRun.IsZero() {
 		GlobalLastRun = lastRun
 	}
 	if !nextRun.IsZero() {
 		GlobalNextRun = nextRun
 	}
+	GlobalTrackerMu.Unlock()
+
+	activity.mu.Lock()
+	if !lastRun.IsZero() {
+		activity.snap.LastRun = lastRun
+	}
+	if !nextRun.IsZero() {
+		activity.snap.NextRun = nextRun
+	}
+	activity.snap.UpdatedAt = nowUTC()
+	activity.notifyLocked()
+	activity.mu.Unlock()
 }
 
 // ScheduleTimes returns the recorded last run and next run timestamps
@@ -64,6 +75,14 @@ func ScheduleTimes() (lastRun, nextRun time.Time) {
 
 // ActiveStatus returns the current sync status
 func ActiveStatus() (album string, processed, total int) {
+	activity.mu.Lock()
+	if len(activity.snap.ActiveAlbums) > 0 {
+		active := activity.snap.ActiveAlbums[0]
+		activity.mu.Unlock()
+		return active.Name, active.Processed, active.Total
+	}
+	activity.mu.Unlock()
+
 	GlobalTrackerMu.RLock()
 	defer GlobalTrackerMu.RUnlock()
 	if GlobalTracker == nil {
