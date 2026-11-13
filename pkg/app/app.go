@@ -17,6 +17,7 @@ import (
 	"warreth.dev/gphotos2immich/pkg/immich"
 	"warreth.dev/gphotos2immich/pkg/progress"
 	"warreth.dev/gphotos2immich/pkg/state"
+	"warreth.dev/gphotos2immich/pkg/syncback"
 )
 
 type App struct {
@@ -25,6 +26,7 @@ type App struct {
 	GPClient      *googlephotos.Client
 	Logger        *slog.Logger
 	State         *state.SyncState
+	SyncBack      *syncback.Service
 	syncCh        chan struct{}
 	descriptionCh chan descriptionUpdate
 }
@@ -73,7 +75,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 	logger.Info("Loaded persistent dedup state", "entries", syncState.Count())
 
-	return &App{
+	application := &App{
 		Cfg:           cfg,
 		Client:        client,
 		GPClient:      gpClient,
@@ -81,7 +83,18 @@ func New(cfg *config.Config) (*App, error) {
 		State:         syncState,
 		syncCh:        make(chan struct{}, 1),
 		descriptionCh: make(chan descriptionUpdate, 10000),
-	}, nil
+	}
+	application.SyncBack = NewSyncBack(cfg, syncState, logger)
+	return application, nil
+}
+
+// StartSyncBack starts the automatic backward upload schedule when it is
+// enabled in the configuration.
+func (a *App) StartSyncBack(ctx context.Context) {
+	if !a.Cfg.GoogleUpload.Enabled || a.SyncBack == nil {
+		return
+	}
+	a.SyncBack.StartSchedule(ctx, a.Cfg, 15*time.Minute)
 }
 
 // TriggerSync requests an immediate sync of all albums outside the schedule

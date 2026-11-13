@@ -133,6 +133,108 @@ func TestValidateRejectsUnknownDedupMode(t *testing.T) {
 	}
 }
 
+func TestGoogleUploadDefaults(t *testing.T) {
+	path := writeTestConfig(t, `{
+		"apiKey": "file-key",
+		"apiURL": "http://file-immich/api",
+		"googlePhotos": [{"url": "https://photos.app.goo.gl/x"}]
+	}`)
+
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GoogleUpload.StorageMode != StorageModeQuota {
+		t.Fatalf("storage mode = %q, want %q", cfg.GoogleUpload.StorageMode, StorageModeQuota)
+	}
+	if cfg.GoogleUpload.Quality != QualityOriginal {
+		t.Fatalf("quality = %q, want %q", cfg.GoogleUpload.Quality, QualityOriginal)
+	}
+	if cfg.GoogleUpload.Threads != 1 {
+		t.Fatalf("threads = %d, want 1", cfg.GoogleUpload.Threads)
+	}
+	if cfg.GoogleUpload.MaxRetries != 3 {
+		t.Fatalf("maxRetries = %d, want 3", cfg.GoogleUpload.MaxRetries)
+	}
+	if cfg.GoogleUpload.GotohpBinary != "gotohp-cli" {
+		t.Fatalf("gotohpBinary = %q", cfg.GoogleUpload.GotohpBinary)
+	}
+	if cfg.GoogleUpload.GotohpConfig != "./data/gotohp.config" {
+		t.Fatalf("gotohpConfig = %q", cfg.GoogleUpload.GotohpConfig)
+	}
+	if cfg.GoogleUpload.WebCookiesFile != "./data/gphotos-web-cookies.txt" {
+		t.Fatalf("webCookiesFile = %q", cfg.GoogleUpload.WebCookiesFile)
+	}
+	if cfg.EffectiveStorageMode() != StorageModeQuota {
+		t.Fatalf("effective storage mode = %q", cfg.EffectiveStorageMode())
+	}
+}
+
+func TestGoogleUploadValidation(t *testing.T) {
+	base := func() *Config {
+		return &Config{ApiKey: "k", ApiURL: "http://x/api"}
+	}
+
+	cfg := base()
+	cfg.GoogleUpload.StorageMode = "nonsense"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid storageMode must fail validation")
+	}
+
+	cfg = base()
+	cfg.GoogleUpload.Quality = "nonsense"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid quality must fail validation")
+	}
+
+	cfg = base()
+	cfg.GoogleUpload.Threads = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative threads must fail validation")
+	}
+
+	cfg = base()
+	cfg.GooglePhotos = []GooglePhotosConfig{{URL: "x", UploadToGoogle: true}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("uploadToGoogle without immichAlbumId must fail validation")
+	}
+
+	cfg = base()
+	cfg.GooglePhotos = []GooglePhotosConfig{{
+		URL: "x", ImmichAlbumID: "album-1", UploadToGoogle: true,
+		Upload: &GoogleUploadOverrides{StorageMode: "nonsense"},
+	}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("invalid per-album storageMode must fail validation")
+	}
+}
+
+func TestAlbumUploadOverrides(t *testing.T) {
+	cfg := &Config{
+		ApiKey: "k", ApiURL: "http://x/api",
+		GoogleUpload: GoogleUploadConfig{StorageMode: StorageModeUnlimited, Quality: QualityOriginal},
+	}
+	quota := GooglePhotosConfig{
+		URL: "x", ImmichAlbumID: "a",
+		Upload: &GoogleUploadOverrides{StorageMode: StorageModeQuota, Quality: QualitySaver},
+	}
+	if got := cfg.AlbumStorageMode(quota); got != StorageModeQuota {
+		t.Fatalf("album storage mode = %q, want quota", got)
+	}
+	if got := cfg.AlbumQuality(quota); got != QualitySaver {
+		t.Fatalf("album quality = %q, want saver", got)
+	}
+
+	skip := true
+	live := GooglePhotosConfig{
+		URL: "x", ImmichAlbumID: "a",
+		Upload: &GoogleUploadOverrides{SkipLivePhotos: &skip},
+	}
+	if !cfg.AlbumSkipLivePhotos(live) {
+		t.Fatal("per-album skipLivePhotos override was not applied")
+	}
+}
+
 func TestValidate(t *testing.T) {
 	cfg := &Config{ApiKey: "k", ApiURL: "http://x/api"}
 	if err := cfg.Validate(); err != nil {

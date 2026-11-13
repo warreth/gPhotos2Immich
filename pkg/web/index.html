@@ -237,6 +237,14 @@
         .input-group { display: flex; gap: 8px; }
         .input-group .input { flex: 1; }
 
+        textarea.input {
+            min-height: 116px;
+            resize: vertical;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
         .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
 
         .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -506,6 +514,99 @@
         .album-remove { align-self: end; margin-bottom: 1px; }
         .album-remove:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 
+        .album-backup {
+            grid-column: 1 / -1;
+            margin-top: 4px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .album-backup-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .album-backup-actions .test-result { margin: 0; }
+        .album-mapping { font-size: 12px; color: var(--text-secondary); }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            margin-top: 4px;
+        }
+
+        .step {
+            display: flex;
+            gap: 14px;
+            position: relative;
+            padding-bottom: 20px;
+        }
+
+        .step:last-child { padding-bottom: 0; }
+
+        .step:not(:last-child)::before {
+            content: "";
+            position: absolute;
+            left: 13px;
+            top: 30px;
+            bottom: 0;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            color: var(--accent);
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .step h4 {
+            font-size: 13.5px;
+            font-weight: 600;
+            margin: 4px 0 4px;
+        }
+
+        .step p {
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            margin: 0 0 8px;
+            line-height: 1.55;
+        }
+
+        .note {
+            display: flex;
+            gap: 10px;
+            background: var(--warning-soft);
+            border: 1px solid #f0d9b8;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 12.5px;
+            color: #7a4a0a;
+            line-height: 1.5;
+        }
+
+        .note svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
         .empty-state {
             padding: 28px;
             text-align: center;
@@ -699,6 +800,7 @@
                 <button class="nav-item" data-section="sync" type="button"><svg class="icon"><use href="#icon-sliders"/></svg>Sync behavior</button>
                 <button class="nav-item" data-section="dedup" type="button"><svg class="icon"><use href="#icon-copy"/></svg>Deduplication</button>
                 <button class="nav-item" data-section="albums" type="button"><svg class="icon"><use href="#icon-albums"/></svg>Albums <span class="nav-count" id="albumCount">0</span></button>
+                <button class="nav-item" data-section="google" type="button"><svg class="icon"><use href="#icon-plug"/></svg>Google upload</button>
                 <button class="nav-item" data-section="advanced" type="button"><svg class="icon"><use href="#icon-database"/></svg>Advanced</button>
                 <button class="nav-item" data-section="logs" type="button"><svg class="icon"><use href="#icon-terminal"/></svg>Logs</button>
                 <div class="sidebar-footer">
@@ -894,6 +996,194 @@
                         </div>
                     </section>
 
+                    <section id="section-google" class="section">
+                        <div class="section-header">
+                            <h2>Google upload</h2>
+                            <p>Send new additions from an Immich album back to its shared Google Photos album.</p>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Google account</h3><p>The account that uploads files to your Google Photos library.</p></div>
+                                <span class="pill pill-muted" id="googleAccountPill"><span class="status-dot"></span>Not connected</span>
+                            </div>
+                            <div id="googleAccountConnected" style="display:none">
+                                <div class="field-grid">
+                                    <div class="field">
+                                        <label>Connected account</label>
+                                        <div class="input" id="googleAccountEmail" style="background:var(--surface-2)">-</div>
+                                    </div>
+                                    <div class="field">
+                                        <label>Uploader version</label>
+                                        <div class="input" id="googleAccountVersion" style="background:var(--surface-2)">-</div>
+                                    </div>
+                                </div>
+                                <div class="button-row" style="margin-top:12px">
+                                    <button class="btn btn-secondary" type="button" onclick="refreshGoogleAccount()">Test connection</button>
+                                    <button class="btn btn-ghost" type="button" onclick="showGoogleWizard()">Replace credential</button>
+                                    <button class="btn btn-danger" type="button" onclick="disconnectGoogle()">Disconnect</button>
+                                </div>
+                            </div>
+                            <div id="googleAccountDisconnected">
+                                <p class="hint" style="margin-top:0">Paste an <code>oauth_token</code> cookie from Google Embedded Setup. No Android device needed.</p>
+                                <div class="button-row">
+                                    <button class="btn btn-primary" type="button" onclick="showGoogleWizard()">Connect Google Photos</button>
+                                </div>
+                            </div>
+                            <div class="test-result" id="googleAccountError" style="margin-top:10px"></div>
+                        </div>
+
+                        <div class="card" id="googleWizard" style="display:none">
+                            <div class="card-header">
+                                <div><h3>Connect a Google account</h3><p>One-time setup, about two minutes.</p></div>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="hideGoogleWizard()">Close</button>
+                            </div>
+                            <div class="steps">
+                                <div class="step">
+                                    <div class="num">1</div>
+                                    <div>
+                                        <h4>Open the Google sign-in page</h4>
+                                        <p>Sign in with the account that should upload to your shared albums.</p>
+                                        <div class="button-row">
+                                            <a class="btn btn-secondary" href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Open sign-in</a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="num">2</div>
+                                    <div>
+                                        <h4>Approve and copy the cookie</h4>
+                                        <p>Click "I agree". The page may keep loading, that is expected. Then open DevTools, go to Application or Storage, Cookies, <code>accounts.google.com</code>, and copy the value of <code>oauth_token</code>.</p>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="num">3</div>
+                                    <div>
+                                        <h4>Paste and connect</h4>
+                                        <div class="field" style="margin-top:4px">
+                                            <label for="googleOAuthToken">oauth_token</label>
+                                            <div class="input-group">
+                                                <input class="input" type="password" id="googleOAuthToken" placeholder="oauth_token value" autocomplete="off">
+                                                <button class="btn btn-secondary" type="button" id="toggleOAuthBtn" onclick="toggleOAuthToken()" aria-label="Show token"><svg class="icon"><use href="#icon-eye"/></svg></button>
+                                            </div>
+                                            <div class="hint">The token is sent to the local server and stored in a private file. It is never shown again.</div>
+                                        </div>
+                                        <div class="button-row">
+                                            <button class="btn btn-primary" type="button" id="googleConnectBtn" onclick="connectGoogle()">Connect</button>
+                                            <span class="test-result" id="googleConnectResult"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="note" style="margin-top:16px">
+                                <svg viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                <div><strong>This credential has full access to the Google account.</strong> Consider a dedicated account and keep the data directory private.</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Shared album access</h3><p>Only needed for albums someone else owns. Your own albums upload with the account above.</p></div>
+                                <span class="pill pill-muted" id="googleWebPill"><span class="status-dot"></span>Not connected</span>
+                            </div>
+                            <div id="googleWebConnected" style="display:none">
+                                <p class="hint" style="margin-top:0">The browser session is active. Shared albums can receive uploads.</p>
+                                <div class="button-row">
+                                    <button class="btn btn-secondary" type="button" onclick="refreshWebSession(true)">Test session</button>
+                                    <button class="btn btn-ghost" type="button" onclick="showWebWizard()">Replace cookies</button>
+                                    <button class="btn btn-danger" type="button" onclick="disconnectWebSession()">Disconnect</button>
+                                </div>
+                            </div>
+                            <div id="googleWebDisconnected">
+                                <p class="hint" style="margin-top:0">Google's mobile API cannot add photos to an album you do not own. A signed-in photos.google.com session can.</p>
+                                <div class="button-row">
+                                    <button class="btn btn-secondary" type="button" onclick="showWebWizard()">Connect browser session</button>
+                                </div>
+                            </div>
+                            <div class="test-result" id="googleWebError" style="margin-top:10px" role="status" aria-live="polite"></div>
+                        </div>
+
+                        <div class="card" id="googleWebWizard" style="display:none">
+                            <div class="card-header">
+                                <div><h3>Connect a browser session</h3><p>One-time setup, about a minute.</p></div>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="hideWebWizard()">Close</button>
+                            </div>
+                            <div class="steps">
+                                <div class="step">
+                                    <div class="num">1</div>
+                                    <div>
+                                        <h4>Open Google Photos</h4>
+                                        <p>Sign in with the same account you connected above.</p>
+                                        <div class="button-row">
+                                            <a class="btn btn-secondary" href="https://photos.google.com/" target="_blank" rel="noopener noreferrer">Open Google Photos</a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="num">2</div>
+                                    <div>
+                                        <h4>Export the cookies</h4>
+                                        <p>Use a cookies.txt extension for this site. Export the cookies for <code>photos.google.com</code> and keep the file private.</p>
+                                    </div>
+                                </div>
+                                <div class="step">
+                                    <div class="num">3</div>
+                                    <div>
+                                        <h4>Paste and connect</h4>
+                                        <div class="field" style="margin-top:4px">
+                                            <label for="googleWebCookies">cookies.txt contents</label>
+                                            <textarea class="input" id="googleWebCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
+                                            <div class="hint">Stored in the data directory with mode 0600. The value is never shown again.</div>
+                                        </div>
+                                        <div class="button-row">
+                                            <button class="btn btn-primary" type="button" id="googleWebConnectBtn" onclick="connectWebSession()">Connect session</button>
+                                            <span class="test-result" id="googleWebConnectResult" role="status" aria-live="polite"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="note" style="margin-top:16px">
+                                <svg viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                                <div><strong>This session can read and change your Google Photos library.</strong> Use it only on a machine you trust, and disconnect when you no longer need shared-album uploads.</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Upload settings</h3><p>Applies to every album unless the album overrides it.</p></div>
+                            </div>
+                            <div class="field-grid">
+                                <div class="field">
+                                    <label for="googleStorageMode">Storage</label>
+                                    <select class="input" id="googleStorageMode">
+                                        <option value="quota">Count against Google storage (default)</option>
+                                        <option value="unlimited">Unlimited storage (unofficial)</option>
+                                    </select>
+                                    <div class="hint">Unlimited storage is off by default. It relies on an unofficial mobile-API behaviour.</div>
+                                </div>
+                                <div class="field">
+                                    <label for="googleQuality">Quality</label>
+                                    <select class="input" id="googleQuality">
+                                        <option value="original">Original quality</option>
+                                        <option value="saver">Storage saver</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="field" style="margin-top:16px">
+                                <label for="googleThreads">Uploads in parallel</label>
+                                <input class="input" type="number" id="googleThreads" min="1" max="8" value="1">
+                                <div class="hint">Keep this at 1 unless uploads feel slow. Higher values are more likely to hit Google rate limits.</div>
+                            </div>
+                            <label class="toggle" style="margin-top:8px">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Skip Live Photos</div>
+                                    <div class="toggle-desc">Upload only the still of a Live Photo. Off means still and video are uploaded as a linked pair.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="googleSkipLivePhotos"><span class="switch-track"></span></span>
+                            </label>
+                        </div>
+                    </section>
+
                     <section id="section-advanced" class="section">
                         <div class="section-header">
                             <h2>Advanced</h2>
@@ -1013,7 +1303,10 @@
             config: null,
             dirty: false,
             activeSection: 'overview',
-            toastTimer: null
+            toastTimer: null,
+            immichAlbums: [],
+            webSession: { connected: false },
+            googleAccount: { connected: false }
         };
 
         function $(id) { return document.getElementById(id); }
@@ -1117,20 +1410,390 @@
                     <input class="input" data-field="syncInterval" type="text" placeholder="12h" value="${escapeHtml(gp.syncInterval || '24h')}">
                 </div>
                 <div class="field">
-                    <label>Immich album ID</label>
-                    <input class="input" data-field="immichAlbumId" type="text" placeholder="Optional UUID" value="${escapeHtml(gp.immichAlbumId || '')}">
+                    <label>Immich album</label>
+                    <select class="input" data-field="immichAlbumId">
+                        <option value="">Not linked</option>
+                    </select>
                 </div>
-                <button class="btn btn-ghost btn-sm album-remove" type="button" title="Remove album"><svg class="icon"><use href="#icon-trash"/></svg></button>
+                <button class="btn btn-ghost btn-sm album-remove" type="button" title="Remove album" aria-label="Remove album"><svg class="icon"><use href="#icon-trash"/></svg></button>
+                <div class="album-backup">
+                    <label class="toggle" style="padding:0;border:0">
+                        <div class="toggle-text">
+                            <div class="toggle-title">Upload new Immich additions to Google Photos</div>
+                            <div class="toggle-desc">New assets in the linked Immich album are uploaded to this Google Photos album.</div>
+                        </div>
+                        <span class="switch"><input type="checkbox" data-field="uploadToGoogle"><span class="switch-track"></span></span>
+                    </label>
+                    <div class="album-backup-actions">
+                        <button class="btn btn-secondary btn-sm" type="button" data-action="verify">Verify mapping</button>
+                        <button class="btn btn-secondary btn-sm" type="button" data-action="upload">Upload now</button>
+                        <span class="album-mapping" data-role="mapping"></span>
+                        <span class="test-result" data-role="status"></span>
+                    </div>
+                </div>
             `;
+            const select = row.querySelector('[data-field="immichAlbumId"]');
+            populateImmichAlbums(select, gp.immichAlbumId || '');
+            const toggle = row.querySelector('[data-field="uploadToGoogle"]');
+            toggle.checked = !!gp.uploadToGoogle;
+
             row.querySelector('.album-remove').addEventListener('click', () => {
                 row.remove();
                 updateAlbumCount();
                 updateOverviewStats();
                 setDirty();
             });
+            toggle.addEventListener('change', () => {
+                updateAlbumBackupState(row);
+                setDirty();
+            });
+            row.querySelector('[data-action="verify"]').addEventListener('click', () => verifyAlbumRow(row));
+            row.querySelector('[data-action="upload"]').addEventListener('click', () => uploadAlbumRow(row));
+
             $('albumList').appendChild(row);
+            updateAlbumBackupState(row);
             updateAlbumCount();
             updateOverviewStats();
+        }
+
+        function updateAlbumBackupState(row) {
+            const toggle = row.querySelector('[data-field="uploadToGoogle"]');
+            const select = row.querySelector('[data-field="immichAlbumId"]');
+            const status = row.querySelector('[data-role="status"]');
+            const mapping = row.querySelector('[data-role="mapping"]');
+            const verifyButton = row.querySelector('[data-action="verify"]');
+            const uploadButton = row.querySelector('[data-action="upload"]');
+            const missingImmich = !select.value;
+            const enabled = !missingImmich && toggle.checked;
+            const shared = row.dataset.albumShared === 'true';
+            const webReady = !!(state.webSession && state.webSession.connected);
+
+            verifyButton.disabled = !enabled;
+            uploadButton.disabled = !enabled;
+
+            if (!toggle.checked) {
+                status.textContent = '';
+                mapping.textContent = '';
+                return;
+            }
+            if (missingImmich) {
+                status.textContent = 'Link an Immich album first.';
+                status.className = 'test-result danger';
+                return;
+            }
+            if (!state.googleAccount.connected) {
+                uploadButton.disabled = true;
+                status.textContent = 'Connect the Google account first.';
+                status.className = 'test-result danger';
+                return;
+            }
+            if (shared && !webReady) {
+                uploadButton.disabled = true;
+                status.textContent = 'Shared album. Connect the browser session below, then verify again.';
+                status.className = 'test-result danger';
+                return;
+            }
+            status.textContent = shared ? 'Ready to upload through the browser session.' : 'Ready to upload.';
+            status.className = 'test-result';
+        }
+
+        async function verifyAlbumRow(row) {
+            const status = row.querySelector('[data-role="status"]');
+            const mapping = row.querySelector('[data-role="mapping"]');
+            const url = row.querySelector('[data-field="url"]').value.trim();
+            if (!url) {
+                status.textContent = 'Add the shared album URL first.';
+                status.className = 'test-result danger';
+                return;
+            }
+            status.textContent = 'Checking album...';
+            status.className = 'test-result';
+            mapping.textContent = '';
+            try {
+                const res = await fetch('/api/google/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not resolve the album');
+                row.dataset.googleKey = data.mediaKey || '';
+                row.dataset.albumShared = data.shared ? 'true' : 'false';
+                let label = `Found "${data.title}" with ${data.items} items.`;
+                if (data.webVerified) {
+                    label += data.shared ? ' Shared album.' : ' Album you own.';
+                }
+                mapping.textContent = label;
+                status.textContent = '';
+                status.className = 'test-result';
+                updateAlbumBackupState(row);
+            } catch (err) {
+                row.dataset.googleKey = '';
+                delete row.dataset.albumShared;
+                mapping.textContent = '';
+                status.textContent = err.message;
+                status.className = 'test-result danger';
+            }
+        }
+
+        async function uploadAlbumRow(row) {
+            const status = row.querySelector('[data-role="status"]');
+            const rows = qsa('#albumList .album-row');
+            const index = rows.indexOf(row);
+            if (index < 0) return;
+            status.textContent = 'Uploading...';
+            status.className = 'test-result';
+            try {
+                const res = await fetch('/api/google/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ albumIndex: index, mediaKey: row.dataset.googleKey || '' })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                const summary = data.summary || {};
+                status.textContent = `Uploaded ${summary.Uploaded || 0}, skipped ${summary.Skipped || 0}, failed ${summary.Failed || 0}.`;
+                status.className = 'test-result success';
+            } catch (err) {
+                status.textContent = err.message;
+                status.className = 'test-result danger';
+            }
+        }
+
+        async function loadImmichAlbums() {
+            try {
+                const res = await fetch('/api/google/albums');
+                if (!res.ok) return;
+                const data = await res.json();
+                state.immichAlbums = data.albums || [];
+                qsa('#albumList select[data-field="immichAlbumId"]').forEach(select => {
+                    populateImmichAlbums(select, select.value);
+                });
+            } catch (err) {
+                state.immichAlbums = [];
+            }
+        }
+
+        function populateImmichAlbums(select, selected) {
+            const albums = state.immichAlbums || [];
+            const current = selected || select.value || '';
+            select.innerHTML = '<option value="">Not linked</option>' +
+                albums.map(album => `<option value="${escapeHtml(album.id)}">${escapeHtml(album.name)} (${album.items})</option>`).join('');
+            if (current && albums.some(album => album.id === current)) {
+                select.value = current;
+            } else if (current) {
+                // Keep an ID that is not in the list yet so a save does not lose it.
+                const option = document.createElement('option');
+                option.value = current;
+                option.textContent = current;
+                select.appendChild(option);
+                select.value = current;
+            }
+            select.addEventListener('change', () => updateAlbumBackupState(select.closest('.album-row')));
+        }
+
+        async function refreshGoogleAccount() {
+            const pill = $('googleAccountPill');
+            const error = $('googleAccountError');
+            try {
+                const res = await fetch('/api/google/account');
+                if (!res.ok) throw new Error('Google upload is not enabled');
+                const data = await res.json();
+                applyGoogleAccount(data);
+            } catch (err) {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Unavailable';
+                error.textContent = err.message;
+                error.className = 'test-result';
+            }
+        }
+
+        function applyGoogleAccount(data) {
+            const pill = $('googleAccountPill');
+            const error = $('googleAccountError');
+            state.googleAccount = { connected: !!data.connected };
+            error.textContent = '';
+            if (data.connected) {
+                pill.className = 'pill pill-success';
+                pill.innerHTML = '<span class="status-dot"></span>Connected';
+                $('googleAccountConnected').style.display = 'block';
+                $('googleAccountDisconnected').style.display = 'none';
+                $('googleAccountEmail').textContent = data.email || '-';
+                $('googleAccountVersion').textContent = data.version ? 'gotohp ' + data.version : '-';
+            } else {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Not connected';
+                $('googleAccountConnected').style.display = 'none';
+                $('googleAccountDisconnected').style.display = 'block';
+                if (data.lastError) {
+                    error.textContent = data.lastError;
+                    error.className = 'test-result danger';
+                }
+            }
+            qsa('#albumList .album-row').forEach(updateAlbumBackupState);
+        }
+
+        function showGoogleWizard() {
+            $('googleWizard').style.display = 'block';
+            $('googleOAuthToken').focus();
+        }
+
+        function hideGoogleWizard() {
+            $('googleWizard').style.display = 'none';
+            $('googleOAuthToken').value = '';
+            $('googleConnectResult').textContent = '';
+        }
+
+        function toggleOAuthToken() {
+            const input = $('googleOAuthToken');
+            const button = $('toggleOAuthBtn');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            button.innerHTML = `<svg class="icon"><use href="#icon-${show ? 'eye-off' : 'eye'}"/></svg>`;
+            button.setAttribute('aria-label', show ? 'Hide token' : 'Show token');
+        }
+
+        async function connectGoogle() {
+            const input = $('googleOAuthToken');
+            const result = $('googleConnectResult');
+            const button = $('googleConnectBtn');
+            const token = input.value.trim();
+            if (!token) {
+                result.textContent = 'Paste the oauth_token value first.';
+                result.className = 'test-result danger';
+                return;
+            }
+            button.disabled = true;
+            result.textContent = 'Connecting...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/google/account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oauthToken: token })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Connection failed');
+                input.value = '';
+                result.textContent = `Connected as ${data.email}`;
+                result.className = 'test-result success';
+                applyGoogleAccount(data);
+                setTimeout(hideGoogleWizard, 1500);
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function disconnectGoogle() {
+            if (!confirm('Remove the stored Google credential?')) return;
+            try {
+                const res = await fetch('/api/google/account', { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not disconnect');
+                applyGoogleAccount(data);
+                showToast('Google account disconnected');
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
+        async function refreshWebSession(force) {
+            const pill = $('googleWebPill');
+            const error = $('googleWebError');
+            if (force || !state.webSession.connected) {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Checking';
+            }
+            try {
+                const res = await fetch('/api/google/web-session' + (force ? '?refresh=1' : ''));
+                if (!res.ok) throw new Error('Google upload is not enabled');
+                applyWebSession(await res.json());
+            } catch (err) {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Unavailable';
+                error.textContent = err.message;
+                error.className = 'test-result danger';
+            }
+        }
+
+        function applyWebSession(data) {
+            const connected = !!data.connected;
+            state.webSession = { connected };
+            const pill = $('googleWebPill');
+            const error = $('googleWebError');
+            pill.className = connected ? 'pill pill-success' : 'pill pill-muted';
+            pill.innerHTML = connected ? '<span class="status-dot"></span>Connected' : '<span class="status-dot"></span>Not connected';
+            $('googleWebConnected').style.display = connected ? 'block' : 'none';
+            $('googleWebDisconnected').style.display = connected ? 'none' : 'block';
+            if (!connected && data.lastError) {
+                error.textContent = data.lastError;
+                error.className = 'test-result danger';
+            } else {
+                error.textContent = '';
+                error.className = 'test-result';
+            }
+            qsa('#albumList .album-row').forEach(updateAlbumBackupState);
+        }
+
+        function showWebWizard() {
+            $('googleWebWizard').style.display = 'block';
+            $('googleWebCookies').focus();
+        }
+
+        function hideWebWizard() {
+            $('googleWebWizard').style.display = 'none';
+            $('googleWebCookies').value = '';
+            $('googleWebConnectResult').textContent = '';
+        }
+
+        async function connectWebSession() {
+            const input = $('googleWebCookies');
+            const result = $('googleWebConnectResult');
+            const button = $('googleWebConnectBtn');
+            const cookies = input.value.trim();
+            if (!cookies) {
+                result.textContent = 'Paste the cookies.txt contents first.';
+                result.className = 'test-result danger';
+                return;
+            }
+            button.disabled = true;
+            result.textContent = 'Checking the session...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/google/web-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cookies })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not connect the browser session');
+                input.value = '';
+                result.textContent = 'Connected. Shared albums can receive uploads.';
+                result.className = 'test-result success';
+                applyWebSession(data);
+                setTimeout(hideWebWizard, 1500);
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function disconnectWebSession() {
+            if (!confirm('Remove the stored browser session?')) return;
+            try {
+                const res = await fetch('/api/google/web-session', { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not disconnect');
+                applyWebSession(data);
+                showToast('Browser session removed');
+            } catch (err) {
+                showToast(err.message, true);
+            }
         }
 
         async function loadConfig() {
@@ -1151,10 +1814,19 @@
                 $('updateExistingMetadata').checked = !!config.updateExistingMetadata;
                 setDedupMode(config.dedupMode || 'safe');
 
+                const googleUpload = config.googleUpload || {};
+                $('googleStorageMode').value = googleUpload.storageMode || 'quota';
+                $('googleQuality').value = googleUpload.quality || 'original';
+                $('googleSkipLivePhotos').checked = !!googleUpload.skipLivePhotos;
+                $('googleThreads').value = googleUpload.threads || 1;
+
                 $('albumList').innerHTML = '';
                 (config.googlePhotos || []).forEach(gp => addAlbumRow(gp));
                 updateAlbumCount();
                 updateOverviewStats();
+                loadImmichAlbums();
+                refreshGoogleAccount();
+                refreshWebSession(false);
 
                 if (!config.apiURL || !config.apiKey) {
                     $('mainUI').style.display = 'none';
@@ -1191,8 +1863,16 @@
                     url: row.querySelector('[data-field="url"]').value.trim(),
                     albumName: row.querySelector('[data-field="albumName"]').value.trim(),
                     syncInterval: row.querySelector('[data-field="syncInterval"]').value.trim(),
-                    immichAlbumId: row.querySelector('[data-field="immichAlbumId"]').value.trim()
-                })).filter(gp => gp.url)
+                    immichAlbumId: row.querySelector('[data-field="immichAlbumId"]').value,
+                    uploadToGoogle: row.querySelector('[data-field="uploadToGoogle"]').checked
+                })).filter(gp => gp.url),
+                googleUpload: {
+                    enabled: true,
+                    storageMode: $('googleStorageMode').value,
+                    quality: $('googleQuality').value,
+                    skipLivePhotos: $('googleSkipLivePhotos').checked,
+                    threads: parseInt($('googleThreads').value, 10) || 1
+                }
             };
 
             try {

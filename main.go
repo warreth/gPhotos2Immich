@@ -52,9 +52,11 @@ func main() {
 		currentApp   *app.App
 	)
 
+	var webUI *web.Server
+
 	if !disableWebUI {
 		// Start web UI in the background
-		webUI := web.NewServer("config.json")
+		webUI = web.NewServer("config.json")
 		webUI.OnConfigChange = func() {
 			log.Println("Configuration updated via web UI.")
 			select {
@@ -148,7 +150,12 @@ func main() {
 		currentApp = application
 		currentAppMu.Unlock()
 
+		if !disableWebUI {
+			webUI.SetSyncBack(application.SyncBack)
+		}
+
 		appCtx, cancelApp := context.WithCancel(rootCtx)
+		application.StartSyncBack(appCtx)
 
 		// Run app in a goroutine
 		appErrCh := make(chan error, 1)

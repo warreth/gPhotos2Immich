@@ -8,16 +8,30 @@
   "skipVideos": false,
   "dedupMode": "safe",
   "updateExistingMetadata": false,
+  "googleUpload": {
+    "enabled": false,
+    "gotohpBinary": "gotohp-cli",
+    "gotohpConfig": "./data/gotohp.config",
+    "webCookiesFile": "./data/gphotos-web-cookies.txt",
+    "storageMode": "quota",
+    "quality": "original",
+    "skipLivePhotos": false,
+    "threads": 1,
+    "maxRetries": 3,
+    "autoUpdate": false
+  },
   "googlePhotos": [
     {
       "url": "https://photos.app.goo.gl/example-share-link-1",
       "albumName": "Summer Vacation 2023",
-      "syncInterval": "12h"
+      "syncInterval": "12h",
+      "uploadToGoogle": false
     },
     {
       "url": "https://photos.app.goo.gl/example-share-link-2",
       "immichAlbumId": "existing-album-uuid-optional",
-      "syncInterval": "1h"
+      "syncInterval": "1h",
+      "uploadToGoogle": true
     }
   ]
 }

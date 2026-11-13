@@ -8,6 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,8 +27,12 @@ type Album struct {
 	AlbumName string `json:"albumName"`
 	Id        string `json:"id"`
 	Assets    []struct {
-		Id               string `json:"id"`
-		OriginalFileName string `json:"originalFileName"`
+		Id               string    `json:"id"`
+		OriginalFileName string    `json:"originalFileName"`
+		Type             string    `json:"type"`
+		LivePhotoVideoID string    `json:"livePhotoVideoId"`
+		FileCreatedAt    time.Time `json:"fileCreatedAt"`
+		Checksum         string    `json:"checksum"`
 	} `json:"assets"`
 }
 
@@ -169,9 +175,10 @@ func stripNumericSuffix(s string) string {
 }
 
 type Client struct {
-	APIURL string
-	APIKey string
-	client *http.Client
+	APIURL         string
+	APIKey         string
+	client         *http.Client
+	downloadClient *http.Client
 }
 
 // NewClient creates an Immich API client with connection pooling tuned to the given concurrency level
@@ -180,17 +187,24 @@ func NewClient(apiURL, apiKey string, maxConnsPerHost int) *Client {
 	if maxConnsPerHost < 20 {
 		maxConnsPerHost = 20
 	}
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: maxConnsPerHost,
+		IdleConnTimeout:     90 * time.Second,
+		ForceAttemptHTTP2:   true,
+	}
 	return &Client{
 		APIURL: apiURL,
 		APIKey: apiKey,
 		client: &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: maxConnsPerHost,
-				IdleConnTimeout:     90 * time.Second,
-				ForceAttemptHTTP2:   true,
-			},
-			Timeout: 120 * time.Second,
+			Transport: transport,
+			Timeout:   120 * time.Second,
+		},
+		// Original files can be large videos. API calls keep their timeout,
+		// downloads rely on the caller's context instead.
+		downloadClient: &http.Client{
+			Transport: transport,
+			Timeout:   0,
 		},
 	}
 }
@@ -285,6 +299,19 @@ func (c *Client) GetAlbums(ctx context.Context) ([]Album, error) {
 	var albums []Album
 	err = json.Unmarshal(body, &albums)
 	return albums, err
+}
+
+// ListAlbums returns every album owned by the API key's user.
+func (c *Client) ListAlbums(ctx context.Context) ([]Album, error) {
+	body, err := c.request(ctx, "GET", "albums", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	var albums []Album
+	if err := json.Unmarshal(body, &albums); err != nil {
+		return nil, err
+	}
+	return albums, nil
 }
 
 // GetAlbum fetches a single album with its full asset list
@@ -667,10 +694,13 @@ func (c *Client) searchAssetsLegacy(ctx context.Context, deviceId string) (*Asse
 
 // Asset is the subset of an Immich asset needed for description updates.
 type Asset struct {
-	Id               string `json:"id"`
-	OriginalFileName string `json:"originalFileName"`
-	Type             string `json:"type"`
-	HasMetadata      bool   `json:"hasMetadata"`
+	Id               string    `json:"id"`
+	OriginalFileName string    `json:"originalFileName"`
+	Type             string    `json:"type"`
+	HasMetadata      bool      `json:"hasMetadata"`
+	LivePhotoVideoID string    `json:"livePhotoVideoId"`
+	FileCreatedAt    time.Time `json:"fileCreatedAt"`
+	Checksum         string    `json:"checksum"`
 	ExifInfo         struct {
 		Description string `json:"description"`
 	} `json:"exifInfo"`
@@ -687,6 +717,50 @@ func (c *Client) GetAsset(ctx context.Context, assetID string) (*Asset, error) {
 		return nil, err
 	}
 	return &asset, nil
+}
+
+// DownloadAssetToFile streams an asset's original bytes to path. It uses a
+// separate client without an overall timeout so large videos can finish.
+func (c *Client) DownloadAssetToFile(ctx context.Context, assetID, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	url := fmt.Sprintf("%s/assets/%s/original", c.APIURL, assetID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("create download request: %w", err)
+	}
+	req.Header.Set("x-api-key", c.APIKey)
+
+	resp, err := c.downloadClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("download asset %s: %w", assetID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("download asset %s returned %s: %s", assetID, resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("create download directory: %w", err)
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create download file: %w", err)
+	}
+	_, copyErr := io.Copy(file, resp.Body)
+	closeErr := file.Close()
+	if copyErr != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("write asset %s: %w", assetID, copyErr)
+	}
+	if closeErr != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("close asset %s: %w", assetID, closeErr)
+	}
+	return nil
 }
 
 // UpdateAssetDescription replaces an asset's description. Immich v3 no longer

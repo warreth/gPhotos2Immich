@@ -2,7 +2,7 @@
 ![Docker Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads&label=Total%20Downloads&color=blue)
 ![Docker Daily Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2Fwarreth%2FgPhotos2Immich%2Fgphotos2immich.json&query=%24.downloads_day&label=Daily%20Downloads&color=teal)
 
-Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance- automatically, on a schedule.
+Sync photos from Google Photos shared albums to your [Immich](https://immich.app) instance automatically, with an optional per-album upload back to Google Photos.
 
 ---
 
@@ -99,6 +99,7 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Photographer Metadata:** The person who added each photo to the shared album is written to the Immich description as `Photographer: <name>`, next to the source album. Enable `updateExistingMetadata` to backfill photos that were imported before this feature.
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 - **Deletion-aware Dedup:** The default `safe` mode respects photos you delete in Immich and automatically adopts compressed replacements created by tools such as `immich-compressor`. Use `repair` mode to re-upload anything that is missing.
+- **Optional Immich to Google Photos upload:** Link an Immich album to a Google Photos album and upload new additions back on a schedule. Albums you own use the connected Google account; albums shared with you use an optional browser session. Live Photos are uploaded as a linked still and video pair, and deletions never sync in either direction.
 
 
 ---

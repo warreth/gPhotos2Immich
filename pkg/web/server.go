@@ -15,6 +15,7 @@ import (
 	"warreth.dev/gphotos2immich/pkg/config"
 	"warreth.dev/gphotos2immich/pkg/immich"
 	"warreth.dev/gphotos2immich/pkg/progress"
+	"warreth.dev/gphotos2immich/pkg/syncback"
 )
 
 const maxLogSize = 100 * 1024 // 100KB max logs stored
@@ -58,6 +59,7 @@ type Server struct {
 	mu             sync.Mutex
 	OnConfigChange func()
 	OnSyncTrigger  func()
+	SyncBack       *syncback.Service
 }
 
 func NewServer(configPath string) *Server {
@@ -74,6 +76,11 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/sync/status", s.handleStatus)
 	mux.HandleFunc("/api/sync", s.handleSync)
 	mux.HandleFunc("/sync_now", s.handleSync)
+	mux.HandleFunc("/api/google/account", s.handleGoogleAccount)
+	mux.HandleFunc("/api/google/albums", s.handleGoogleAlbums)
+	mux.HandleFunc("/api/google/verify", s.handleGoogleVerify)
+	mux.HandleFunc("/api/google/upload", s.handleGoogleUpload)
+	mux.HandleFunc("/api/google/web-session", s.handleGoogleWebSession)
 
 	addr := fmt.Sprintf(":%d", port)
 	srv := &http.Server{
@@ -83,6 +90,21 @@ func (s *Server) Start(port int) error {
 
 	fmt.Printf("Config Web UI running on http://localhost%s\n", addr)
 	return srv.ListenAndServe()
+}
+
+// SetSyncBack replaces the sync-back service, used after a config reload.
+func (s *Server) SetSyncBack(service *syncback.Service) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.SyncBack = service
+}
+
+// syncBack returns the current service. Handlers use it instead of reading the
+// field directly, so a config reload cannot race with an in-flight request.
+func (s *Server) syncBack() *syncback.Service {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.SyncBack
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -239,6 +261,9 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	existingMap["dataDir"] = newCfg.DataDir
 	existingMap["dedupMode"] = newCfg.DedupMode
 	existingMap["updateExistingMetadata"] = newCfg.UpdateExistingMetadata
+	// Merge so fields the UI does not expose (binary and credential paths,
+	// retries, auto-update) are preserved.
+	existingMap["googleUpload"] = mergeGoogleUpload(existingMap["googleUpload"], newCfg.GoogleUpload)
 	existingMap["googlePhotos"] = newCfg.GooglePhotos
 
 	// Prettify output
@@ -265,6 +290,23 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status": "ok"}`))
+}
+
+// mergeGoogleUpload keeps non-UI fields from the existing config while taking
+// the values the UI owns from the request.
+func mergeGoogleUpload(existing interface{}, incoming config.GoogleUploadConfig) map[string]interface{} {
+	merged := map[string]interface{}{}
+	if raw, ok := existing.(map[string]interface{}); ok {
+		for key, value := range raw {
+			merged[key] = value
+		}
+	}
+	merged["enabled"] = true
+	merged["storageMode"] = incoming.StorageMode
+	merged["quality"] = incoming.Quality
+	merged["skipLivePhotos"] = incoming.SkipLivePhotos
+	merged["threads"] = incoming.Threads
+	return merged
 }
 
 func (s *Server) handleTestConnection(w http.ResponseWriter, r *http.Request) {

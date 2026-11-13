@@ -97,6 +97,20 @@ func (s *SyncState) Set(baseName, assetId string) {
 	s.dirty = true
 }
 
+// AssetIDs returns the set of Immich asset IDs that were imported from Google
+// Photos. The uploader uses it to avoid sending those assets back.
+func (s *SyncState) AssetIDs() map[string]bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ids := make(map[string]bool, len(s.assets))
+	for _, id := range s.assets {
+		if id != "" {
+			ids[id] = true
+		}
+	}
+	return ids
+}
+
 // Count returns the number of cached entries
 func (s *SyncState) Count() int {
 	s.mu.RLock()
