@@ -24,16 +24,29 @@ const (
 )
 
 type Album struct {
-	AlbumName string `json:"albumName"`
-	Id        string `json:"id"`
-	Assets    []struct {
-		Id               string    `json:"id"`
-		OriginalFileName string    `json:"originalFileName"`
-		Type             string    `json:"type"`
-		LivePhotoVideoID string    `json:"livePhotoVideoId"`
-		FileCreatedAt    time.Time `json:"fileCreatedAt"`
-		Checksum         string    `json:"checksum"`
-	} `json:"assets"`
+	AlbumName string       `json:"albumName"`
+	Id        string       `json:"id"`
+	Assets    []AlbumAsset `json:"assets"`
+}
+
+// AlbumAsset is one asset inside an album listing.
+type AlbumAsset struct {
+	Id               string    `json:"id"`
+	OriginalFileName string    `json:"originalFileName"`
+	Type             string    `json:"type"`
+	LivePhotoVideoID string    `json:"livePhotoVideoId"`
+	FileCreatedAt    time.Time `json:"fileCreatedAt"`
+	Checksum         string    `json:"checksum"`
+	// OwnerID is the Immich user that owns the asset. It decides which Google
+	// account an asset is uploaded with.
+	OwnerID string `json:"ownerId"`
+}
+
+// User is one Immich user.
+type User struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 // HTTPError is returned when Immich responds with a non-2xx status code.
@@ -532,6 +545,19 @@ func (c *Client) GetUserOnce(ctx context.Context) (string, string, error) {
 	return user.Id, user.Name, nil
 }
 
+// ListUsers returns every user on the Immich server.
+func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
+	body, err := c.request(ctx, "GET", "users", nil, "")
+	if err != nil {
+		return nil, err
+	}
+	var users []User
+	if err := json.Unmarshal(body, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 // LinkLivePhotoToAsset associates an existing image asset with a motion video asset.
 func (c *Client) LinkLivePhotoToAsset(ctx context.Context, assetId string, livePhotoVideoId string) error {
 	if assetId == "" || livePhotoVideoId == "" {
@@ -723,6 +749,7 @@ type Asset struct {
 	LivePhotoVideoID string    `json:"livePhotoVideoId"`
 	FileCreatedAt    time.Time `json:"fileCreatedAt"`
 	Checksum         string    `json:"checksum"`
+	OwnerID          string    `json:"ownerId"`
 	ExifInfo         struct {
 		Description string `json:"description"`
 	} `json:"exifInfo"`

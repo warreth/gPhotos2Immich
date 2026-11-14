@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -80,6 +79,8 @@ type WebClient interface {
 	ValidateCookies(ctx context.Context, cookies []byte) (gphotosweb.Session, error)
 	ListAlbums(ctx context.Context) ([]gphotosweb.Album, error)
 	Reload()
+	AddItems(ctx context.Context, albumKey string, shared bool, mediaKeys []string) error
+	AlbumMediaKeys(ctx context.Context, albumKey string) (map[string]bool, error)
 }
 
 // Options wires the service. Only Google is essential for the account flow;
@@ -91,9 +92,17 @@ type Options struct {
 	Uploader         AlbumUploader
 	Web              WebClient
 	WebCookiesPath   string
+	Accounts         []config.AccountMapping
+	StrictMatching   bool
+	ImmichURL        string
+	WebFactory       WebClientFactory
 	Logger           *slog.Logger
 	OnUploadComplete func(ctx context.Context, albumURL string, summary upload.Summary, err error)
 }
+
+// WebClientFactory creates a browser-session client for one cookies file. It
+// exists so tests can supply fakes and so every account gets its own session.
+type WebClientFactory func(cookiesPath string) WebClient
 
 // Service coordinates the sync-back feature.
 type Service struct {
@@ -104,6 +113,8 @@ type Service struct {
 	Web      WebClient
 
 	webCookiesPath   string
+	immichURL        string
+	webFactory       WebClientFactory
 	onUploadComplete func(ctx context.Context, albumURL string, summary upload.Summary, err error)
 
 	mu          sync.Mutex
@@ -117,6 +128,12 @@ type Service struct {
 	// reuploadWarnOnce keeps a missing browser session from producing the same
 	// warning on every scheduled run.
 	reuploadWarnOnce sync.Once
+
+	accountsMu sync.Mutex
+	accounts   []config.AccountMapping
+	strict     bool
+	webClients map[string]WebClient
+	webChecks  map[string]webCheck
 }
 
 // New creates a service.
@@ -125,17 +142,23 @@ func New(opts Options) *Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{
+	service := &Service{
 		Google:           opts.Google,
 		Resolver:         opts.Resolver,
 		Albums:           opts.Albums,
 		Uploader:         opts.Uploader,
 		Web:              opts.Web,
 		webCookiesPath:   strings.TrimSpace(opts.WebCookiesPath),
+		immichURL:        strings.TrimSpace(opts.ImmichURL),
+		webFactory:       opts.WebFactory,
 		onUploadComplete: opts.OnUploadComplete,
 		running:          make(map[string]bool),
 		logger:           logger,
+		webClients:       make(map[string]WebClient),
+		webChecks:        make(map[string]webCheck),
 	}
+	service.SetAccounts(opts.Accounts, opts.StrictMatching)
+	return service
 }
 
 // ErrDisabled is returned when the feature is not configured.
@@ -302,16 +325,8 @@ func (s *Service) ConnectWebSession(ctx context.Context, cookies string) (WebSta
 		return status, err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.webCookiesPath), 0755); err != nil {
-		return WebStatus{}, fmt.Errorf("create browser session directory: %w", err)
-	}
-	tmp := s.webCookiesPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(cookies+"\n"), 0600); err != nil {
-		return WebStatus{}, fmt.Errorf("write browser session: %w", err)
-	}
-	if err := os.Rename(tmp, s.webCookiesPath); err != nil {
-		_ = os.Remove(tmp)
-		return WebStatus{}, fmt.Errorf("replace browser session: %w", err)
+	if err := writeCookiesFile(s.webCookiesPath, cookies); err != nil {
+		return WebStatus{}, err
 	}
 	s.Web.Reload()
 	status := WebStatus{Connected: true, Validated: time.Now()}
@@ -495,6 +510,8 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 	if cfg == nil || albumIndex < 0 || albumIndex >= len(cfg.GooglePhotos) {
 		return upload.Summary{}, fmt.Errorf("album not found in configuration")
 	}
+	// Pick up account changes saved through the web UI without a restart.
+	s.SetAccounts(cfg.Accounts, cfg.GoogleUpload.StrictAccountMatching)
 	gp := cfg.GooglePhotos[albumIndex]
 	if !gp.UploadToGoogle {
 		return upload.Summary{}, fmt.Errorf("backward upload is disabled for this album")
@@ -546,15 +563,16 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 	}()
 
 	mapping := upload.AlbumMapping{
-		ImmichAlbumID:   albumID,
-		GoogleAlbumURL:  gp.URL,
-		GoogleAlbumKey:  googleKey,
-		UseQuota:        cfg.AlbumStorageMode(gp) == config.StorageModeQuota,
-		Saver:           cfg.AlbumQuality(gp) == config.QualitySaver,
-		SkipLivePhotos:  cfg.AlbumSkipLivePhotos(gp),
-		Shared:          shared,
-		UseWebAdd:       useWebAdd,
-		ReuploadDeleted: cfg.GoogleUpload.ReuploadDeleted && webReady,
+		ImmichAlbumID:         albumID,
+		GoogleAlbumURL:        gp.URL,
+		GoogleAlbumKey:        googleKey,
+		UseQuota:              cfg.AlbumStorageMode(gp) == config.StorageModeQuota,
+		Saver:                 cfg.AlbumQuality(gp) == config.QualitySaver,
+		SkipLivePhotos:        cfg.AlbumSkipLivePhotos(gp),
+		Shared:                shared,
+		UseWebAdd:             useWebAdd,
+		ReuploadDeleted:       cfg.GoogleUpload.ReuploadDeleted && webReady,
+		StrictAccountMatching: cfg.GoogleUpload.StrictAccountMatching,
 	}
 	summary, err := s.Uploader.SyncAlbum(ctx, mapping)
 	if s.onUploadComplete != nil {

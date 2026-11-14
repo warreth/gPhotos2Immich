@@ -102,15 +102,31 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 - **Deletion-aware Dedup:** The default `safe` mode respects photos you delete in Immich and automatically adopts compressed replacements created by tools such as `immich-compressor`. Use `repair` mode to re-upload anything that is missing.
 - **Optional Immich to Google Photos upload:** Link an Immich album to a Google Photos album and upload new additions back on a schedule. Albums you own use the connected Google account; albums shared with you use an optional browser session. Live Photos are uploaded as a linked still and video pair, and deletions never sync in either direction.
+- **Three experience modes:** Switch between Simple, Standard, and Advanced at the top of the sidebar. Simple keeps the basics, Standard adds two-way sync with one Google account, and Advanced exposes multi-account routing and every setting. The mode is stored in `uiMode`.
+- **Multi-account routing:** Link each Immich person to their own Google account in **Accounts & Users**. Uploads from Immich use the Google account of each photo owner, and shared album imports can use that person's Immich API key.
 - **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging.
 - **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification in Immich.
 - **Private album import (experimental):** Import albums from your own Google Photos account into Immich from a separate tab. Originals are downloaded, items are deduplicated, and progress is shown live.
 - **Guided setup:** The Overview page shows a first-run checklist and a short What's new card when a release adds features.
 - **Re-upload control:** Photos deleted from Google Photos stay deleted by default. Turn on the check per Google upload if you want missing items restored.
 
+## Accounts and experience modes
+
+The Web UI has three modes, stored in `uiMode`:
+
+- `simple` shows Overview, Connection, Albums, and Logs. It hides upload settings and account routing.
+- `standard` adds sync behavior, deduplication, Google upload, private albums, and notifications for one Google account.
+- `advanced` shows every section, including **Accounts & Users**, per-album import accounts, and strict contributor matching.
+
+Existing installations default to `standard`. A configuration with `accounts` opens in `advanced` unless `uiMode` says otherwise. The mode only changes what the interface shows. Mappings created in Advanced keep working in the background, and the UI shows a notice when that happens.
+
+In **Accounts & Users**, link one Immich user to one Google Photos account. Each mapping can hold the Immich user UUID and name, an optional Immich API key, a Google `oauth_token`, an optional `cookies.txt` browser session, and a fallback flag for unmapped users. The same page previews where each Immich user's photos go.
+
+Immich assigns every imported asset to the owner of the API key that calls `POST /assets`. To import a shared album as your sister, use her Immich API key for that mapping or album. In the other direction, the uploader reads each asset's `ownerId` and uploads it with the Google account linked to that person. Set `googleUpload.strictAccountMatching` to skip unmapped users instead of falling back, and set `googlePhotos[].immichAccountId` to choose the import account per album. See [CONFIGURATION.md](CONFIGURATION.md#accounts-and-routing) for the field reference.
+
 ## Google Photos upload
 
-The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Albums you own use the connected Google account. Albums shared with you use a browser session, because Google's mobile API cannot add to them. The browser session is also used for **Private albums**. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
+The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Albums you own use the connected Google account. Albums shared with you use a browser session, because Google's mobile API cannot add to them. When several people are linked, each asset is uploaded through the Google account of its Immich owner. The browser session is also used for **Private albums**. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
 
 ### Unlimited storage
 

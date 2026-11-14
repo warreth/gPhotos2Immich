@@ -350,3 +350,113 @@ func newTestApp(t *testing.T, apiURL string) *App {
 	}
 	return app
 }
+
+func TestImmichClientForSelectsAlbumAccount(t *testing.T) {
+	primary := immich.NewClient("http://immich.local/api", "primary-key", 1)
+	app := &App{
+		Cfg: &config.Config{
+			ApiURL:  "http://immich.local/api",
+			Workers: 2,
+			Accounts: []config.AccountMapping{
+				{ID: "acc-1", ImmichUserID: "owner-1", ImmichAPIKey: "key-1"},
+				{ID: "acc-2", ImmichUserID: "owner-2"},
+			},
+		},
+		Client: primary,
+	}
+
+	tests := []struct {
+		name     string
+		account  string
+		wantKey  string
+		wantSame bool
+	}{
+		{name: "no album account keeps the primary client", wantSame: true},
+		{name: "mapping id", account: "acc-1", wantKey: "key-1"},
+		{name: "immich user id", account: "owner-1", wantKey: "key-1"},
+		{name: "trimmed and case insensitive", account: " ACC-1 ", wantKey: "key-1"},
+		{name: "mapping without a key keeps the primary client", account: "acc-2", wantSame: true},
+		{name: "unknown mapping keeps the primary client", account: "missing", wantSame: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := app.immichClientFor(config.GooglePhotosConfig{ImmichAccountID: tt.account})
+			if tt.wantSame {
+				if got != primary {
+					t.Fatalf("expected the primary client, got %#v", got)
+				}
+				return
+			}
+			if got == primary {
+				t.Fatal("expected a dedicated client")
+			}
+			if got.APIKey != tt.wantKey || got.APIURL != "http://immich.local/api" {
+				t.Fatalf("client = %q %q", got.APIURL, got.APIKey)
+			}
+		})
+	}
+
+	if got := (&App{}).immichClientFor(config.GooglePhotosConfig{ImmichAccountID: "acc-1"}); got != nil {
+		t.Fatalf("without configuration there is no client, got %#v", got)
+	}
+}
+
+func TestPrefetchAlbumAssetsUsesGivenClient(t *testing.T) {
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("x-api-key"))
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/albums/album-1" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(`{"id":"album-1","albumName":"Album","assets":[
+			{"id":"a1","originalFileName":"gp_one.jpg","type":"IMAGE"},
+			{"id":"a2","originalFileName":"gp_two.jpg","type":"IMAGE"}
+		]}`))
+	}))
+	defer server.Close()
+
+	app := newTestApp(t, server.URL)
+	albumClient := immich.NewClient(server.URL, "album-key", 1)
+
+	index := app.prefetchAlbumAssets(context.Background(), "album-1", app.Logger, albumClient)
+	if index.Count != 2 {
+		t.Fatalf("index count = %d", index.Count)
+	}
+	if len(keys) != 1 || keys[0] != "album-key" {
+		t.Fatalf("keys = %#v", keys)
+	}
+}
+
+func TestResolveAlbumIDCreatesWithGivenClient(t *testing.T) {
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("x-api-key"))
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost || r.URL.Path != "/albums" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(`{"id":"new-album","albumName":"Album"}`))
+	}))
+	defer server.Close()
+
+	app := newTestApp(t, server.URL)
+	albumClient := immich.NewClient(server.URL, "album-key", 1)
+
+	id := app.resolveAlbumID(context.Background(), config.GooglePhotosConfig{}, "Album", nil, app.Logger, albumClient)
+	if id != "new-album" {
+		t.Fatalf("album id = %q", id)
+	}
+	if len(keys) != 1 || keys[0] != "album-key" {
+		t.Fatalf("keys = %#v", keys)
+	}
+
+	// A configured album id never calls Immich.
+	keys = nil
+	app.resolveAlbumID(context.Background(), config.GooglePhotosConfig{ImmichAlbumID: "album-9"}, "Album", nil, app.Logger, albumClient)
+	if len(keys) != 0 {
+		t.Fatalf("keys = %#v", keys)
+	}
+}

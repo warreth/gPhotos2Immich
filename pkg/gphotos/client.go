@@ -24,6 +24,7 @@ type Account struct {
 type UploadRequest struct {
 	StagingDir     string
 	AlbumKey       string
+	Account        string // optional: Google email to upload as (--account)
 	UseQuota       bool
 	Saver          bool
 	PairLivePhotos bool
@@ -107,24 +108,56 @@ func parseConnectedEmail(stdout string) (string, error) {
 	return "", fmt.Errorf("gotohp did not report a connected account: %s", strings.TrimSpace(stdout))
 }
 
-// ListAccounts returns the emails stored in the gotohp config.
-func (c *CLIClient) ListAccounts(ctx context.Context) ([]string, error) {
+// AccountInfo is one credential stored in the gotohp config.
+type AccountInfo struct {
+	Email  string
+	Active bool
+}
+
+// ListAccountsDetailed returns the stored emails and which one is active.
+func (c *CLIClient) ListAccountsDetailed(ctx context.Context) ([]AccountInfo, error) {
 	stdout, _, err := c.run(ctx, "", "creds", "list", "--config", c.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
-	var accounts []string
-	for _, line := range strings.Split(stdout, "\n") {
-		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "*"))
+	var accounts []AccountInfo
+	for _, raw := range strings.Split(stdout, "\n") {
+		line := strings.TrimSpace(raw)
+		active := strings.HasPrefix(line, "*")
+		line = strings.TrimSpace(strings.TrimPrefix(line, "*"))
 		if line == "" || !strings.Contains(line, "@") {
 			continue
 		}
-		if strings.HasPrefix(line, "Use ") {
+		if strings.HasPrefix(line, "Use ") || strings.HasPrefix(strings.ToLower(line), "use ") {
 			continue
 		}
-		accounts = append(accounts, line)
+		accounts = append(accounts, AccountInfo{Email: line, Active: active})
 	}
 	return accounts, nil
+}
+
+// ListAccounts returns the emails stored in the gotohp config.
+func (c *CLIClient) ListAccounts(ctx context.Context) ([]string, error) {
+	detailed, err := c.ListAccountsDetailed(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accounts := make([]string, 0, len(detailed))
+	for _, account := range detailed {
+		accounts = append(accounts, account.Email)
+	}
+	return accounts, nil
+}
+
+// SetActiveAccount makes one stored credential the default for uploads that do
+// not pass --account.
+func (c *CLIClient) SetActiveAccount(ctx context.Context, email string) error {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return fmt.Errorf("a Google account email is required")
+	}
+	_, _, err := c.run(ctx, "", "creds", "set", email, "--config", c.ConfigPath)
+	return err
 }
 
 // RemoveAccount removes one stored credential.
@@ -197,6 +230,9 @@ func (c *CLIClient) Upload(ctx context.Context, req UploadRequest) ([]UploadResu
 	}
 	if req.AlbumKey != "" {
 		args = append(args, "--album", req.AlbumKey)
+	}
+	if account := strings.TrimSpace(req.Account); account != "" {
+		args = append(args, "--account", account)
 	}
 	if req.UseQuota {
 		args = append(args, "--use-quota")

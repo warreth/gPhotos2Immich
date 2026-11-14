@@ -492,8 +492,38 @@ type processResult struct {
 	BytesUploaded   int64
 }
 
+// immichClientFor returns the Immich client that imports this album. An album
+// can name an AccountMapping whose API key belongs to another Immich user, so
+// the assets land in that user's library (Option A). Unknown or keyless
+// mappings fall back to the primary client.
+func (a *App) immichClientFor(ac config.GooglePhotosConfig) *immich.Client {
+	if a.Cfg == nil || a.Client == nil {
+		return a.Client
+	}
+	wanted := strings.TrimSpace(ac.ImmichAccountID)
+	if wanted == "" {
+		return a.Client
+	}
+	for _, acc := range a.Cfg.Accounts {
+		if !strings.EqualFold(strings.TrimSpace(acc.ID), wanted) &&
+			!strings.EqualFold(strings.TrimSpace(acc.ImmichUserID), wanted) {
+			continue
+		}
+		key := strings.TrimSpace(acc.ImmichAPIKey)
+		if key == "" {
+			return a.Client
+		}
+		workers := a.Cfg.Workers
+		if workers < 1 {
+			workers = 1
+		}
+		return immich.NewClient(a.Cfg.ApiURL, key, workers)
+	}
+	return a.Client
+}
+
 // resolveAlbumID finds or creates the Immich album for a given config entry
-func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, albumTitle string, albumCache []immich.Album, logger *slog.Logger) string {
+func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, albumTitle string, albumCache []immich.Album, logger *slog.Logger, client *immich.Client) string {
 	if ac.ImmichAlbumID != "" {
 		return ac.ImmichAlbumID
 	}
@@ -503,7 +533,7 @@ func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, 
 		}
 	}
 	logger.Info("Creating Immich album", "title", albumTitle)
-	newAlbum, err := a.Client.CreateAlbum(ctx, albumTitle)
+	newAlbum, err := client.CreateAlbum(ctx, albumTitle)
 	if err != nil {
 		logger.Error("Error creating album", "error", err)
 		return ""
@@ -512,12 +542,12 @@ func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, 
 }
 
 // prefetchAlbumAssets fetches existing assets from an Immich album for deduplication.
-func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *slog.Logger) *immich.AssetIndex {
+func (a *App) prefetchAlbumAssets(ctx context.Context, albumId string, logger *slog.Logger, client *immich.Client) *immich.AssetIndex {
 	index := immich.NewAssetIndex()
 	if albumId == "" {
 		return index
 	}
-	albumDetails, err := a.Client.GetAlbum(ctx, albumId)
+	albumDetails, err := client.GetAlbum(ctx, albumId)
 	if err != nil {
 		logger.Warn("Failed to fetch album details", "error", err)
 		return index
@@ -564,8 +594,9 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		return albumRunResult{Album: albumTitle}
 	}
 
-	albumId := a.resolveAlbumID(ctx, ac, albumTitle, albumCache, logger)
-	existingFiles := a.prefetchAlbumAssets(ctx, albumId, logger)
+	albumClient := a.immichClientFor(ac)
+	albumId := a.resolveAlbumID(ctx, ac, albumTitle, albumCache, logger, albumClient)
+	existingFiles := a.prefetchAlbumAssets(ctx, albumId, logger, albumClient)
 
 	globalCount := 0
 	if globalAssets != nil {
@@ -605,7 +636,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		go func() {
 			defer wg.Done()
 			for p := range jobs {
-				id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, p, albumTitle, ac.URL, existingFiles, globalAssets)
+				id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, albumClient, p, albumTitle, ac.URL, existingFiles, globalAssets)
 				results <- processResult{ID: id, WasUploaded: uploaded, Error: err, BytesDownloaded: bytesDown, BytesUploaded: bytesUp}
 			}
 		}()
@@ -703,7 +734,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	return albumRunResult{Album: albumTitle, Added: added, Skipped: skipped, Failed: failed}
 }
 
-func (a *App) processItem(ctx context.Context, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {
+func (a *App) processItem(ctx context.Context, client *immich.Client, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {
 	safeId := strings.ReplaceAll(p.ID, "/", "_")
 	safeId = strings.ReplaceAll(safeId, ":", "_")
 	baseName := fmt.Sprintf("gp_%s", safeId)

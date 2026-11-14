@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -26,6 +28,15 @@ func setEnv(t *testing.T, key, value string) {
 			os.Unsetenv(key)
 		}
 	})
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }
 
 // Issue #9: ENV vars must take runtime precedence over an existing config.json,
@@ -273,5 +284,194 @@ func TestValidate(t *testing.T) {
 	}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("invalid syncInterval must fail validation")
+	}
+}
+
+func TestEffectiveUIMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		accounts []AccountMapping
+		upload   bool
+		want     string
+	}{
+		{name: "empty defaults to standard", want: UIModeStandard},
+		{name: "empty with upload enabled", upload: true, want: UIModeStandard},
+		{name: "accounts imply advanced", accounts: []AccountMapping{{ImmichUserID: "u"}}, want: UIModeAdvanced},
+		{name: "explicit simple wins over accounts", mode: " Simple ", accounts: []AccountMapping{{ImmichUserID: "u"}}, want: UIModeSimple},
+		{name: "explicit standard", mode: UIModeStandard, accounts: []AccountMapping{{ImmichUserID: "u"}}, want: UIModeStandard},
+		{name: "explicit advanced", mode: UIModeAdvanced, want: UIModeAdvanced},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{UIMode: tt.mode, Accounts: tt.accounts}
+			cfg.GoogleUpload.Enabled = tt.upload
+			if got := cfg.EffectiveUIMode(); got != tt.want {
+				t.Fatalf("EffectiveUIMode() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+	var nilCfg *Config
+	if got := nilCfg.EffectiveUIMode(); got != UIModeStandard {
+		t.Fatalf("nil config mode = %q", got)
+	}
+}
+
+func TestValidateRejectsUnknownUIMode(t *testing.T) {
+	cfg := &Config{ApiKey: "k", ApiURL: "http://x/api", UIMode: "fancy"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unknown uiMode must fail validation")
+	}
+}
+
+func TestReadConfigNormalizesAccounts(t *testing.T) {
+	path := writeTestConfig(t, `{
+		"apiKey": "k",
+		"apiURL": "http://immich/api",
+		"uiMode": "  Advanced ",
+		"accounts": [
+			{
+				"name": "  Warre  ",
+				"immichUserId": " owner-warre ",
+				"immichApiKey": " key-warre ",
+				"googleEmail": " warre@gmail.com ",
+				"isDefault": true
+			},
+			{
+				"id": " acc-lotte ",
+				"name": "Lotte",
+				"immichUserId": "owner-lotte",
+				"googleEmail": "lotte@gmail.com",
+				"webCookiesFile": " /data/lotte-cookies.txt "
+			}
+		]
+	}`)
+
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+	if cfg.UIMode != UIModeAdvanced {
+		t.Fatalf("uiMode = %q", cfg.UIMode)
+	}
+	if len(cfg.Accounts) != 2 {
+		t.Fatalf("accounts = %#v", cfg.Accounts)
+	}
+	warre := cfg.Accounts[0]
+	if warre.ID != "owner-warre" || warre.Name != "Warre" || warre.ImmichUserID != "owner-warre" {
+		t.Fatalf("first account was not normalized: %#v", warre)
+	}
+	if warre.ImmichAPIKey != "key-warre" || warre.GoogleEmail != "warre@gmail.com" || !warre.IsDefault {
+		t.Fatalf("first account fields = %#v", warre)
+	}
+	if warre.WebCookiesFile != "./data/gphotos-web-cookies-owner-warre.txt" {
+		t.Fatalf("auto cookies path = %q", warre.WebCookiesFile)
+	}
+	lotte := cfg.Accounts[1]
+	if lotte.ID != "acc-lotte" || lotte.WebCookiesFile != "/data/lotte-cookies.txt" {
+		t.Fatalf("second account = %#v", lotte)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("normalized config must validate: %v", err)
+	}
+}
+
+func TestEffectiveAccountCookiesFile(t *testing.T) {
+	tests := []struct {
+		name string
+		acc  AccountMapping
+		want string
+	}{
+		{
+			name: "explicit path wins",
+			acc:  AccountMapping{ID: "acc-1", WebCookiesFile: " /tmp/custom.txt "},
+			want: "/tmp/custom.txt",
+		},
+		{
+			name: "id is sanitized",
+			acc:  AccountMapping{ID: "acc 1/lotte", GoogleEmail: "lotte@gmail.com"},
+			want: "./data/gphotos-web-cookies-acc-1-lotte.txt",
+		},
+		{
+			name: "email when the id is missing",
+			acc:  AccountMapping{GoogleEmail: "Warre@GMail.com"},
+			want: "./data/gphotos-web-cookies-warre-gmail.com.txt",
+		},
+		{
+			name: "falls back to the immich user id",
+			acc:  AccountMapping{ImmichUserID: "8c4b2d0e"},
+			want: "./data/gphotos-web-cookies-8c4b2d0e.txt",
+		},
+		{
+			name: "empty mapping still yields a usable path",
+			acc:  AccountMapping{},
+			want: "./data/gphotos-web-cookies-account.txt",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := EffectiveAccountCookiesFile(tt.acc); got != tt.want {
+				t.Fatalf("EffectiveAccountCookiesFile() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateAccounts(t *testing.T) {
+	base := func(accounts ...AccountMapping) *Config {
+		return &Config{ApiKey: "k", ApiURL: "http://x/api", Accounts: accounts}
+	}
+
+	if err := base(AccountMapping{ImmichUserID: "u1"}, AccountMapping{ImmichUserID: "u2"}).Validate(); err != nil {
+		t.Fatalf("valid accounts rejected: %v", err)
+	}
+	if err := base(AccountMapping{}).Validate(); err == nil {
+		t.Fatal("an account without immichUserId must fail validation")
+	}
+	if err := base(
+		AccountMapping{ID: "same", ImmichUserID: "u1"},
+		AccountMapping{ID: "same", ImmichUserID: "u2"},
+	).Validate(); err == nil {
+		t.Fatal("duplicate account ids must fail validation")
+	}
+	if err := base(
+		AccountMapping{ImmichUserID: "u1"},
+		AccountMapping{ImmichUserID: "u1"},
+	).Validate(); err == nil {
+		t.Fatal("duplicate immichUserId values must fail validation")
+	}
+	if err := base(
+		AccountMapping{ImmichUserID: "u1", IsDefault: true},
+		AccountMapping{ImmichUserID: "u2", IsDefault: true},
+	).Validate(); err == nil {
+		t.Fatal("more than one default account must fail validation")
+	}
+}
+
+func TestStrictAccountMatchingAndImmichAccountIDRoundTrip(t *testing.T) {
+	path := writeTestConfig(t, `{
+		"apiKey": "k",
+		"apiURL": "http://immich/api",
+		"googleUpload": {"strictAccountMatching": true},
+		"googlePhotos": [{
+			"url": "https://photos.app.goo.gl/x",
+			"immichAlbumId": "album-1",
+			"immichAccountId": " acc-lotte "
+		}]
+	}`)
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+	if !cfg.GoogleUpload.StrictAccountMatching {
+		t.Fatal("strictAccountMatching was not read")
+	}
+	if cfg.GooglePhotos[0].ImmichAccountID != "acc-lotte" {
+		t.Fatalf("immichAccountId = %q", cfg.GooglePhotos[0].ImmichAccountID)
+	}
+
+	cfg.GooglePhotos[0].ImmichAccountID = ""
+	if strings.Contains(string(mustJSON(t, cfg.GooglePhotos[0])), "immichAccountId") {
+		t.Fatal("an empty immichAccountId must be omitted from JSON")
 	}
 }

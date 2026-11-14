@@ -71,6 +71,8 @@ func (s *Server) Start(port int) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/config", s.handleConfig)
+	mux.HandleFunc("/api/immich/users", s.handleImmichUsers)
+	mux.HandleFunc("/api/accounts", s.handleAccounts)
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/logs", s.handleLogs)
 	mux.HandleFunc("/api/activity", s.handleActivity)
@@ -255,11 +257,18 @@ func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Could not read request body", http.StatusBadRequest)
+		return
+	}
 	var newCfg config.Config
-	if err := json.NewDecoder(r.Body).Decode(&newCfg); err != nil {
+	if err := json.Unmarshal(body, &newCfg); err != nil {
 		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
+	var raw map[string]json.RawMessage
+	_ = json.Unmarshal(body, &raw)
 
 	// Read existing to keep any extra fields intact
 	existingContent, _ := os.ReadFile(s.configPath)
@@ -284,10 +293,26 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	existingMap["dedupMode"] = newCfg.DedupMode
 	existingMap["updateExistingMetadata"] = newCfg.UpdateExistingMetadata
 	existingMap["notifications"] = newCfg.Notifications
+	if _, ok := raw["uiMode"]; ok {
+		existingMap["uiMode"] = newCfg.UIMode
+	}
 	// Merge so fields the UI does not expose (binary and credential paths,
 	// retries, auto-update) are preserved.
 	existingMap["googleUpload"] = mergeGoogleUpload(existingMap["googleUpload"], newCfg.GoogleUpload)
 	existingMap["googlePhotos"] = newCfg.GooglePhotos
+
+	// Accounts are edited on their own API, so an omitted list keeps the one on
+	// disk instead of erasing every mapping.
+	accounts := newCfg.Accounts
+	if _, ok := raw["accounts"]; ok {
+		existingMap["accounts"] = accounts
+	} else {
+		var existingCfg config.Config
+		if len(existingContent) > 0 {
+			_ = json.Unmarshal(existingContent, &existingCfg)
+		}
+		accounts = existingCfg.Accounts
+	}
 
 	// Prettify output
 	outBytes, err := json.MarshalIndent(existingMap, "", "    ")
@@ -300,6 +325,12 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Failed to write config file %s: %v\n", s.configPath, err)
 		http.Error(w, fmt.Sprintf("Failed to write config file: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Keep the live service in step with the file. The handler already holds
+	// s.mu, so read the field directly instead of calling syncBack().
+	if sb := s.SyncBack; sb != nil {
+		sb.SetAccounts(accounts, newCfg.GoogleUpload.StrictAccountMatching)
 	}
 
 	// The cached Immich user may belong to the previous credentials.
@@ -330,6 +361,7 @@ func mergeGoogleUpload(existing interface{}, incoming config.GoogleUploadConfig)
 	merged["skipLivePhotos"] = incoming.SkipLivePhotos
 	merged["reuploadDeleted"] = incoming.ReuploadDeleted
 	merged["threads"] = incoming.Threads
+	merged["strictAccountMatching"] = incoming.StrictAccountMatching
 	return merged
 }
 

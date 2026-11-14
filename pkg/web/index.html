@@ -499,7 +499,7 @@
 
         .album-row {
             display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 90px minmax(0, 1.1fr) auto;
+            grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr) 84px minmax(0, 1fr) minmax(0, 1fr) auto;
             gap: 10px;
             align-items: end;
             padding: 12px;
@@ -509,8 +509,13 @@
         }
 
         .album-row .field { margin: 0; }
-        .album-row .field label { font-size: 11.5px; }
-        .album-row .input { background: var(--surface); }
+        .album-row .field label {
+            font-size: 11.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .album-row .input { background: var(--surface); height: 40px; }
         .album-remove { align-self: end; margin-bottom: 1px; }
         .album-remove:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 
@@ -860,6 +865,228 @@
         .toast.show { opacity: 1; transform: translateY(0); }
         .toast.error { background: var(--danger); }
 
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        .mode-switch {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 4px;
+            padding: 4px;
+            margin-bottom: 8px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .mode-switch-btn {
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 7px 4px;
+            cursor: pointer;
+        }
+
+        .mode-switch-btn:hover { background: var(--surface); color: var(--text); }
+        .mode-switch-btn[aria-pressed="true"] {
+            background: var(--surface);
+            color: var(--accent);
+            box-shadow: var(--shadow);
+        }
+
+        .mode-switch-hint {
+            margin-bottom: 10px;
+            color: var(--text-muted);
+            font-size: 11px;
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        .mode-hidden { display: none !important; }
+
+        body[data-ui-mode="simple"] .mode-standard-only,
+        body[data-ui-mode="simple"] .mode-advanced-only,
+        body[data-ui-mode="standard"] .mode-advanced-only { display: none !important; }
+
+        .mode-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+            background: var(--accent-soft);
+            border: 1px solid #cfe6e1;
+            border-radius: 12px;
+        }
+
+        .mode-banner[hidden] { display: none; }
+        .mode-banner .icon { width: 20px; height: 20px; margin-top: 1px; color: var(--accent); }
+        .mode-banner-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; }
+        .mode-banner-text strong { display: block; font-size: 13.5px; }
+
+        .accounts-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .account-list,
+        .routing-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .account-card {
+            padding: 16px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .account-card-head { display: flex; align-items: flex-start; gap: 12px; }
+
+        .account-avatar {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .account-person { flex: 1; min-width: 0; }
+        .account-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+        .account-sub { margin-top: 2px; color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+        .account-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .badge-ok { background: var(--success-soft); border-color: #c6e6d0; color: var(--success); }
+        .badge-warn { background: var(--warning-soft); border-color: #f0d9b8; color: var(--warning); }
+        .badge-danger { background: var(--danger-soft); border-color: #f5c6c6; color: var(--danger); }
+        .badge-muted { background: var(--surface-2); color: var(--text-muted); }
+        .badge-accent { background: var(--accent-soft); border-color: #c9e5e0; color: var(--accent); }
+
+        .account-status {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+        .status-line-label { color: var(--text-muted); }
+        .status-line-value { min-width: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+        .status-line-note { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11.5px; }
+
+        .account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+        .account-add {
+            width: 100%;
+            margin-top: 12px;
+            padding: 14px;
+            border: 1px dashed var(--border-strong);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--accent);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .account-add:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+        .routing-summary {
+            margin: 12px 0;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: var(--surface-2);
+            color: var(--text-secondary);
+            font-size: 12.5px;
+            line-height: 1.5;
+        }
+
+        .routing-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .routing-user { min-width: 0; }
+        .routing-name { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+        .routing-email { color: var(--text-muted); font-size: 11.5px; overflow-wrap: anywhere; }
+        .routing-badge { flex-shrink: 0; max-width: 52%; text-align: right; white-space: normal; }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 900;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(32, 36, 31, .45);
+        }
+
+        .modal-overlay[hidden] { display: none; }
+
+        .modal-card {
+            width: 100%;
+            max-width: 680px;
+            max-height: 90vh;
+            overflow: auto;
+            padding: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+        }
+
+        .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .modal-header h2 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.01em; }
+        .modal-header p { margin: 0; color: var(--text-muted); font-size: 12.5px; }
+
+        .account-form .field { margin-bottom: 14px; }
+        .account-guide { margin: 4px 0 14px; }
+        .account-guide summary { color: var(--accent); font-size: 12.5px; font-weight: 500; cursor: pointer; }
+        .account-guide ol { margin: 8px 0 0; padding-left: 18px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; }
+        .account-guide li { margin-bottom: 6px; }
+
+        @media (max-width: 1000px) {
+            .accounts-layout { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 760px) {
+            .mode-switch-btn,
+            .account-actions .btn,
+            .account-add { min-height: 44px; }
+            .modal-overlay { padding: 10px; }
+            .modal-card { padding: 18px; max-height: 94vh; }
+        }
+
         .wizard {
             max-width: 560px;
             margin: 48px auto;
@@ -917,6 +1144,8 @@
             }
             .nav-item { width: auto; white-space: nowrap; }
             .nav-count { display: none; }
+            .mode-switch,
+            .mode-switch-hint { flex: 1 1 100%; width: 100%; }
             .sidebar-footer { display: none; }
             .mobile-save {
                 display: flex;
@@ -987,6 +1216,12 @@
 
         <div class="shell">
             <nav class="sidebar" aria-label="Settings sections">
+                <div class="mode-switch" role="group" aria-label="Interface mode">
+                    <button class="mode-switch-btn" type="button" data-ui-mode="simple" aria-pressed="false">Simple</button>
+                    <button class="mode-switch-btn" type="button" data-ui-mode="standard" aria-pressed="true">Standard</button>
+                    <button class="mode-switch-btn" type="button" data-ui-mode="advanced" aria-pressed="false">Advanced</button>
+                </div>
+                <div class="mode-switch-hint" id="modeSwitchHint">Show only the basics</div>
                 <button class="nav-item active" data-section="overview" type="button"><svg class="icon"><use href="#icon-layers"/></svg>Overview</button>
                 <button class="nav-item" data-section="connection" type="button"><svg class="icon"><use href="#icon-plug"/></svg>Connection</button>
                 <button class="nav-item" data-section="sync" type="button"><svg class="icon"><use href="#icon-sliders"/></svg>Sync behavior</button>
@@ -994,6 +1229,7 @@
                 <button class="nav-item" data-section="albums" type="button"><svg class="icon"><use href="#icon-albums"/></svg>Albums <span class="nav-count" id="albumCount">0</span></button>
                 <button class="nav-item" data-section="google" type="button"><svg class="icon"><use href="#icon-plug"/></svg>Google upload</button>
                 <button class="nav-item" data-section="private" type="button"><svg class="icon"><use href="#icon-lock"/></svg>Private albums</button>
+                <button class="nav-item" data-section="accounts" type="button"><svg class="icon"><use href="#icon-user"/></svg>Accounts &amp; Users</button>
                 <button class="nav-item" data-section="notifications" type="button"><svg class="icon"><use href="#icon-bell"/></svg>Notifications</button>
                 <button class="nav-item" data-section="advanced" type="button"><svg class="icon"><use href="#icon-database"/></svg>Advanced</button>
                 <button class="nav-item" data-section="logs" type="button"><svg class="icon"><use href="#icon-terminal"/></svg>Logs</button>
@@ -1004,6 +1240,14 @@
             </nav>
 
             <main class="content">
+                <div class="mode-banner" id="modeBanner" role="status" hidden>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user"/></svg>
+                    <div class="mode-banner-text">
+                        <strong id="modeBannerTitle"></strong>
+                        <span id="modeBannerText"></span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" type="button" id="modeBannerBtn" onclick="switchModeFromBanner()">Switch to Advanced</button>
+                </div>
                 <form id="configForm">
                     <section id="section-overview" class="section active">
                         <div class="section-header">
@@ -1463,6 +1707,47 @@
                         </div>
                     </section>
 
+                    <section id="section-accounts" class="section">
+                        <div class="section-header">
+                            <h2>Accounts &amp; Users</h2>
+                            <p>Link each Immich user to their own Google Photos account, then route uploads and imports per person.</p>
+                        </div>
+
+                        <div class="test-result" id="accountError" role="status" aria-live="polite"></div>
+
+                        <div class="accounts-layout">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div><h3>People linked to Google Photos</h3><p>Each person's photos use their own Google credential and browser session.</p></div>
+                                    <button class="btn btn-secondary btn-sm" type="button" onclick="openAccountWizard()">Link person</button>
+                                </div>
+                                <div id="accountList" class="account-list"></div>
+                                <div id="accountEmpty" class="empty-state">No people are linked yet. Link an Immich user to their Google account to route uploads per person.</div>
+                                <button class="account-add" type="button" onclick="openAccountWizard()"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Link a person</button>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header">
+                                    <div><h3>Live routing preview</h3><p>Where each Immich user's photos go when they appear in a shared Immich album.</p></div>
+                                    <button class="btn btn-ghost btn-sm" type="button" onclick="loadAccounts()">Refresh</button>
+                                </div>
+                                <label class="toggle" style="padding-top:0;border:0">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">Strict contributor matching</div>
+                                        <div class="toggle-desc">Skip photos from Immich users without a linked Google account instead of falling back to the default account.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="googleStrictMatching"><span class="switch-track"></span></span>
+                                </label>
+                                <div class="hint">When off, unmapped users fall back to the primary account or the person marked as fallback.</div>
+                                <div class="routing-summary" id="routingSummary">Routing preview has not loaded yet.</div>
+                                <div class="routing-list" id="routingList"></div>
+                                <div class="empty-state" id="routingEmpty" style="display:none">No Immich users were returned. Check the Connection page, or link a person manually.</div>
+                                <div class="test-result danger" id="routingError" role="status" aria-live="polite"></div>
+                                <div class="hint">Immich assigns every imported asset to the owner of the API key that uploaded it. To import a shared album as another person, use that person's Immich API key. Uploads from Immich to Google Photos read each asset's ownerId and use the Google account linked to that person.</div>
+                            </div>
+                        </div>
+                    </section>
+
                     <section id="section-notifications" class="section">
                         <div class="section-header">
                             <h2>Notifications</h2>
@@ -1678,6 +1963,87 @@
         <button class="btn btn-primary" type="button" onclick="saveConfig()">Save changes</button>
     </div>
 
+    <div class="modal-overlay" id="accountWizard" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountWizardTitle">
+            <div class="modal-header">
+                <div>
+                    <h2 id="accountWizardTitle">Link a person</h2>
+                    <p id="accountWizardSubtitle">Connect one Immich user to one Google Photos account.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" type="button" onclick="closeAccountWizard()">Close</button>
+            </div>
+
+            <div class="account-form">
+                <input type="hidden" id="accountEditId">
+
+                <div class="field">
+                    <label for="accountImmichUser">Immich user</label>
+                    <select class="input" id="accountImmichUser">
+                        <option value="">Choose a user</option>
+                        <option value="__manual__">Enter name and UUID manually</option>
+                    </select>
+                    <div class="hint" id="accountUserHint">Loads from Immich when the connection works.</div>
+                </div>
+
+                <div class="field">
+                    <label for="accountName">Name</label>
+                    <input class="input" type="text" id="accountName" placeholder="Lotte">
+                </div>
+
+                <div id="accountManualFields" style="display:none">
+                    <div class="field">
+                        <label for="accountImmichUserId">Immich user UUID</label>
+                        <input class="input" type="text" id="accountImmichUserId" placeholder="Immich user id">
+                        <div class="hint">Used when the Immich user list cannot be loaded.</div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="accountGoogleEmail">Google Photos email</label>
+                    <input class="input" type="email" id="accountGoogleEmail" placeholder="person@gmail.com" autocomplete="off">
+                    <div class="hint">The account that uploads this person's photos to Google Photos.</div>
+                </div>
+
+                <div class="field">
+                    <label for="accountImmichAPIKey">Immich API key (optional)</label>
+                    <input class="input" type="password" id="accountImmichAPIKey" placeholder="Leave blank to keep the stored key" autocomplete="off">
+                    <div class="hint">Needed only if you want Google to Immich albums imported under this person's Immich account. Immich assigns the asset to the API key owner.</div>
+                </div>
+
+                <details class="account-guide">
+                    <summary>How to get the Google oauth_token</summary>
+                    <ol>
+                        <li>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a> and sign in as this person.</li>
+                        <li>Click "I agree". The page may keep loading, that is expected. Then open DevTools, Application or Storage, Cookies, <code>accounts.google.com</code>.</li>
+                        <li>Copy the <code>oauth_token</code> value and paste it below. The token is stored in a private file and never shown again.</li>
+                    </ol>
+                </details>
+
+                <div class="field">
+                    <label for="accountOAuthToken">Google oauth_token (optional)</label>
+                    <input class="input" type="password" id="accountOAuthToken" placeholder="Leave blank to keep the stored credential" autocomplete="off">
+                </div>
+
+                <div class="field">
+                    <label for="accountCookies">cookies.txt for shared albums (optional)</label>
+                    <textarea class="input" id="accountCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
+                    <div class="hint">Shared albums that someone else owns need a signed-in photos.google.com session. Stored with mode 0600.</div>
+                </div>
+
+                <label class="inline-check" style="margin-bottom:14px">
+                    <input type="checkbox" id="accountIsDefault">
+                    Use this person as the fallback for unmapped Immich users
+                </label>
+
+                <div class="test-result" id="accountSaveResult" role="status" aria-live="polite"></div>
+                <div class="button-row" style="margin-top:16px">
+                    <button class="btn btn-primary" type="button" id="accountSaveBtn" onclick="saveAccount()">Save person</button>
+                    <button class="btn btn-ghost" type="button" onclick="closeAccountWizard()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast" role="status"></div>
 
     <script>
@@ -1685,6 +2051,12 @@
             config: null,
             dirty: false,
             activeSection: 'overview',
+            uiMode: 'standard',
+            accounts: [],
+            routing: null,
+            immichUsers: [],
+            accountUsersLoaded: false,
+            accountFocus: null,
             toastTimer: null,
             immichAlbums: [],
             webSession: { connected: false },
@@ -1694,6 +2066,18 @@
             privatePoll: null,
             privateLoaded: false,
             privateRunning: false
+        };
+
+        const MODE_SECTIONS = {
+            simple: ['overview', 'connection', 'albums', 'logs'],
+            standard: ['overview', 'connection', 'sync', 'dedup', 'albums', 'google', 'private', 'notifications', 'logs'],
+            advanced: ['overview', 'connection', 'sync', 'dedup', 'albums', 'google', 'private', 'accounts', 'notifications', 'advanced', 'logs']
+        };
+
+        const MODE_LABELS = {
+            simple: 'Show only the basics',
+            standard: 'Two-way sync with one Google account',
+            advanced: 'Multi-account routing and full control'
         };
 
         const live = {
@@ -1707,24 +2091,24 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.11.0';
+        const APP_VERSION = '1.12.0';
         let setupSignature = '';
         const WHATS_NEW = [
             {
-                title: 'Live activity and clearer logs',
-                body: 'The Activity page shows progress bars and filterable events instead of only a terminal view.'
+                title: 'Three experience modes',
+                body: 'Simple keeps only the basics, Standard adds two-way sync, and Advanced exposes multi-account routing and every setting. Switch modes at the top of the sidebar.'
             },
             {
-                title: 'Immich notifications',
-                body: 'Choose whether a failed sync or a finished Google Photos upload sends a notification in Immich.'
+                title: 'Multi-account Immich and Google routing',
+                body: 'Link each Immich person to their own Google account. Uploads from Immich use the Google account of each photo owner, and shared album imports can use that person\'s Immich API key.'
             },
             {
-                title: 'Re-upload control',
-                body: 'Photos deleted from Google Photos stay deleted by default. Turn on the re-upload check to restore missing items.'
+                title: 'Accounts & Users page',
+                body: 'See every linked person, their credential and browser session status, and a live preview of where each Immich user\'s photos go.'
             },
             {
-                title: 'Private album import (experimental)',
-                body: 'Import albums from your own Google Photos account into Immich from the Private albums tab.'
+                title: 'Per-album import account',
+                body: 'In Advanced mode, choose which linked Immich user imports each Google Photos shared album.'
             }
         ];
 
@@ -1761,7 +2145,10 @@
             state.toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
         }
 
-        function goToSection(name) {
+        function goToSection(name, options = {}) {
+            if (!options.skipModeCheck && !sectionVisible(name)) {
+                setUIMode(['accounts', 'advanced'].includes(name) ? 'advanced' : 'standard', { persist: false });
+            }
             qsa('.section').forEach(section => section.classList.toggle('active', section.id === 'section-' + name));
             qsa('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === name));
             state.activeSection = name;
@@ -1770,7 +2157,72 @@
                 refreshLogs();
             }
             if (name === 'private') applyPrivateSession();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (name === 'accounts') loadAccounts();
+            if (!options.skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function sectionVisible(name) {
+            const visible = MODE_SECTIONS[state.uiMode] || MODE_SECTIONS.standard;
+            return visible.includes(name);
+        }
+
+        function setUIMode(mode, options = {}) {
+            const next = MODE_SECTIONS[mode] ? mode : 'standard';
+            state.uiMode = next;
+            document.body.dataset.uiMode = next;
+            qsa('.mode-switch-btn').forEach(button => {
+                const active = button.dataset.uiMode === next;
+                button.setAttribute('aria-pressed', String(active));
+                button.classList.toggle('active', active);
+            });
+            const hint = $('modeSwitchHint');
+            if (hint) hint.textContent = MODE_LABELS[next];
+            qsa('.nav-item').forEach(item => {
+                const visible = (MODE_SECTIONS[next] || []).includes(item.dataset.section);
+                item.classList.toggle('mode-hidden', !visible);
+                if (visible) item.removeAttribute('aria-hidden');
+                else item.setAttribute('aria-hidden', 'true');
+            });
+            if (!sectionVisible(state.activeSection)) {
+                goToSection('overview', { skipModeCheck: true, skipScroll: true });
+            }
+            updateBackgroundBanner();
+            if (options.persist === false) return;
+            setDirty();
+            if (state.config) saveConfig({ quiet: true });
+        }
+
+        function switchModeFromBanner() {
+            const button = $('modeBannerBtn');
+            setUIMode(button.dataset.mode || 'advanced');
+        }
+
+        function updateBackgroundBanner() {
+            const banner = $('modeBanner');
+            if (!banner) return;
+            const accounts = state.accounts || [];
+            const uploadsInSimple = state.uiMode === 'simple'
+                && qsa('#albumList [data-field="uploadToGoogle"]:checked').length > 0;
+            if (state.uiMode === 'advanced' || (!accounts.length && !uploadsInSimple)) {
+                banner.hidden = true;
+                return;
+            }
+            const title = $('modeBannerTitle');
+            const text = $('modeBannerText');
+            const button = $('modeBannerBtn');
+            if (accounts.length) {
+                const count = accounts.length;
+                title.textContent = `${count} extra account ${count === 1 ? 'mapping remains' : 'mappings remain'} active in the background.`;
+                text.textContent = `Switch to Advanced to edit ${count === 1 ? 'it' : 'them'}.`;
+                button.textContent = 'Switch to Advanced';
+                button.dataset.mode = 'advanced';
+            } else {
+                title.textContent = 'Google Photos upload is active in the background.';
+                text.textContent = 'Switch to Standard to manage the Google account and browser session.';
+                button.textContent = 'Switch to Standard';
+                button.dataset.mode = 'standard';
+            }
+            banner.hidden = false;
         }
 
         function goWizardStep(step) {
@@ -1838,8 +2290,14 @@
                         <option value="">Not linked</option>
                     </select>
                 </div>
+                <div class="field mode-advanced-only">
+                    <label title="Uses this person's Immich API key.">Import as (API key)</label>
+                    <select class="input" data-field="immichAccountId">
+                        <option value="">Primary account</option>
+                    </select>
+                </div>
                 <button class="btn btn-ghost btn-sm album-remove" type="button" title="Remove album" aria-label="Remove album"><svg class="icon"><use href="#icon-trash"/></svg></button>
-                <div class="album-backup">
+                <div class="album-backup mode-standard-only">
                     <label class="toggle" style="padding:0;border:0">
                         <div class="toggle-text">
                             <div class="toggle-title">Upload new Immich additions to Google Photos</div>
@@ -1847,6 +2305,7 @@
                         </div>
                         <span class="switch"><input type="checkbox" data-field="uploadToGoogle"><span class="switch-track"></span></span>
                     </label>
+                    <div class="hint" style="margin:8px 0 0">Uploads each photo using the Google account linked to its Immich ownerId.</div>
                     <div class="album-backup-actions">
                         <button class="btn btn-secondary btn-sm" type="button" data-action="verify">Verify mapping</button>
                         <button class="btn btn-secondary btn-sm" type="button" data-action="upload">Upload now</button>
@@ -1857,6 +2316,8 @@
             `;
             const select = row.querySelector('[data-field="immichAlbumId"]');
             populateImmichAlbums(select, gp.immichAlbumId || '');
+            const accountSelect = row.querySelector('[data-field="immichAccountId"]');
+            populateAlbumAccountSelect(accountSelect, gp.immichAccountId || '');
             const toggle = row.querySelector('[data-field="uploadToGoogle"]');
             toggle.checked = !!gp.uploadToGoogle;
 
@@ -1864,10 +2325,12 @@
                 row.remove();
                 updateAlbumCount();
                 updateOverviewStats();
+                updateBackgroundBanner();
                 setDirty();
             });
             toggle.addEventListener('change', () => {
                 updateAlbumBackupState(row);
+                updateBackgroundBanner();
                 setDirty();
             });
             row.querySelector('[data-action="verify"]').addEventListener('click', () => verifyAlbumRow(row));
@@ -2014,6 +2477,36 @@
             }
             select.addEventListener('change', () => updateAlbumBackupState(select.closest('.album-row')));
             populatePrivateTargets();
+        }
+
+        function populateAlbumAccountSelect(select, selected) {
+            if (!select) return;
+            const current = selected || select.value || '';
+            const accounts = (state.accounts || []).filter(account => account.immichApiKey || account.immichKeyOk);
+            let html = '<option value="">Primary account</option>';
+            for (const account of accounts) {
+                const label = account.name || account.immichUserName || account.googleEmail || immichUserLabel(account.immichUserId) || account.id;
+                html += `<option value="${escapeHtml(account.id)}">${escapeHtml(label)}</option>`;
+            }
+            select.innerHTML = html;
+            if (current && accounts.some(account => account.id === current)) {
+                select.value = current;
+            } else if (current) {
+                // Keep an ID that is not currently usable so a save does not lose it.
+                const known = (state.accounts || []).find(account => account.id === current);
+                const label = (known && (known.name || known.immichUserName)) || immichUserLabel(current) || current;
+                const option = document.createElement('option');
+                option.value = current;
+                option.textContent = label + ' (no API key)';
+                select.appendChild(option);
+                select.value = current;
+            }
+        }
+
+        function populateAlbumAccountSelects() {
+            qsa('#albumList select[data-field="immichAccountId"]').forEach(select => {
+                populateAlbumAccountSelect(select, select.value);
+            });
         }
 
         function populatePrivateTargets() {
@@ -2467,6 +2960,390 @@
             }
         }
 
+        function makeBadge(label, tone) {
+            const badge = document.createElement('span');
+            badge.className = 'badge ' + (tone || 'badge-muted');
+            badge.textContent = label;
+            return badge;
+        }
+
+        function statusLine(label, value, note) {
+            const line = document.createElement('div');
+            line.className = 'status-line';
+            const left = document.createElement('span');
+            left.className = 'status-line-label';
+            left.textContent = label;
+            const right = document.createElement('span');
+            right.className = 'status-line-value';
+            right.textContent = value;
+            if (note) {
+                const noteEl = document.createElement('span');
+                noteEl.className = 'status-line-note';
+                noteEl.textContent = note;
+                right.appendChild(noteEl);
+            }
+            line.append(left, right);
+            return line;
+        }
+
+        function accountDisplayName(account) {
+            return account.name || account.immichUserName || account.googleEmail || account.immichUserId || 'Immich user';
+        }
+
+        // Resolve an Immich user id to the friendly name Immich reports, so cards
+        // and dropdowns never show a bare id when a name is known.
+        function immichUserLabel(userId) {
+            const id = String(userId || '').trim();
+            if (!id) return '';
+            const user = (state.immichUsers || []).find(item => String(item.id) === id);
+            const name = user ? (user.name || user.email || '') : '';
+            if (!name || name === id) return id;
+            return `${name} (${id})`;
+        }
+
+        function accountInitial(name) {
+            const trimmed = String(name || '?').trim();
+            return (trimmed.charAt(0) || '?').toUpperCase();
+        }
+
+        function renderAccounts() {
+            const list = $('accountList');
+            if (!list) return;
+            list.innerHTML = '';
+            const accounts = state.accounts || [];
+            $('accountEmpty').style.display = accounts.length ? 'none' : 'block';
+            for (const account of accounts) {
+                const card = document.createElement('div');
+                card.className = 'account-card';
+                card.dataset.accountId = account.id || account.immichUserId || '';
+
+                const head = document.createElement('div');
+                head.className = 'account-card-head';
+                const avatar = document.createElement('div');
+                avatar.className = 'account-avatar';
+                avatar.setAttribute('aria-hidden', 'true');
+                avatar.textContent = accountInitial(accountDisplayName(account));
+
+                const person = document.createElement('div');
+                person.className = 'account-person';
+                const name = document.createElement('div');
+                name.className = 'account-name';
+                name.textContent = accountDisplayName(account);
+                const sub = document.createElement('div');
+                sub.className = 'account-sub';
+                sub.textContent = account.googleEmail || 'No Google account linked';
+                const badges = document.createElement('div');
+                badges.className = 'account-badges';
+                if (account.isDefault) badges.appendChild(makeBadge('Fallback', 'badge-warn'));
+                if (account.immichKeyOk) badges.appendChild(makeBadge('Immich key ready', 'badge-ok'));
+                else if (account.immichApiKey) badges.appendChild(makeBadge('Immich key failed', 'badge-danger'));
+                else badges.appendChild(makeBadge('No Immich key', 'badge-muted'));
+                if (account.googleConnected) badges.appendChild(makeBadge('Google ready', 'badge-ok'));
+                else if (account.googleEmail) badges.appendChild(makeBadge('Google not connected', 'badge-warn'));
+                person.append(name, sub, badges);
+                head.append(avatar, person);
+                card.appendChild(head);
+
+                const status = document.createElement('div');
+                status.className = 'account-status';
+                status.appendChild(statusLine(
+                    'Immich user',
+                    account.immichUserName || immichUserLabel(account.immichUserId) || 'Not set',
+                    account.immichError || ''
+                ));
+                status.appendChild(statusLine(
+                    'Google Photos',
+                    account.googleEmail || 'Not linked',
+                    account.googleError || (account.googleEmail ? '' : 'Add an oauth_token to upload this person photos.')
+                ));
+                status.appendChild(statusLine(
+                    'Browser session',
+                    account.webSessionOk ? 'Session ready' : (account.cookiesSaved ? 'Cookies saved, not verified' : 'No session'),
+                    account.webSessionError || (account.cookiesSaved ? '' : 'Only needed for albums someone else owns.')
+                ));
+                card.appendChild(status);
+
+                const actions = document.createElement('div');
+                actions.className = 'account-actions';
+                const edit = document.createElement('button');
+                edit.type = 'button';
+                edit.className = 'btn btn-secondary btn-sm';
+                edit.textContent = 'Edit';
+                edit.addEventListener('click', () => openAccountWizard(account.id));
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn btn-ghost btn-sm';
+                remove.textContent = 'Remove';
+                remove.addEventListener('click', () => removeAccount(account.id, accountDisplayName(account)));
+                actions.append(edit, remove);
+                card.appendChild(actions);
+                list.appendChild(card);
+            }
+        }
+
+        function renderRoutingPreview() {
+            const list = $('routingList');
+            if (!list) return;
+            list.innerHTML = '';
+            const routing = state.routing || {};
+            const accounts = state.accounts || [];
+            const strict = $('googleStrictMatching').checked;
+            const fallback = accounts.find(account => account.isDefault);
+            const users = [];
+            const known = new Set();
+            for (const user of (routing.immichUsers || [])) {
+                users.push({ id: user.id, name: user.name || user.email || user.id, email: user.email || '' });
+                known.add(user.id);
+            }
+            for (const account of accounts) {
+                const id = account.immichUserId;
+                if (id && !known.has(id)) {
+                    users.push({ id, name: account.name || account.immichUserName || id, email: account.googleEmail || '' });
+                    known.add(id);
+                }
+            }
+
+            $('routingEmpty').style.display = users.length ? 'none' : 'block';
+            const summary = $('routingSummary');
+            if (strict) {
+                summary.textContent = 'Unmapped Immich users are skipped. Only linked people upload to Google Photos.';
+            } else if (fallback) {
+                summary.textContent = `Unmapped Immich users fall back to ${fallback.googleEmail || fallback.name || 'the fallback account'}.`;
+            } else {
+                summary.textContent = 'Unmapped Immich users fall back to the primary Google account.';
+            }
+            const routingError = $('routingError');
+            routingError.textContent = routing.immichError || '';
+            routingError.className = 'test-result danger';
+
+            for (const user of users) {
+                const row = document.createElement('div');
+                row.className = 'routing-row';
+                const info = document.createElement('div');
+                info.className = 'routing-user';
+                const name = document.createElement('div');
+                name.className = 'routing-name';
+                name.textContent = user.name || user.id;
+                const email = document.createElement('div');
+                email.className = 'routing-email';
+                email.textContent = user.email || user.id;
+                info.append(name, email);
+
+                const account = accounts.find(item => String(item.immichUserId || '').toLowerCase() === String(user.id || '').toLowerCase());
+                let label;
+                let tone;
+                if (account) {
+                    const target = account.googleEmail || 'linked Google account';
+                    label = `Route as ${target}`;
+                    tone = 'badge-ok';
+                } else if (strict) {
+                    label = 'Skip (strict)';
+                    tone = 'badge-danger';
+                } else if (fallback) {
+                    label = `Fallback to ${fallback.googleEmail || fallback.name || 'default'}`;
+                    tone = 'badge-warn';
+                } else {
+                    label = 'Fallback to primary';
+                    tone = 'badge-warn';
+                }
+                const badge = makeBadge(label, tone);
+                badge.classList.add('routing-badge');
+                row.append(info, badge);
+                list.appendChild(row);
+            }
+        }
+
+        function applyAccountsPayload(data) {
+            state.accounts = data.accounts || [];
+            state.routing = data.routing || null;
+            if (state.config) {
+                state.config.accounts = state.accounts.map(account => ({
+                    id: account.id,
+                    name: account.name,
+                    immichUserId: account.immichUserId,
+                    immichApiKey: account.immichApiKey || '',
+                    googleEmail: account.googleEmail || '',
+                    webCookiesFile: account.webCookiesFile || '',
+                    isDefault: !!account.isDefault
+                }));
+            }
+        }
+
+        async function loadAccounts() {
+            const error = $('accountError');
+            await loadImmichUsers(false);
+            try {
+                const res = await fetch('/api/accounts', { cache: 'no-store' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not load accounts');
+                applyAccountsPayload(data);
+                error.textContent = '';
+                error.className = 'test-result';
+            } catch (err) {
+                const fallback = (state.config && state.config.accounts) || [];
+                if (fallback.length) state.accounts = fallback;
+                state.routing = null;
+                error.textContent = err.message;
+                error.className = 'test-result danger';
+            }
+            renderAccounts();
+            renderRoutingPreview();
+            populateAlbumAccountSelects();
+            updateBackgroundBanner();
+        }
+
+        async function loadImmichUsers(force) {
+            if (state.accountUsersLoaded && !force) return state.immichUsers;
+            const hint = $('accountUserHint');
+            try {
+                const res = await fetch('/api/immich/users', { cache: 'no-store' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not load Immich users');
+                state.immichUsers = data.users || [];
+                state.accountUsersLoaded = true;
+                if (hint) hint.textContent = state.immichUsers.length
+                    ? 'Choose the person whose photos should use this Google account.'
+                    : 'Immich returned no users. Enter the name and UUID manually.';
+            } catch (err) {
+                state.immichUsers = [];
+                state.accountUsersLoaded = false;
+                if (hint) hint.textContent = `Could not load Immich users (${err.message}). Enter the name and UUID manually.`;
+            }
+            return state.immichUsers;
+        }
+
+        function populateImmichUserSelect(selectedId) {
+            const select = $('accountImmichUser');
+            if (!select) return;
+            let html = '<option value="">Choose a user</option>';
+            for (const user of (state.immichUsers || [])) {
+                const label = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
+                html += `<option value="${escapeHtml(user.id)}">${escapeHtml(label)}</option>`;
+            }
+            html += '<option value="__manual__">Enter name and UUID manually</option>';
+            select.innerHTML = html;
+            if (selectedId && (state.immichUsers || []).some(user => user.id === selectedId)) {
+                select.value = selectedId;
+            } else if (selectedId) {
+                select.value = '__manual__';
+            }
+        }
+
+        function updateAccountManualFields() {
+            const select = $('accountImmichUser');
+            const manual = select.value === '__manual__';
+            $('accountManualFields').style.display = manual ? 'block' : 'none';
+        }
+
+        async function openAccountWizard(accountId) {
+            const editing = (state.accounts || []).find(account => String(account.id) === String(accountId));
+            state.accountFocus = document.activeElement;
+            $('accountEditId').value = editing ? editing.id : '';
+            $('accountWizardTitle').textContent = editing ? 'Edit linked person' : 'Link a person';
+            $('accountWizardSubtitle').textContent = editing
+                ? 'Update the Immich user, Google credential, or fallback role.'
+                : 'Connect one Immich user to one Google Photos account.';
+            $('accountName').value = editing ? (editing.name || '') : '';
+            $('accountImmichUserId').value = editing ? (editing.immichUserId || '') : '';
+            $('accountGoogleEmail').value = editing ? (editing.googleEmail || '') : '';
+            $('accountImmichAPIKey').value = '';
+            $('accountOAuthToken').value = '';
+            $('accountCookies').value = '';
+            $('accountIsDefault').checked = !!(editing && editing.isDefault);
+            $('accountSaveResult').textContent = '';
+            $('accountSaveResult').className = 'test-result';
+            $('accountSaveBtn').disabled = false;
+            $('accountWizard').hidden = false;
+
+            await loadImmichUsers(false);
+            populateImmichUserSelect(editing ? editing.immichUserId : '');
+            updateAccountManualFields();
+            if ($('accountImmichUser').value === '' && !(state.immichUsers || []).length) {
+                $('accountImmichUser').value = '__manual__';
+                updateAccountManualFields();
+            }
+            const focusTarget = $('accountImmichUser').value === '__manual__' ? $('accountName') : $('accountImmichUser');
+            focusTarget.focus();
+        }
+
+        function closeAccountWizard() {
+            $('accountWizard').hidden = true;
+            $('accountSaveResult').textContent = '';
+            if (state.accountFocus && typeof state.accountFocus.focus === 'function') {
+                state.accountFocus.focus();
+            }
+        }
+
+        async function saveAccount() {
+            const editId = $('accountEditId').value.trim();
+            const selected = $('accountImmichUser').value;
+            const manualId = $('accountImmichUserId').value.trim();
+            const userId = selected === '__manual__' ? manualId : selected;
+            const result = $('accountSaveResult');
+            const button = $('accountSaveBtn');
+
+            if (!userId) {
+                result.textContent = 'Choose an Immich user or enter the UUID.';
+                result.className = 'test-result danger';
+                return;
+            }
+            const user = (state.immichUsers || []).find(item => item.id === userId);
+            const name = $('accountName').value.trim() || (user && user.name) || '';
+            const payload = {
+                immichUserId: userId,
+                name,
+                googleEmail: $('accountGoogleEmail').value.trim(),
+                immichApiKey: $('accountImmichAPIKey').value.trim(),
+                oauthToken: $('accountOAuthToken').value.trim(),
+                cookies: $('accountCookies').value.trim(),
+                isDefault: $('accountIsDefault').checked
+            };
+            if (editId) payload.id = editId;
+
+            button.disabled = true;
+            result.textContent = 'Saving...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not save this person');
+                applyAccountsPayload(data);
+                renderAccounts();
+                renderRoutingPreview();
+                populateAlbumAccountSelects();
+                updateBackgroundBanner();
+                closeAccountWizard();
+                showToast(editId ? 'Person updated' : 'Person linked');
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function removeAccount(id, name) {
+            if (!id) return;
+            if (!confirm(`Remove ${name || 'this person'}? Their Google credential and cookies are left in place.`)) return;
+            try {
+                const res = await fetch('/api/accounts?id=' + encodeURIComponent(id), { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not remove this person');
+                applyAccountsPayload(data);
+                renderAccounts();
+                renderRoutingPreview();
+                populateAlbumAccountSelects();
+                updateBackgroundBanner();
+                showToast('Person removed');
+            } catch (err) {
+                showToast(err.message, true);
+            }
+        }
+
         async function loadConfig() {
             try {
                 const res = await fetch('/api/config');
@@ -2491,6 +3368,7 @@
                 $('googleSkipLivePhotos').checked = !!googleUpload.skipLivePhotos;
                 $('googleReuploadDeleted').checked = !!googleUpload.reuploadDeleted;
                 $('googleThreads').value = googleUpload.threads || 1;
+                $('googleStrictMatching').checked = !!googleUpload.strictAccountMatching;
 
                 const notifications = config.notifications || {};
                 $('notificationsImmich').checked = !!notifications.immich;
@@ -2503,7 +3381,11 @@
                 (config.googlePhotos || []).forEach(gp => addAlbumRow(gp));
                 updateAlbumCount();
                 updateOverviewStats();
+                state.accounts = config.accounts || [];
+                const mode = config.uiMode || (state.accounts.length ? 'advanced' : 'standard');
+                setUIMode(mode, { persist: false });
                 loadImmichAlbums();
+                loadAccounts();
                 refreshGoogleAccount();
                 refreshWebSession(false);
                 setupSignature = '';
@@ -2525,12 +3407,9 @@
             }
         }
 
-        async function saveConfig() {
-            const form = $('configForm');
-            if (form && !form.reportValidity()) return;
-
+        function configPayload() {
             const mode = qs('input[name="dedupMode"]:checked')?.value || 'safe';
-            const config = {
+            return {
                 apiURL: $('apiURL').value.trim(),
                 apiKey: $('apiKey').value.trim(),
                 debug: $('debug').checked,
@@ -2541,11 +3420,13 @@
                 dataDir: $('dataDir').value.trim(),
                 dedupMode: mode,
                 updateExistingMetadata: $('updateExistingMetadata').checked,
+                uiMode: state.uiMode,
                 googlePhotos: qsa('#albumList .album-row').map(row => ({
                     url: row.querySelector('[data-field="url"]').value.trim(),
                     albumName: row.querySelector('[data-field="albumName"]').value.trim(),
                     syncInterval: row.querySelector('[data-field="syncInterval"]').value.trim(),
                     immichAlbumId: row.querySelector('[data-field="immichAlbumId"]').value,
+                    immichAccountId: row.querySelector('[data-field="immichAccountId"]')?.value || '',
                     uploadToGoogle: row.querySelector('[data-field="uploadToGoogle"]').checked
                 })).filter(gp => gp.url),
                 googleUpload: {
@@ -2554,7 +3435,8 @@
                     quality: $('googleQuality').value,
                     skipLivePhotos: $('googleSkipLivePhotos').checked,
                     reuploadDeleted: $('googleReuploadDeleted').checked,
-                    threads: parseInt($('googleThreads').value, 10) || 1
+                    threads: parseInt($('googleThreads').value, 10) || 1,
+                    strictAccountMatching: $('googleStrictMatching').checked
                 },
                 notifications: {
                     immich: $('notificationsImmich').checked,
@@ -2563,6 +3445,13 @@
                     onUploadComplete: $('notificationsUploadComplete').checked
                 }
             };
+        }
+
+        async function saveConfig(options = {}) {
+            const form = $('configForm');
+            if (!options.quiet && form && !form.reportValidity()) return;
+
+            const config = configPayload();
 
             try {
                 const res = await fetch('/api/config', {
@@ -2574,10 +3463,13 @@
                     const text = await res.text();
                     throw new Error(text || 'Failed to save');
                 }
+                const previousAccounts = state.config && state.config.accounts;
                 state.config = config;
+                if (previousAccounts) state.config.accounts = previousAccounts;
                 clearDirty();
                 updateOverviewStats();
-                showToast('Configuration saved');
+                updateBackgroundBanner();
+                if (!options.quiet) showToast('Configuration saved');
                 setTimeout(refreshActivity, 800);
             } catch (err) {
                 console.error(err);
@@ -3108,6 +4000,29 @@
 
         qsa('.nav-item').forEach(item => {
             item.addEventListener('click', () => goToSection(item.dataset.section));
+        });
+
+        qsa('.mode-switch-btn').forEach(button => {
+            button.addEventListener('click', () => setUIMode(button.dataset.uiMode));
+        });
+
+        $('accountImmichUser').addEventListener('change', () => {
+            const value = $('accountImmichUser').value;
+            if (value && value !== '__manual__') {
+                const user = (state.immichUsers || []).find(item => item.id === value);
+                $('accountImmichUserId').value = value;
+                if (user && !$('accountName').value.trim()) $('accountName').value = user.name || '';
+            }
+            updateAccountManualFields();
+        });
+
+        $('googleStrictMatching').addEventListener('change', renderRoutingPreview);
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !$('accountWizard').hidden) {
+                event.preventDefault();
+                closeAccountWizard();
+            }
         });
 
         $('configForm').addEventListener('submit', event => {

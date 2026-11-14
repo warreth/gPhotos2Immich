@@ -16,6 +16,10 @@ type GooglePhotosConfig struct {
 	SyncInterval   string                 `json:"syncInterval"`  // e.g., "12h", "60m"
 	UploadToGoogle bool                   `json:"uploadToGoogle"`
 	Upload         *GoogleUploadOverrides `json:"upload,omitempty"`
+	// ImmichAccountID names the AccountMapping that imports this album into
+	// Immich. It may be an account ID or an Immich user ID. Empty means the
+	// primary apiKey is used.
+	ImmichAccountID string `json:"immichAccountId,omitempty"`
 }
 
 // GoogleUploadOverrides lets one album override the global upload defaults.
@@ -38,7 +42,30 @@ type GoogleUploadConfig struct {
 	Threads         int    `json:"threads"`
 	MaxRetries      int    `json:"maxRetries"`
 	AutoUpdate      bool   `json:"autoUpdate"`
+	// StrictAccountMatching skips Immich assets whose owner has no Google
+	// account mapping. When false, those assets fall back to the default
+	// account.
+	StrictAccountMatching bool `json:"strictAccountMatching,omitempty"`
 }
+
+// AccountMapping links one Immich user to one Google Photos account, so each
+// person's photos are uploaded with their own credentials and browser session.
+type AccountMapping struct {
+	ID             string `json:"id"`                     // stable ID, e.g. "acc-1" or immichUserId
+	Name           string `json:"name"`                   // display name, e.g. "Lotte (Zus)"
+	ImmichUserID   string `json:"immichUserId"`           // Immich user UUID (matched against asset.OwnerID)
+	ImmichAPIKey   string `json:"immichApiKey,omitempty"` // optional: allows importing Google->Immich as this user
+	GoogleEmail    string `json:"googleEmail,omitempty"`  // email in gotohp-cli (--account <email>)
+	WebCookiesFile string `json:"webCookiesFile,omitempty"`
+	IsDefault      bool   `json:"isDefault,omitempty"` // fallback account for unmapped owners
+}
+
+// UIMode values select how much of the interface is shown.
+const (
+	UIModeSimple   = "simple"
+	UIModeStandard = "standard"
+	UIModeAdvanced = "advanced"
+)
 
 // NotificationsConfig controls optional notifications sent through Immich.
 // Immich notifications use the admin notification API, so the API key needs
@@ -83,9 +110,32 @@ type Config struct {
 	DataDir                string               `json:"dataDir"`                // Optional, directory for persistent state (default "./data")
 	DedupMode              string               `json:"dedupMode"`              // Optional: safe (default), repair, fast
 	UpdateExistingMetadata bool                 `json:"updateExistingMetadata"` // Optional, backfill descriptions of existing assets
+	UIMode                 string               `json:"uiMode,omitempty"`       // Optional: simple, standard, advanced
 	Notifications          NotificationsConfig  `json:"notifications"`
 	GoogleUpload           GoogleUploadConfig   `json:"googleUpload"`
+	Accounts               []AccountMapping     `json:"accounts,omitempty"`
 	GooglePhotos           []GooglePhotosConfig `json:"googlePhotos"`
+}
+
+// EffectiveUIMode returns the interface mode the user should see. An empty
+// value keeps existing installations on standard, while a multi-account setup
+// implies advanced because its routing needs the extra controls.
+func (c *Config) EffectiveUIMode() string {
+	if c != nil {
+		switch mode := strings.ToLower(strings.TrimSpace(c.UIMode)); mode {
+		case UIModeSimple:
+			return UIModeSimple
+		case UIModeAdvanced:
+			return UIModeAdvanced
+		case UIModeStandard:
+			return UIModeStandard
+		case "":
+			if len(c.Accounts) > 0 {
+				return UIModeAdvanced
+			}
+		}
+	}
+	return UIModeStandard
 }
 
 // EffectiveDedupMode returns the configured dedup mode, defaulting to safe.
@@ -180,6 +230,103 @@ func (c *Config) EffectiveWebCookiesFile() string {
 	return strings.TrimSpace(c.GoogleUpload.WebCookiesFile)
 }
 
+// EffectiveAccountCookiesFile returns the browser-session cookies path for one
+// account. Accounts without an explicit path get their own file, so two Google
+// accounts never share a session.
+func EffectiveAccountCookiesFile(acc AccountMapping) string {
+	if path := strings.TrimSpace(acc.WebCookiesFile); path != "" {
+		return path
+	}
+	key := strings.TrimSpace(acc.ID)
+	if key == "" {
+		key = strings.TrimSpace(acc.GoogleEmail)
+	}
+	if key == "" {
+		key = strings.TrimSpace(acc.ImmichUserID)
+	}
+	return "./data/gphotos-web-cookies-" + sanitizeAccountKey(key) + ".txt"
+}
+
+// NormalizeAccount trims an account mapping and fills its stable ID and
+// per-account cookies path.
+func NormalizeAccount(acc AccountMapping) AccountMapping {
+	acc.ID = strings.TrimSpace(acc.ID)
+	acc.Name = strings.TrimSpace(acc.Name)
+	acc.ImmichUserID = strings.TrimSpace(acc.ImmichUserID)
+	acc.ImmichAPIKey = strings.TrimSpace(acc.ImmichAPIKey)
+	acc.GoogleEmail = strings.TrimSpace(acc.GoogleEmail)
+	acc.WebCookiesFile = strings.TrimSpace(acc.WebCookiesFile)
+	if acc.ID == "" {
+		acc.ID = acc.ImmichUserID
+	}
+	if acc.WebCookiesFile == "" && acc.GoogleEmail != "" {
+		acc.WebCookiesFile = EffectiveAccountCookiesFile(acc)
+	}
+	return acc
+}
+
+// sanitizeAccountKey makes an account id or email safe for a file name.
+func sanitizeAccountKey(key string) string {
+	key = strings.ToLower(strings.TrimSpace(key))
+	var b strings.Builder
+	for _, r := range key {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	key = strings.Trim(b.String(), "-.")
+	if key == "" {
+		return "account"
+	}
+	return key
+}
+
+// normalizeAccounts applies NormalizeAccount to every mapping.
+func normalizeAccounts(accounts []AccountMapping) []AccountMapping {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	out := make([]AccountMapping, len(accounts))
+	for i, acc := range accounts {
+		out[i] = NormalizeAccount(acc)
+	}
+	return out
+}
+
+// ValidateAccounts checks that mappings are usable and unambiguous.
+func (c *Config) ValidateAccounts() error {
+	ids := make(map[string]int, len(c.Accounts))
+	users := make(map[string]int, len(c.Accounts))
+	defaults := 0
+	for i, acc := range c.Accounts {
+		acc = NormalizeAccount(acc)
+		if acc.ImmichUserID == "" {
+			return fmt.Errorf("accounts[%d].immichUserId is required", i)
+		}
+		if acc.ID == "" {
+			return fmt.Errorf("accounts[%d].id is required", i)
+		}
+		if previous, ok := ids[acc.ID]; ok {
+			return fmt.Errorf("accounts[%d].id %q duplicates accounts[%d]", i, acc.ID, previous)
+		}
+		ids[acc.ID] = i
+		if previous, ok := users[acc.ImmichUserID]; ok {
+			return fmt.Errorf("accounts[%d].immichUserId duplicates accounts[%d]", i, previous)
+		}
+		users[acc.ImmichUserID] = i
+		if acc.IsDefault {
+			defaults++
+			if defaults > 1 {
+				return fmt.Errorf("only one account may be marked isDefault")
+			}
+		}
+	}
+	return nil
+}
+
 // AlbumStorageMode resolves a per-album storage override.
 func (c *Config) AlbumStorageMode(gp GooglePhotosConfig) string {
 	if gp.Upload != nil {
@@ -257,6 +404,8 @@ func ReadConfig(path string) (*Config, error) {
 	config.ApiKey = strings.TrimSpace(config.ApiKey)
 	config.ApiURL = strings.TrimSpace(config.ApiURL)
 	config.DedupMode = strings.TrimSpace(config.DedupMode)
+	config.UIMode = strings.ToLower(strings.TrimSpace(config.UIMode))
+	config.Accounts = normalizeAccounts(config.Accounts)
 
 	config.GoogleUpload.GotohpBinary = strings.TrimSpace(config.GoogleUpload.GotohpBinary)
 	config.GoogleUpload.GotohpConfig = strings.TrimSpace(config.GoogleUpload.GotohpConfig)
@@ -290,6 +439,7 @@ func ReadConfig(path string) (*Config, error) {
 		config.GooglePhotos[i].ImmichAlbumID = strings.TrimSpace(config.GooglePhotos[i].ImmichAlbumID)
 		config.GooglePhotos[i].AlbumName = strings.TrimSpace(config.GooglePhotos[i].AlbumName)
 		config.GooglePhotos[i].SyncInterval = strings.TrimSpace(config.GooglePhotos[i].SyncInterval)
+		config.GooglePhotos[i].ImmichAccountID = strings.TrimSpace(config.GooglePhotos[i].ImmichAccountID)
 		if config.GooglePhotos[i].Upload != nil {
 			config.GooglePhotos[i].Upload.StorageMode = strings.TrimSpace(config.GooglePhotos[i].Upload.StorageMode)
 			config.GooglePhotos[i].Upload.Quality = strings.TrimSpace(config.GooglePhotos[i].Upload.Quality)
@@ -317,6 +467,14 @@ func (c *Config) Validate() error {
 	case "", DedupModeSafe, DedupModeRepair, DedupModeFast:
 	default:
 		return fmt.Errorf("dedupMode must be one of %q, %q or %q", DedupModeSafe, DedupModeRepair, DedupModeFast)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.UIMode)) {
+	case "", UIModeSimple, UIModeStandard, UIModeAdvanced:
+	default:
+		return fmt.Errorf("uiMode must be one of %q, %q or %q", UIModeSimple, UIModeStandard, UIModeAdvanced)
+	}
+	if err := c.ValidateAccounts(); err != nil {
+		return err
 	}
 	if err := validateStorageMode("googleUpload.storageMode", c.GoogleUpload.StorageMode); err != nil {
 		return err

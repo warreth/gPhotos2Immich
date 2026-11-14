@@ -14,11 +14,12 @@ func TestMergeGoogleUploadPreservesNonUIFields(t *testing.T) {
 		"autoUpdate":     false,
 	}
 	merged := mergeGoogleUpload(existing, config.GoogleUploadConfig{
-		StorageMode:     config.StorageModeQuota,
-		Quality:         config.QualityOriginal,
-		SkipLivePhotos:  true,
-		ReuploadDeleted: true,
-		Threads:         2,
+		StorageMode:           config.StorageModeQuota,
+		Quality:               config.QualityOriginal,
+		SkipLivePhotos:        true,
+		ReuploadDeleted:       true,
+		Threads:               2,
+		StrictAccountMatching: true,
 	})
 
 	if merged["webCookiesFile"] != "/data/cookies.txt" {
@@ -35,5 +36,8 @@ func TestMergeGoogleUploadPreservesNonUIFields(t *testing.T) {
 	}
 	if merged["enabled"] != true {
 		t.Fatalf("enabled = %#v", merged["enabled"])
+	}
+	if merged["strictAccountMatching"] != true {
+		t.Fatalf("strictAccountMatching = %#v", merged["strictAccountMatching"])
 	}
 }

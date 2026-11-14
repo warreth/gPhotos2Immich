@@ -8,6 +8,17 @@
   "skipVideos": false,
   "dedupMode": "safe",
   "updateExistingMetadata": false,
+  "uiMode": "advanced",
+  "accounts": [
+    {
+      "id": "lotte",
+      "name": "Lotte",
+      "immichUserId": "replace-with-immich-user-uuid",
+      "immichApiKey": "optional-immich-api-key-for-imports",
+      "googleEmail": "lotte@gmail.com",
+      "isDefault": false
+    }
+  ],
   "googleUpload": {
     "enabled": false,
     "gotohpBinary": "gotohp-cli",
@@ -19,7 +30,8 @@
     "reuploadDeleted": false,
     "threads": 1,
     "maxRetries": 3,
-    "autoUpdate": false
+    "autoUpdate": false,
+    "strictAccountMatching": false
   },
   "notifications": {
     "immich": false,
@@ -32,7 +44,8 @@
       "url": "https://photos.app.goo.gl/example-share-link-1",
       "albumName": "Summer Vacation 2023",
       "syncInterval": "12h",
-      "uploadToGoogle": false
+      "uploadToGoogle": false,
+      "immichAccountId": "lotte"
     },
     {
       "url": "https://photos.app.goo.gl/example-share-link-2",

@@ -70,13 +70,16 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 		Threads:          cfg.EffectiveThreads(),
 	}
 
-	return syncback.New(syncback.Options{
+	syncbackService := syncback.New(syncback.Options{
 		Google:         google,
 		Resolver:       scraperResolver{client: gpClient},
 		Albums:         immichAlbumLister{client: immichClient},
 		Uploader:       uploader,
 		Web:            web,
 		WebCookiesPath: cfg.EffectiveWebCookiesFile(),
+		Accounts:       cfg.Accounts,
+		StrictMatching: cfg.GoogleUpload.StrictAccountMatching,
+		ImmichURL:      cfg.ApiURL,
 		Logger:         logger,
 		OnUploadComplete: func(ctx context.Context, albumURL string, summary upload.Summary, err error) {
 			if notifier == nil {
@@ -97,6 +100,10 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 			}
 		},
 	})
+	// The uploader routes each asset to the Google account of its Immich
+	// owner. syncback owns the mappings and the per-account web sessions.
+	uploader.Resolver = syncbackService
+	return syncbackService
 }
 
 // uploadProgressReporter adapts the upload service to the shared activity

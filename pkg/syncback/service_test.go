@@ -93,6 +93,14 @@ func (f *fakeWeb) ListAlbums(context.Context) ([]gphotosweb.Album, error) {
 }
 func (f *fakeWeb) Reload() { f.reloads++ }
 
+func (f *fakeWeb) AddItems(context.Context, string, bool, []string) error {
+	return nil
+}
+
+func (f *fakeWeb) AlbumMediaKeys(context.Context, string) (map[string]bool, error) {
+	return nil, nil
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		ApiKey: "k", ApiURL: "http://x/api",

@@ -39,6 +39,7 @@ type AssetState struct {
 	IsLivePhoto    bool      `json:"isLivePhoto,omitempty"`
 	Status         string    `json:"status"` // uploaded, skipped, failed
 	AddedToAlbum   bool      `json:"addedToAlbum,omitempty"`
+	UploadedBy     string    `json:"uploadedBy,omitempty"` // Google account email
 	UploadedAt     time.Time `json:"uploadedAt,omitempty"`
 	Error          string    `json:"error,omitempty"`
 }
@@ -49,6 +50,9 @@ type AssetState struct {
 type PendingAlbumAdd struct {
 	AssetID  string
 	MediaKey string
+	// UploadedBy is the Google account that uploaded the media, so the retry
+	// uses that account's browser session.
+	UploadedBy string
 }
 
 // NewState creates a state backed by path.
@@ -195,7 +199,11 @@ func (s *State) PendingAlbumAdds(albumID string) []PendingAlbumAdd {
 		if asset.Status != "uploaded" {
 			continue
 		}
-		pending = append(pending, PendingAlbumAdd{AssetID: assetID, MediaKey: asset.GoogleMediaKey})
+		pending = append(pending, PendingAlbumAdd{
+			AssetID:    assetID,
+			MediaKey:   asset.GoogleMediaKey,
+			UploadedBy: asset.UploadedBy,
+		})
 	}
 	return pending
 }

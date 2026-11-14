@@ -139,3 +139,106 @@ func TestGetUserReturnsHTTPError(t *testing.T) {
 		t.Fatalf("expected status 401, got %d", httpErr.StatusCode)
 	}
 }
+
+func TestListUsers(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.Header.Get("x-api-key") != "key" {
+			t.Errorf("missing api key header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id":"owner-warre","name":"Warre","email":"warre@example.com"},
+			{"id":"owner-lotte","name":"Lotte","email":"lotte@example.com"}
+		]`))
+	}))
+	defer server.Close()
+
+	users, err := NewClient(server.URL, "key", 1).ListUsers(context.Background())
+	if err != nil {
+		t.Fatalf("ListUsers failed: %v", err)
+	}
+	if gotPath != "/users" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if len(users) != 2 {
+		t.Fatalf("users = %#v", users)
+	}
+	if users[0].ID != "owner-warre" || users[0].Name != "Warre" || users[0].Email != "warre@example.com" {
+		t.Fatalf("first user = %#v", users[0])
+	}
+	if users[1].ID != "owner-lotte" {
+		t.Fatalf("second user = %#v", users[1])
+	}
+}
+
+func TestListUsersHTTPError(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	if _, err := NewClient(server.URL, "key", 1).ListUsers(context.Background()); err == nil {
+		t.Fatal("expected an error")
+	}
+	if requests != 1 {
+		t.Fatalf("a 4xx response must not be retried, got %d requests", requests)
+	}
+}
+
+func TestAlbumAssetsParseOwnerID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/albums/album-1" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"id":"album-1",
+			"albumName":"Familie",
+			"assets":[
+				{"id":"a1","originalFileName":"one.jpg","type":"IMAGE","ownerId":"owner-warre"},
+				{"id":"a2","originalFileName":"two.jpg","type":"IMAGE","ownerId":"owner-lotte"},
+				{"id":"a3","originalFileName":"three.jpg","type":"IMAGE"}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	album, err := NewClient(server.URL, "key", 1).GetAlbum(context.Background(), "album-1")
+	if err != nil {
+		t.Fatalf("GetAlbum failed: %v", err)
+	}
+	if len(album.Assets) != 3 {
+		t.Fatalf("assets = %#v", album.Assets)
+	}
+	if album.Assets[0].OwnerID != "owner-warre" || album.Assets[1].OwnerID != "owner-lotte" {
+		t.Fatalf("owner ids were not parsed: %#v", album.Assets)
+	}
+	if album.Assets[2].OwnerID != "" {
+		t.Fatalf("a missing ownerId must stay empty: %#v", album.Assets[2])
+	}
+}
+
+func TestGetAssetParsesOwnerID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/assets/a1" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"a1","type":"IMAGE","ownerId":"owner-papa"}`))
+	}))
+	defer server.Close()
+
+	asset, err := NewClient(server.URL, "key", 1).GetAsset(context.Background(), "a1")
+	if err != nil {
+		t.Fatalf("GetAsset failed: %v", err)
+	}
+	if asset.OwnerID != "owner-papa" {
+		t.Fatalf("owner id = %q", asset.OwnerID)
+	}
+}

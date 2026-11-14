@@ -83,6 +83,12 @@ func (w *stubWeb) ListAlbums(context.Context) ([]gphotosweb.Album, error) {
 	return w.albums, nil
 }
 func (w *stubWeb) Reload() { w.reloads++ }
+func (w *stubWeb) AddItems(context.Context, string, bool, []string) error {
+	return nil
+}
+func (w *stubWeb) AlbumMediaKeys(context.Context, string) (map[string]bool, error) {
+	return nil, nil
+}
 
 func newSyncbackServer(t *testing.T) (*Server, *stubGoogle, *stubUploader, *stubWeb) {
 	t.Helper()
