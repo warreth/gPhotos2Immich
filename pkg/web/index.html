@@ -104,7 +104,17 @@
             margin-top: 1px;
         }
 
-        .topbar-actions { display: flex; align-items: center; gap: 10px; }
+        .topbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+
+        .autosave-state {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .autosave-state.busy { color: var(--text-secondary); }
+        .autosave-state.success { color: var(--success); }
+        .autosave-state.error { color: var(--danger); font-weight: 500; }
 
         .shell {
             display: grid;
@@ -155,21 +165,6 @@
         }
 
         .nav-item.active .nav-count { background: #fff; color: var(--accent); }
-
-        .sidebar-footer {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
-        }
-
-        .save-state {
-            font-size: 11.5px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .save-state.dirty { color: var(--warning); font-weight: 500; }
 
         .content { min-width: 0; }
 
@@ -261,6 +256,7 @@
             font-size: 13.5px;
             font-weight: 500;
             cursor: pointer;
+            white-space: nowrap;
             transition: background .15s, border-color .15s, color .15s;
         }
 
@@ -997,7 +993,80 @@
         .status-line-value { min-width: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
         .status-line-note { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11.5px; }
 
+        .error-details { margin-top: 6px; font-size: 11.5px; }
+        .error-details summary { width: fit-content; color: var(--text-muted); cursor: pointer; }
+        .error-details pre {
+            margin: 6px 0 0;
+            padding: 8px 10px;
+            max-height: 150px;
+            overflow: auto;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+        .note a { color: inherit; font-weight: 600; }
+
         .account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+        .primary-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .primary-card-head { display: flex; align-items: flex-start; gap: 12px; }
+
+        .primary-card-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .credential-guide { margin: 16px 0 0; }
+        .credential-guide summary { color: var(--accent); font-size: 13px; font-weight: 500; cursor: pointer; }
+        .credential-table { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .credential-row {
+            display: grid;
+            grid-template-columns: 150px minmax(0, 1fr);
+            gap: 12px;
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .credential-row strong { color: var(--text); font-weight: 500; }
+
+        .credential-block {
+            margin-bottom: 10px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-2);
+        }
+
+        .credential-block:last-child { margin-bottom: 0; }
+
+        .credential-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .credential-title { font-size: 13px; font-weight: 600; }
+        .credential-state { margin-top: 2px; font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+        .credential-state.ok { color: var(--success); }
+        .credential-state.warn { color: var(--warning); }
+        .credential-block .field { margin: 12px 0 0; }
 
         .account-add {
             width: 100%;
@@ -1082,7 +1151,9 @@
         @media (max-width: 760px) {
             .mode-switch-btn,
             .account-actions .btn,
-            .account-add { min-height: 44px; }
+            .account-add,
+            .primary-card-actions .btn,
+            .credential-head .btn { min-height: 44px; }
             .modal-overlay { padding: 10px; }
             .modal-card { padding: 18px; max-height: 94vh; }
         }
@@ -1114,8 +1185,6 @@
             margin-top: 32px;
         }
 
-        .mobile-save { display: none; }
-
         @media (max-width: 1000px) {
             .shell { grid-template-columns: 200px minmax(0, 1fr); }
             .status-card { grid-template-columns: 1fr; }
@@ -1127,8 +1196,9 @@
         }
 
         @media (max-width: 760px) {
-            .app { padding: 16px; padding-bottom: 88px; }
+            .app { padding: 16px; }
             .topbar { flex-wrap: wrap; }
+            .topbar-actions { width: 100%; justify-content: space-between; }
             .shell { grid-template-columns: 1fr; min-width: 0; }
             .content, .sidebar { min-width: 0; }
             .sidebar {
@@ -1146,19 +1216,6 @@
             .nav-count { display: none; }
             .mode-switch,
             .mode-switch-hint { flex: 1 1 100%; width: 100%; }
-            .sidebar-footer { display: none; }
-            .mobile-save {
-                display: flex;
-                position: sticky;
-                bottom: 0;
-                z-index: 30;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-                padding: 12px 16px;
-                background: var(--surface);
-                border-top: 1px solid var(--border);
-            }
             .field-grid { grid-template-columns: 1fr; }
             .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .album-row { grid-template-columns: 1fr; }
@@ -1166,6 +1223,8 @@
             .status-percent { font-size: 40px; }
             .section-header h2 { font-size: 20px; }
             .card { padding: 16px; }
+            .btn, .input { min-height: 44px; }
+            .credential-row { grid-template-columns: 1fr; gap: 2px; }
         }
 
         @media (max-width: 480px) {
@@ -1209,6 +1268,7 @@
                 </div>
             </div>
             <div class="topbar-actions">
+                <span class="autosave-state" id="autosaveState" role="status" aria-live="polite">Saved</span>
                 <span class="pill pill-muted" id="statusPill"><span class="status-dot"></span><span id="statusPillText">Idle</span></span>
                 <button class="btn btn-secondary" type="button" onclick="triggerSync()"><svg class="icon"><use href="#icon-sync"/></svg>Sync now</button>
             </div>
@@ -1233,10 +1293,6 @@
                 <button class="nav-item" data-section="notifications" type="button"><svg class="icon"><use href="#icon-bell"/></svg>Notifications</button>
                 <button class="nav-item" data-section="advanced" type="button"><svg class="icon"><use href="#icon-database"/></svg>Advanced</button>
                 <button class="nav-item" data-section="logs" type="button"><svg class="icon"><use href="#icon-terminal"/></svg>Logs</button>
-                <div class="sidebar-footer">
-                    <div class="save-state" id="saveState">All changes saved</div>
-                    <button class="btn btn-primary btn-block" type="button" onclick="saveConfig()">Save changes</button>
-                </div>
             </nav>
 
             <main class="content">
@@ -1324,24 +1380,45 @@
                         <div class="card">
                             <div class="card-header">
                                 <div><h3>Immich server</h3><p>The API URL must include <code>/api</code>.</p></div>
-                                <span class="pill pill-muted" id="connectionPill"><span class="status-dot"></span>Not tested</span>
+                                <span class="pill pill-muted" id="connectionPill"><span class="status-dot"></span>Checking</span>
                             </div>
                             <div class="field">
                                 <label for="apiURL">API URL</label>
                                 <input class="input" type="text" id="apiURL" placeholder="http://immich-server:2283/api" required>
-                            </div>
-                            <div class="field">
-                                <label for="apiKey">API key</label>
-                                <div class="input-group">
-                                    <input class="input" type="password" id="apiKey" placeholder="Your Immich API key" required>
-                                    <button class="btn btn-secondary" type="button" id="toggleKeyBtn" onclick="togglePassword()" title="Show API key"><svg class="icon"><use href="#icon-eye"/></svg></button>
-                                </div>
                                 <div class="hint">Required permissions: <code>asset.read</code>, <code>asset.upload</code>, <code>asset.update</code>, <code>album.create</code>, <code>album.read</code>, <code>album.update</code>, <code>albumAsset.create</code>, <code>user.read</code>.</div>
                             </div>
                             <div class="button-row">
                                 <button class="btn btn-secondary" type="button" id="testConnectionBtn" onclick="testConnection()">Test connection</button>
-                                <span class="test-result" id="testConnectionResult"></span>
+                                <span class="test-result" id="testConnectionResult" role="status" aria-live="polite"></span>
                             </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Primary profile</h3><p>The Immich account gPhotos2Immich connects as.</p></div>
+                                <span class="pill pill-muted" id="primaryProfilePill"><span class="status-dot"></span>Not configured</span>
+                            </div>
+                            <div class="primary-card">
+                                <div class="primary-card-head">
+                                    <div class="account-avatar" id="primaryProfileAvatar" aria-hidden="true">?</div>
+                                    <div class="account-person">
+                                        <div class="account-name" id="primaryProfileName">Primary profile</div>
+                                        <div class="account-sub" id="primaryProfileMeta">No Immich API key configured</div>
+                                    </div>
+                                </div>
+                                <div class="primary-card-actions">
+                                    <button class="btn btn-secondary" type="button" onclick="openPrimaryProfileModal()">Edit primary profile</button>
+                                </div>
+                            </div>
+                            <div class="hint">The primary profile is the account gPhotos2Immich uses to connect to Immich, read users, import albums, and send notifications unless another profile is chosen.</div>
+                            <details class="credential-guide">
+                                <summary>What each credential is for</summary>
+                                <div class="credential-table">
+                                    <div class="credential-row"><strong>Immich API key</strong><span>Connect, import albums, send notifications.</span></div>
+                                    <div class="credential-row"><strong>Google oauth_token</strong><span>Upload photos to Google Photos.</span></div>
+                                    <div class="credential-row"><strong>Google cookies.txt</strong><span>Add photos to shared albums and import private albums.</span></div>
+                                </div>
+                            </details>
                         </div>
                     </section>
 
@@ -1447,7 +1524,7 @@
                             </div>
                             <div id="albumList" class="album-list"></div>
                             <div id="albumEmpty" class="empty-state">No albums yet. Add your first shared album below.</div>
-                            <button class="btn btn-secondary" type="button" onclick="addAlbumRow()" style="margin-top:12px"><svg class="icon"><use href="#icon-plus"/></svg>Add album</button>
+                            <button class="btn btn-secondary" type="button" onclick="addAlbumRowAndSave()" style="margin-top:12px"><svg class="icon"><use href="#icon-plus"/></svg>Add album</button>
                         </div>
                     </section>
 
@@ -1455,6 +1532,11 @@
                         <div class="section-header">
                             <h2>Google upload</h2>
                             <p>Send new additions from an Immich album back to its Google Photos album.</p>
+                        </div>
+
+                        <div class="note" style="margin-bottom:16px">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            <div><strong>This is the primary Google account.</strong> It uploads photos when no other person is linked. To give someone else their own Google account, use <a href="#" onclick="goToSection('accounts');return false;">Accounts &amp; Users</a>.</div>
                         </div>
 
                         <div class="card">
@@ -1715,6 +1797,26 @@
 
                         <div class="test-result" id="accountError" role="status" aria-live="polite"></div>
 
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>Primary connection</h3><p>The profile gPhotos2Immich uses when no other account is chosen.</p></div>
+                                <span class="pill pill-muted" id="primaryConnectionPill"><span class="status-dot"></span>Checking</span>
+                            </div>
+                            <div class="primary-card">
+                                <div class="primary-card-head">
+                                    <div class="account-avatar" id="primaryConnectionAvatar" aria-hidden="true">?</div>
+                                    <div class="account-person">
+                                        <div class="account-name" id="primaryConnectionName">Primary profile</div>
+                                        <div class="account-sub" id="primaryConnectionMeta">Loading the primary connection...</div>
+                                    </div>
+                                </div>
+                                <div class="account-status" id="primaryConnectionStatus"></div>
+                                <div class="primary-card-actions">
+                                    <button class="btn btn-secondary" type="button" onclick="openPrimaryProfileModal()">Edit primary profile</button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="accounts-layout">
                             <div class="card">
                                 <div class="card-header">
@@ -1751,12 +1853,12 @@
                     <section id="section-notifications" class="section">
                         <div class="section-header">
                             <h2>Notifications</h2>
-                            <p>Get a message in Immich when a run needs your attention or finishes.</p>
+                            <p>Get a message when a run needs your attention or finishes.</p>
                         </div>
 
                         <div class="card">
                             <div class="card-header">
-                                <div><h3>Immich notifications</h3><p>Shown in the Immich web app for your user.</p></div>
+                                <div><h3>Immich notifications</h3><p>Shown in the Immich web app for the chosen account.</p></div>
                                 <span class="pill pill-muted" id="notificationPill"><span class="status-dot"></span>Off</span>
                             </div>
                             <label class="toggle">
@@ -1766,7 +1868,15 @@
                                 </div>
                                 <span class="switch"><input type="checkbox" id="notificationsImmich"><span class="switch-track"></span></span>
                             </label>
-                            <div id="notificationEvents" style="margin-top:14px">
+                            <div class="field" style="margin-top:16px">
+                                <label for="notificationsImmichAccount">Notify as</label>
+                                <select class="input" id="notificationsImmichAccount">
+                                    <option value="">Primary profile</option>
+                                </select>
+                                <div class="hint">Only Immich accounts with an API key can receive notifications.</div>
+                                <div class="hint" id="notificationsImmichHint" hidden>Add an Immich API key under Accounts &amp; Users to notify as that person.</div>
+                            </div>
+                            <div id="notificationEvents">
                                 <label class="toggle">
                                     <div class="toggle-text">
                                         <div class="toggle-title">When a sync fails</div>
@@ -1789,11 +1899,93 @@
                                     <span class="switch"><input type="checkbox" id="notificationsUploadComplete"><span class="switch-track"></span></span>
                                 </label>
                             </div>
+                            <div class="hint" id="notificationEventsHint" hidden>No events are selected. Nothing will be sent through Immich.</div>
                             <div class="button-row" style="margin-top:12px">
-                                <button class="btn btn-secondary" type="button" id="notificationTestBtn" onclick="sendTestNotification()">Send test notification</button>
+                                <button class="btn btn-secondary" type="button" id="notificationTestBtn" onclick="sendTestNotification('immich')">Send test notification</button>
                                 <span class="test-result" id="notificationTestResult" role="status" aria-live="polite"></span>
                             </div>
-                            <div class="hint">If the test fails with a permission error, create an Immich API key with <code>notification.create</code> and update the key on the Connection page.</div>
+                            <div class="hint">If the test fails with a permission error, create an Immich API key with <code>notification.create</code> and update the primary profile.</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3>ntfy</h3><p>Push notifications from ntfy.sh or your own server.</p></div>
+                                <span class="pill pill-muted" id="ntfyPill"><span class="status-dot"></span>Off</span>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Send notifications through ntfy</div>
+                                    <div class="toggle-desc">A separate channel, useful on a phone or outside the Immich app.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="notificationsNtfy"><span class="switch-track"></span></span>
+                            </label>
+                            <div class="field-grid" style="margin-top:16px">
+                                <div class="field">
+                                    <label for="ntfyUrl">Server URL</label>
+                                    <input class="input" type="text" id="ntfyUrl" value="https://ntfy.sh" placeholder="https://ntfy.sh">
+                                </div>
+                                <div class="field">
+                                    <label for="ntfyTopic">Topic</label>
+                                    <input class="input" type="text" id="ntfyTopic" placeholder="family-photos">
+                                </div>
+                            </div>
+                            <div class="field-grid">
+                                <div class="field">
+                                    <label for="ntfyPriority">Priority</label>
+                                    <select class="input" id="ntfyPriority">
+                                        <option value="min">Min</option>
+                                        <option value="low">Low</option>
+                                        <option value="default" selected>Default</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                        <option value="max">Max</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <div id="ntfyTokenConfigured" hidden>
+                                        <label>Access token</label>
+                                        <div class="button-row">
+                                            <span class="badge badge-ok">Token configured</span>
+                                            <button class="btn btn-secondary btn-sm" type="button" onclick="revealNtfyToken()">Replace token</button>
+                                        </div>
+                                    </div>
+                                    <div id="ntfyTokenField">
+                                        <label for="ntfyToken">Access token (optional)</label>
+                                        <input class="input" type="password" id="ntfyToken" placeholder="New token" autocomplete="off">
+                                        <div class="hint">Only needed when your ntfy server requires one.</div>
+                                        <button class="btn btn-ghost btn-sm" type="button" id="ntfyTokenCancel" onclick="cancelNtfyToken()" hidden>Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="ntfyEvents">
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When a sync fails</div>
+                                        <div class="toggle-desc">An album could not be read, or one or more items failed.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="ntfySyncFailed"><span class="switch-track"></span></span>
+                                </label>
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When an import finishes</div>
+                                        <div class="toggle-desc">New photos were added from Google Photos to Immich.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="ntfyImportComplete"><span class="switch-track"></span></span>
+                                </label>
+                                <label class="toggle">
+                                    <div class="toggle-text">
+                                        <div class="toggle-title">When photos are uploaded to Google Photos</div>
+                                        <div class="toggle-desc">An Immich album finished uploading back to Google Photos.</div>
+                                    </div>
+                                    <span class="switch"><input type="checkbox" id="ntfyUploadComplete"><span class="switch-track"></span></span>
+                                </label>
+                            </div>
+                            <div class="hint" id="ntfyEventsHint" hidden>No events are selected. Nothing will be sent through ntfy.</div>
+                            <div class="button-row" style="margin-top:12px">
+                                <button class="btn btn-secondary" type="button" id="ntfyTestBtn" onclick="sendTestNotification('ntfy')">Send test notification</button>
+                                <span class="test-result" id="ntfyTestResult" role="status" aria-live="polite"></span>
+                            </div>
+                            <div class="hint">ntfy is optional. Use ntfy.sh or your own server. The token is stored in config.json; keep the data directory private.</div>
                         </div>
                     </section>
 
@@ -1920,15 +2112,15 @@
         </div>
 
         <div id="wizard-2" class="wizard-step">
-            <h2>Connect Immich</h2>
-            <p>Use the API URL including <code>/api</code> and an API key with the required permissions.</p>
+            <h2>Create the primary profile</h2>
+            <p>These credentials become the primary Immich profile. gPhotos2Immich uses it to connect, read users, import albums, and send notifications. Use the API URL including <code>/api</code> and an API key with the required permissions.</p>
             <div class="field">
                 <label for="wizApiURL">API URL</label>
                 <input class="input" type="text" id="wizApiURL" placeholder="http://immich-server:2283/api">
             </div>
             <div class="field">
                 <label for="wizApiKey">API key</label>
-                <input class="input" type="password" id="wizApiKey" placeholder="Your Immich API key">
+                <input class="input" type="password" id="wizApiKey" placeholder="Your Immich API key" autocomplete="off">
             </div>
             <div class="button-row">
                 <button class="btn btn-secondary" type="button" onclick="testWizardConnection()">Test connection</button>
@@ -1956,11 +2148,6 @@
                 <button class="btn btn-primary" type="button" onclick="finishWizard()">Finish setup</button>
             </div>
         </div>
-    </div>
-
-    <div class="mobile-save">
-        <span class="save-state" id="mobileSaveState">All changes saved</span>
-        <button class="btn btn-primary" type="button" onclick="saveConfig()">Save changes</button>
     </div>
 
     <div class="modal-overlay" id="accountWizard" hidden>
@@ -2004,10 +2191,54 @@
                     <div class="hint">The account that uploads this person's photos to Google Photos.</div>
                 </div>
 
-                <div class="field">
-                    <label for="accountImmichAPIKey">Immich API key (optional)</label>
-                    <input class="input" type="password" id="accountImmichAPIKey" placeholder="Leave blank to keep the stored key" autocomplete="off">
-                    <div class="hint">Needed only if you want Google to Immich albums imported under this person's Immich account. Immich assigns the asset to the API key owner.</div>
+                <div id="accountCredentialFields">
+                    <div class="credential-block" data-credential="immichKey">
+                        <div class="credential-head" id="accountImmichKeyHead" hidden>
+                            <div>
+                                <div class="credential-title">Immich API key</div>
+                                <div class="credential-state" id="accountImmichKeyState">Not set</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="revealAccountCredential('immichKey')">Replace API key</button>
+                        </div>
+                        <div class="field" id="accountImmichKeyField">
+                            <label for="accountImmichAPIKey" id="accountImmichKeyLabel">Immich API key (optional)</label>
+                            <input class="input" type="password" id="accountImmichAPIKey" placeholder="Immich API key" autocomplete="off">
+                            <div class="hint">Needed to import Google albums or send notifications as this person.</div>
+                            <button class="btn btn-ghost btn-sm" type="button" id="accountImmichKeyCancel" onclick="cancelAccountCredential('immichKey')">Cancel</button>
+                        </div>
+                    </div>
+
+                    <div class="credential-block" data-credential="oauth">
+                        <div class="credential-head" id="accountOAuthHead" hidden>
+                            <div>
+                                <div class="credential-title">Google credential</div>
+                                <div class="credential-state" id="accountOAuthState">Not connected</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="revealAccountCredential('oauth')">Replace Google credential</button>
+                        </div>
+                        <div class="field" id="accountOAuthField">
+                            <label for="accountOAuthToken" id="accountOAuthLabel">Google oauth_token (optional)</label>
+                            <input class="input" type="password" id="accountOAuthToken" placeholder="oauth_token value" autocomplete="off">
+                            <div class="hint">Needed to upload this person's photos to Google Photos.</div>
+                            <button class="btn btn-ghost btn-sm" type="button" id="accountOAuthCancel" onclick="cancelAccountCredential('oauth')">Cancel</button>
+                        </div>
+                    </div>
+
+                    <div class="credential-block" data-credential="cookies">
+                        <div class="credential-head" id="accountCookiesHead" hidden>
+                            <div>
+                                <div class="credential-title">Browser session</div>
+                                <div class="credential-state" id="accountCookiesState">Not set</div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="revealAccountCredential('cookies')">Replace cookies</button>
+                        </div>
+                        <div class="field" id="accountCookiesField">
+                            <label for="accountCookies" id="accountCookiesLabel">cookies.txt (optional)</label>
+                            <textarea class="input" id="accountCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
+                            <div class="hint">Needed for shared albums and private album imports. Stored with mode 0600.</div>
+                            <button class="btn btn-ghost btn-sm" type="button" id="accountCookiesCancel" onclick="cancelAccountCredential('cookies')">Cancel</button>
+                        </div>
+                    </div>
                 </div>
 
                 <details class="account-guide">
@@ -2015,20 +2246,9 @@
                     <ol>
                         <li>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a> and sign in as this person.</li>
                         <li>Click "I agree". The page may keep loading, that is expected. Then open DevTools, Application or Storage, Cookies, <code>accounts.google.com</code>.</li>
-                        <li>Copy the <code>oauth_token</code> value and paste it below. The token is stored in a private file and never shown again.</li>
+                        <li>Copy the <code>oauth_token</code> value and paste it above. The token is stored in a private file and never shown again.</li>
                     </ol>
                 </details>
-
-                <div class="field">
-                    <label for="accountOAuthToken">Google oauth_token (optional)</label>
-                    <input class="input" type="password" id="accountOAuthToken" placeholder="Leave blank to keep the stored credential" autocomplete="off">
-                </div>
-
-                <div class="field">
-                    <label for="accountCookies">cookies.txt for shared albums (optional)</label>
-                    <textarea class="input" id="accountCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
-                    <div class="hint">Shared albums that someone else owns need a signed-in photos.google.com session. Stored with mode 0600.</div>
-                </div>
 
                 <label class="inline-check" style="margin-bottom:14px">
                     <input type="checkbox" id="accountIsDefault">
@@ -2044,15 +2264,54 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="primaryProfileModal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="primaryProfileModalTitle">
+            <div class="modal-header">
+                <div>
+                    <h2 id="primaryProfileModalTitle">Edit primary profile</h2>
+                    <p>The account gPhotos2Immich uses to connect to Immich.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" type="button" onclick="closePrimaryProfileModal()">Close</button>
+            </div>
+
+            <div class="field">
+                <label for="primaryApiURL">Immich API URL</label>
+                <input class="input" type="text" id="primaryApiURL" placeholder="http://immich-server:2283/api">
+            </div>
+
+            <div class="field">
+                <div id="primaryKeyConfigured" hidden>
+                    <label>API key</label>
+                    <div class="button-row">
+                        <span class="badge badge-ok">API key configured</span>
+                        <button class="btn btn-secondary btn-sm" type="button" onclick="revealPrimaryKey()">Replace API key</button>
+                    </div>
+                </div>
+                <div id="primaryKeyField">
+                    <label for="primaryApiKey" id="primaryApiKeyLabel">New API key</label>
+                    <input class="input" type="password" id="primaryApiKey" placeholder="New API key" autocomplete="off">
+                    <div class="hint">The key needs the upload, album, user and notification permissions.</div>
+                    <button class="btn btn-ghost btn-sm" type="button" id="primaryKeyCancel" onclick="cancelPrimaryKey()" hidden>Cancel</button>
+                </div>
+            </div>
+
+            <div class="test-result" id="primaryProfileResult" role="status" aria-live="polite"></div>
+            <div class="button-row" style="margin-top:16px">
+                <button class="btn btn-primary" type="button" id="primarySaveBtn" onclick="savePrimaryProfile()">Save and reconnect</button>
+                <button class="btn btn-ghost" type="button" onclick="closePrimaryProfileModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast" role="status"></div>
 
     <script>
         const state = {
             config: null,
-            dirty: false,
             activeSection: 'overview',
             uiMode: 'standard',
             accounts: [],
+            primary: null,
             routing: null,
             immichUsers: [],
             accountUsersLoaded: false,
@@ -2065,8 +2324,15 @@
             privateStatus: null,
             privatePoll: null,
             privateLoaded: false,
-            privateRunning: false
+            privateRunning: false,
+            ntfyToken: '',
+            ntfyReplace: false,
+            primaryModal: { replaceKey: false, hasKey: false, focus: null, closeTimer: null }
         };
+
+        const accountCreds = { immichKey: false, oauth: false, cookies: false };
+
+        const autosave = { timer: null, inFlight: false, pending: false };
 
         const MODE_SECTIONS = {
             simple: ['overview', 'connection', 'albums', 'logs'],
@@ -2091,24 +2357,24 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.12.0';
+        const APP_VERSION = '1.13.0';
         let setupSignature = '';
         const WHATS_NEW = [
             {
-                title: 'Three experience modes',
-                body: 'Simple keeps only the basics, Standard adds two-way sync, and Advanced exposes multi-account routing and every setting. Switch modes at the top of the sidebar.'
+                title: 'Settings save automatically',
+                body: 'Changes save as you type. The top bar shows Saving, Saved, or Could not save, and ordinary settings apply without restarting a running sync.'
             },
             {
-                title: 'Multi-account Immich and Google routing',
-                body: 'Link each Immich person to their own Google account. Uploads from Immich use the Google account of each photo owner, and shared album imports can use that person\'s Immich API key.'
+                title: 'Profile-based credentials',
+                body: 'The Connection page no longer asks for a raw API key. Edit the primary profile there, and manage every other person under Accounts & Users.'
             },
             {
-                title: 'Accounts & Users page',
-                body: 'See every linked person, their credential and browser session status, and a live preview of where each Immich user\'s photos go.'
+                title: 'Choose who sends notifications',
+                body: 'Send Immich notifications as the primary profile or another linked person, using that person\'s own Immich API key.'
             },
             {
-                title: 'Per-album import account',
-                body: 'In Advanced mode, choose which linked Immich user imports each Google Photos shared album.'
+                title: 'ntfy notifications',
+                body: 'Add ntfy.sh or your own ntfy server as a second, independent channel with its own events and priority.'
             }
         ];
 
@@ -2116,24 +2382,24 @@
         function qs(selector, root = document) { return root.querySelector(selector); }
         function qsa(selector, root = document) { return Array.from(root.querySelectorAll(selector)); }
 
-        function setDirty() {
-            state.dirty = true;
-            ['saveState', 'mobileSaveState'].forEach(id => {
-                const el = $(id);
-                if (!el) return;
-                el.textContent = 'Unsaved changes';
-                el.classList.add('dirty');
-            });
+        function setAutosaveState(text, tone = '') {
+            const className = 'autosave-state' + (tone ? ' ' + tone : '');
+            const topbar = $('autosaveState');
+            if (topbar) {
+                topbar.textContent = text;
+                topbar.className = className;
+                topbar.title = tone === 'error' ? text : '';
+            }
         }
 
-        function clearDirty() {
-            state.dirty = false;
-            ['saveState', 'mobileSaveState'].forEach(id => {
-                const el = $(id);
-                if (!el) return;
-                el.textContent = 'All changes saved';
-                el.classList.remove('dirty');
-            });
+        function scheduleAutosave() {
+            if (!state.config) return;
+            setAutosaveState('Saving...', 'busy');
+            clearTimeout(autosave.timer);
+            autosave.timer = setTimeout(() => {
+                autosave.timer = null;
+                saveConfig({ quiet: true, autosave: true });
+            }, 600);
         }
 
         function showToast(message, isError = false) {
@@ -2188,8 +2454,7 @@
             }
             updateBackgroundBanner();
             if (options.persist === false) return;
-            setDirty();
-            if (state.config) saveConfig({ quiet: true });
+            scheduleAutosave();
         }
 
         function switchModeFromBanner() {
@@ -2326,12 +2591,12 @@
                 updateAlbumCount();
                 updateOverviewStats();
                 updateBackgroundBanner();
-                setDirty();
+                scheduleAutosave();
             });
             toggle.addEventListener('change', () => {
                 updateAlbumBackupState(row);
                 updateBackgroundBanner();
-                setDirty();
+                scheduleAutosave();
             });
             row.querySelector('[data-action="verify"]').addEventListener('click', () => verifyAlbumRow(row));
             row.querySelector('[data-action="upload"]').addEventListener('click', () => uploadAlbumRow(row));
@@ -2340,6 +2605,11 @@
             updateAlbumBackupState(row);
             updateAlbumCount();
             updateOverviewStats();
+        }
+
+        function addAlbumRowAndSave() {
+            addAlbumRow();
+            scheduleAutosave();
         }
 
         function updateAlbumBackupState(row) {
@@ -2935,28 +3205,286 @@
 
         function updateNotificationPill() {
             const pill = $('notificationPill');
+            if (!pill) return;
             const on = $('notificationsImmich').checked;
             pill.className = on ? 'pill pill-success' : 'pill pill-muted';
             pill.innerHTML = on ? '<span class="status-dot"></span>On' : '<span class="status-dot"></span>Off';
+            updateNotificationEventHints();
         }
 
-        async function sendTestNotification() {
-            const button = $('notificationTestBtn');
-            const result = $('notificationTestResult');
+        function updateNtfyPill() {
+            const pill = $('ntfyPill');
+            if (!pill) return;
+            const on = $('notificationsNtfy').checked;
+            pill.className = on ? 'pill pill-success' : 'pill pill-muted';
+            pill.innerHTML = on ? '<span class="status-dot"></span>On' : '<span class="status-dot"></span>Off';
+            updateNotificationEventHints();
+        }
+
+        function updateNotificationEventHints() {
+            const immichHint = $('notificationEventsHint');
+            if (immichHint) {
+                immichHint.hidden = $('notificationsSyncFailed').checked
+                    || $('notificationsImportComplete').checked
+                    || $('notificationsUploadComplete').checked;
+            }
+            const ntfyHint = $('ntfyEventsHint');
+            if (ntfyHint) {
+                ntfyHint.hidden = $('ntfySyncFailed').checked
+                    || $('ntfyImportComplete').checked
+                    || $('ntfyUploadComplete').checked;
+            }
+        }
+
+        function updateNtfyTokenUI() {
+            const configured = !!state.ntfyToken;
+            const showField = !configured || state.ntfyReplace;
+            $('ntfyTokenConfigured').hidden = !configured || state.ntfyReplace;
+            $('ntfyTokenField').hidden = !showField;
+            const cancel = $('ntfyTokenCancel');
+            if (cancel) cancel.hidden = !(configured && state.ntfyReplace);
+        }
+
+        function revealNtfyToken() {
+            state.ntfyReplace = true;
+            updateNtfyTokenUI();
+            $('ntfyToken').focus();
+        }
+
+        function cancelNtfyToken() {
+            state.ntfyReplace = false;
+            $('ntfyToken').value = '';
+            updateNtfyTokenUI();
+        }
+
+        function populateNotificationAccountSelect(selected) {
+            const select = $('notificationsImmichAccount');
+            if (!select) return;
+            const current = selected !== undefined ? selected : (select.value || '');
+            const accounts = (state.accounts || []).filter(account => account.immichKeyOk && account.immichUserName);
+            const primaryName = (state.primary && state.primary.name) || '';
+            let html = `<option value="">Primary profile${primaryName ? ` (${escapeHtml(primaryName)})` : ''}</option>`;
+            for (const account of accounts) {
+                const name = account.name || account.immichUserName;
+                const label = account.googleEmail ? `${name} (${account.googleEmail})` : name;
+                html += `<option value="${escapeHtml(account.id)}">${escapeHtml(label)}</option>`;
+            }
+            select.innerHTML = html;
+            select.value = current && accounts.some(account => account.id === current) ? current : '';
+            const hint = $('notificationsImmichHint');
+            if (hint) hint.hidden = !(state.accounts || []).some(account => !account.immichKeyOk);
+        }
+
+        async function sendTestNotification(channel) {
+            const target = channel === 'ntfy' ? 'ntfy' : 'immich';
+            const button = target === 'ntfy' ? $('ntfyTestBtn') : $('notificationTestBtn');
+            const result = target === 'ntfy' ? $('ntfyTestResult') : $('notificationTestResult');
             button.disabled = true;
             result.textContent = 'Sending...';
             result.className = 'test-result';
             try {
-                const res = await fetch('/api/notifications/test', { method: 'POST' });
+                const res = await fetch('/api/notifications/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channel: target })
+                });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.error || 'Could not send the test notification');
-                result.textContent = 'Sent. Check the notification bell in Immich.';
+                result.textContent = target === 'ntfy'
+                    ? 'Sent. Check the topic on your ntfy device.'
+                    : 'Sent. Check the notification bell in Immich.';
                 result.className = 'test-result success';
             } catch (err) {
                 result.textContent = err.message;
                 result.className = 'test-result danger';
             } finally {
                 button.disabled = false;
+            }
+        }
+
+        function renderPrimaryProfileCard() {
+            const config = state.config || {};
+            const primary = state.primary || {};
+            const hasKey = !!(primary.apiKeyConfigured || config.apiKey);
+            const name = primary.name || 'Primary profile';
+            const userId = primary.userId || '';
+
+            const avatar = $('primaryProfileAvatar');
+            if (avatar) avatar.textContent = accountInitial(primary.name || 'Primary');
+            $('primaryProfileName').textContent = name;
+            $('primaryProfileMeta').textContent = userId
+                ? `Immich user ${userId}`
+                : (config.apiURL || 'No Immich URL set');
+
+            const pill = $('primaryProfilePill');
+            if (primary.error) {
+                pill.className = 'pill pill-danger';
+                pill.innerHTML = '<span class="status-dot"></span>Not connected';
+            } else if (primary.name) {
+                pill.className = 'pill pill-success';
+                pill.innerHTML = '<span class="status-dot"></span>Connected';
+            } else if (hasKey) {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Key configured';
+            } else {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Not configured';
+            }
+
+            const serverPill = $('connectionPill');
+            if (serverPill) {
+                if (primary.error) {
+                    serverPill.className = 'pill pill-danger';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Not connected';
+                } else if (primary.name) {
+                    serverPill.className = 'pill pill-success';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Connected';
+                } else if (hasKey) {
+                    serverPill.className = 'pill pill-muted';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Not tested';
+                } else {
+                    serverPill.className = 'pill pill-muted';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Not configured';
+                }
+            }
+
+            const connectionPill = $('primaryConnectionPill');
+            if (!connectionPill) return;
+            const connectionStatus = $('primaryConnectionStatus');
+            $('primaryConnectionAvatar').textContent = accountInitial(primary.name || 'Primary');
+            $('primaryConnectionName').textContent = name;
+            $('primaryConnectionMeta').textContent = userId
+                ? `Immich user ${userId}`
+                : (config.apiURL || 'No Immich URL set');
+            connectionStatus.innerHTML = '';
+            connectionStatus.appendChild(statusLine(
+                'Immich API key',
+                primary.apiKeyConfigured ? 'Configured' : 'Not set',
+                primary.error ? 'The server did not accept this connection.' : ''
+            ));
+            connectionStatus.appendChild(statusLine(
+                'Google Photos',
+                primary.googleEmail || 'Not connected',
+                primary.googleConnected ? '' : 'Add an oauth_token under Google upload.'
+            ));
+            connectionStatus.appendChild(statusLine(
+                'Browser session',
+                primary.webSessionOk ? 'Connected' : 'Not set',
+                primary.webSessionOk ? '' : 'Only needed for shared albums and private imports.'
+            ));
+            appendErrorDetails(connectionStatus, primary.error);
+            if (primary.error) {
+                connectionPill.className = 'pill pill-danger';
+                connectionPill.innerHTML = '<span class="status-dot"></span>Not connected';
+            } else if (primary.name) {
+                connectionPill.className = 'pill pill-success';
+                connectionPill.innerHTML = '<span class="status-dot"></span>Connected';
+            } else {
+                connectionPill.className = 'pill pill-muted';
+                connectionPill.innerHTML = '<span class="status-dot"></span>Incomplete';
+            }
+        }
+
+        function openPrimaryProfileModal() {
+            const config = state.config || {};
+            const primary = state.primary || {};
+            const hasKey = !!(primary.apiKeyConfigured || config.apiKey);
+            clearTimeout(state.primaryModal.closeTimer);
+            state.primaryModal.focus = document.activeElement;
+            state.primaryModal.hasKey = hasKey;
+            state.primaryModal.replaceKey = !hasKey;
+            $('primaryApiURL').value = config.apiURL || '';
+            $('primaryApiKey').value = '';
+            $('primaryKeyConfigured').hidden = !hasKey;
+            $('primaryKeyField').hidden = hasKey;
+            $('primaryKeyCancel').hidden = !hasKey;
+            $('primaryApiKeyLabel').textContent = hasKey ? 'New API key' : 'API key';
+            $('primaryApiKey').placeholder = hasKey ? 'New API key' : 'Immich API key';
+            $('primaryProfileResult').textContent = '';
+            $('primaryProfileResult').className = 'test-result';
+            $('primarySaveBtn').disabled = false;
+            $('primaryProfileModal').hidden = false;
+            $('primaryApiURL').focus();
+        }
+
+        function revealPrimaryKey() {
+            state.primaryModal.replaceKey = true;
+            $('primaryKeyConfigured').hidden = true;
+            $('primaryKeyField').hidden = false;
+            $('primaryKeyCancel').hidden = false;
+            $('primaryApiKeyLabel').textContent = 'New API key';
+            $('primaryApiKey').placeholder = 'New API key';
+            $('primaryApiKey').focus();
+        }
+
+        function cancelPrimaryKey() {
+            state.primaryModal.replaceKey = false;
+            $('primaryApiKey').value = '';
+            $('primaryKeyConfigured').hidden = !state.primaryModal.hasKey;
+            $('primaryKeyField').hidden = state.primaryModal.hasKey;
+            $('primaryKeyCancel').hidden = true;
+        }
+
+        function closePrimaryProfileModal() {
+            clearTimeout(state.primaryModal.closeTimer);
+            $('primaryProfileModal').hidden = true;
+            $('primaryApiKey').value = '';
+            $('primaryProfileResult').textContent = '';
+            if (state.primaryModal.focus && typeof state.primaryModal.focus.focus === 'function') {
+                state.primaryModal.focus.focus();
+            }
+        }
+
+        async function savePrimaryProfile() {
+            const button = $('primarySaveBtn');
+            const result = $('primaryProfileResult');
+            const apiURL = $('primaryApiURL').value.trim();
+            const replacing = state.primaryModal.replaceKey;
+            const apiKey = $('primaryApiKey').value.trim();
+
+            if (!apiURL) {
+                result.textContent = 'Enter the Immich API URL.';
+                result.className = 'test-result danger';
+                $('primaryApiURL').focus();
+                return;
+            }
+            if (replacing && !apiKey) {
+                result.textContent = 'Enter the new API key.';
+                result.className = 'test-result danger';
+                $('primaryApiKey').focus();
+                return;
+            }
+
+            const payload = { apiURL };
+            if (replacing) payload.apiKey = apiKey;
+
+            button.disabled = true;
+            result.textContent = 'Connecting...';
+            result.className = 'test-result';
+            let connected = false;
+            try {
+                const res = await fetch('/api/primary-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const text = await res.text();
+                let data = {};
+                try { data = JSON.parse(text); } catch (err) { data = {}; }
+                if (!res.ok) throw new Error(data.error || text || 'Could not connect to Immich');
+                connected = true;
+                result.textContent = `Connected as ${data.user || data.userId || 'Immich user'}`;
+                result.className = 'test-result success';
+                if (state.config) state.config.apiURL = apiURL;
+                state.primaryModal.closeTimer = setTimeout(() => {
+                    closePrimaryProfileModal();
+                    loadConfig();
+                }, 1200);
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                if (!connected) button.disabled = false;
             }
         }
 
@@ -2984,6 +3512,19 @@
             }
             line.append(left, right);
             return line;
+        }
+
+        function appendErrorDetails(parent, message) {
+            const text = String(message || '').trim();
+            if (!text) return;
+            const details = document.createElement('details');
+            details.className = 'error-details';
+            const summary = document.createElement('summary');
+            summary.textContent = 'Show details';
+            const pre = document.createElement('pre');
+            pre.textContent = text;
+            details.append(summary, pre);
+            parent.appendChild(details);
         }
 
         function accountDisplayName(account) {
@@ -3049,18 +3590,25 @@
                 status.appendChild(statusLine(
                     'Immich user',
                     account.immichUserName || immichUserLabel(account.immichUserId) || 'Not set',
-                    account.immichError || ''
+                    account.immichError ? 'Immich did not accept the API key.' : ''
                 ));
                 status.appendChild(statusLine(
                     'Google Photos',
                     account.googleEmail || 'Not linked',
-                    account.googleError || (account.googleEmail ? '' : 'Add an oauth_token to upload this person photos.')
+                    account.googleError
+                        ? 'Could not check this Google account.'
+                        : (account.googleEmail ? '' : "Add an oauth_token to upload this person's photos.")
                 ));
                 status.appendChild(statusLine(
                     'Browser session',
                     account.webSessionOk ? 'Session ready' : (account.cookiesSaved ? 'Cookies saved, not verified' : 'No session'),
-                    account.webSessionError || (account.cookiesSaved ? '' : 'Only needed for albums someone else owns.')
+                    account.webSessionError
+                        ? 'The saved cookies could not be checked.'
+                        : (account.cookiesSaved ? '' : 'Only needed for albums someone else owns.')
                 ));
+                appendErrorDetails(status, account.immichError);
+                appendErrorDetails(status, account.googleError);
+                appendErrorDetails(status, account.webSessionError);
                 card.appendChild(status);
 
                 const actions = document.createElement('div');
@@ -3155,6 +3703,7 @@
 
         function applyAccountsPayload(data) {
             state.accounts = data.accounts || [];
+            state.primary = data.primary || null;
             state.routing = data.routing || null;
             if (state.config) {
                 state.config.accounts = state.accounts.map(account => ({
@@ -3182,13 +3731,16 @@
             } catch (err) {
                 const fallback = (state.config && state.config.accounts) || [];
                 if (fallback.length) state.accounts = fallback;
+                state.primary = null;
                 state.routing = null;
                 error.textContent = err.message;
                 error.className = 'test-result danger';
             }
             renderAccounts();
             renderRoutingPreview();
+            renderPrimaryProfileCard();
             populateAlbumAccountSelects();
+            populateNotificationAccountSelect((state.config && state.config.notifications && state.config.notifications.immichAccountId) || '');
             updateBackgroundBanner();
         }
 
@@ -3215,14 +3767,21 @@
         function populateImmichUserSelect(selectedId) {
             const select = $('accountImmichUser');
             if (!select) return;
+            const primaryId = (state.primary && state.primary.userId) || '';
             let html = '<option value="">Choose a user</option>';
             for (const user of (state.immichUsers || [])) {
-                const label = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
-                html += `<option value="${escapeHtml(user.id)}">${escapeHtml(label)}</option>`;
+                const base = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
+                if (primaryId && user.id === primaryId) {
+                    html += `<option value="${escapeHtml(user.id)}" disabled>${escapeHtml(base)} (Primary profile)</option>`;
+                    continue;
+                }
+                html += `<option value="${escapeHtml(user.id)}">${escapeHtml(base)}</option>`;
             }
             html += '<option value="__manual__">Enter name and UUID manually</option>';
             select.innerHTML = html;
-            if (selectedId && (state.immichUsers || []).some(user => user.id === selectedId)) {
+            if (selectedId && selectedId === primaryId) {
+                select.value = selectedId;
+            } else if (selectedId && (state.immichUsers || []).some(user => user.id === selectedId)) {
                 select.value = selectedId;
             } else if (selectedId) {
                 select.value = '__manual__';
@@ -3235,13 +3794,79 @@
             $('accountManualFields').style.display = manual ? 'block' : 'none';
         }
 
+        function accountCredentialElements(key) {
+            switch (key) {
+                case 'immichKey':
+                    return { field: 'accountImmichKeyField', input: 'accountImmichAPIKey', cancel: 'accountImmichKeyCancel' };
+                case 'oauth':
+                    return { field: 'accountOAuthField', input: 'accountOAuthToken', cancel: 'accountOAuthCancel' };
+                default:
+                    return { field: 'accountCookiesField', input: 'accountCookies', cancel: 'accountCookiesCancel' };
+            }
+        }
+
+        function resetAccountCredentials(editing) {
+            for (const key of ['immichKey', 'oauth', 'cookies']) {
+                const ids = accountCredentialElements(key);
+                accountCreds[key] = !editing;
+                $(ids.field).hidden = !!editing;
+                $(ids.cancel).hidden = true;
+            }
+        }
+
+        function setAccountCredentialStatus(account) {
+            const keyState = $('accountImmichKeyState');
+            if (account.immichApiKey) {
+                keyState.textContent = account.immichKeyOk ? 'API key configured and working' : 'API key configured, Immich rejected it';
+                keyState.className = 'credential-state ' + (account.immichKeyOk ? 'ok' : 'warn');
+            } else {
+                keyState.textContent = 'Not set';
+                keyState.className = 'credential-state';
+            }
+            const oauthState = $('accountOAuthState');
+            if (account.googleConnected) {
+                oauthState.textContent = account.googleEmail ? `Google connected as ${account.googleEmail}` : 'Google connected';
+                oauthState.className = 'credential-state ok';
+            } else {
+                oauthState.textContent = 'Not connected';
+                oauthState.className = 'credential-state' + (account.googleEmail ? ' warn' : '');
+            }
+            const cookiesState = $('accountCookiesState');
+            if (account.webSessionOk) {
+                cookiesState.textContent = 'Session connected';
+                cookiesState.className = 'credential-state ok';
+            } else if (account.cookiesSaved) {
+                cookiesState.textContent = 'Cookies saved, session not verified';
+                cookiesState.className = 'credential-state warn';
+            } else {
+                cookiesState.textContent = 'Not set';
+                cookiesState.className = 'credential-state';
+            }
+        }
+
+        function revealAccountCredential(key) {
+            const ids = accountCredentialElements(key);
+            accountCreds[key] = true;
+            $(ids.field).hidden = false;
+            $(ids.cancel).hidden = false;
+            $(ids.input).focus();
+        }
+
+        function cancelAccountCredential(key) {
+            const ids = accountCredentialElements(key);
+            accountCreds[key] = false;
+            $(ids.input).value = '';
+            $(ids.field).hidden = true;
+            $(ids.cancel).hidden = true;
+        }
+
         async function openAccountWizard(accountId) {
             const editing = (state.accounts || []).find(account => String(account.id) === String(accountId));
             state.accountFocus = document.activeElement;
             $('accountEditId').value = editing ? editing.id : '';
             $('accountWizardTitle').textContent = editing ? 'Edit linked person' : 'Link a person';
             $('accountWizardSubtitle').textContent = editing
-                ? 'Update the Immich user, Google credential, or fallback role.'
+                ? 'Change the details you need. Stored credentials stay unless you replace them.'
                 : 'Connect one Immich user to one Google Photos account.';
             $('accountName').value = editing ? (editing.name || '') : '';
             $('accountImmichUserId').value = editing ? (editing.immichUserId || '') : '';
@@ -3253,8 +3878,17 @@
             $('accountSaveResult').textContent = '';
             $('accountSaveResult').className = 'test-result';
             $('accountSaveBtn').disabled = false;
-            $('accountWizard').hidden = false;
 
+            $('accountImmichKeyLabel').textContent = editing ? 'New Immich API key' : 'Immich API key (optional)';
+            $('accountOAuthLabel').textContent = editing ? 'New Google oauth_token' : 'Google oauth_token (optional)';
+            $('accountCookiesLabel').textContent = editing ? 'New cookies.txt' : 'cookies.txt (optional)';
+            $('accountImmichAPIKey').placeholder = editing ? 'New API key' : 'Immich API key';
+            $('accountOAuthToken').placeholder = editing ? 'New oauth_token value' : 'oauth_token value';
+            $('accountCookies').placeholder = '# Netscape HTTP Cookie File';
+            resetAccountCredentials(!!editing);
+            if (editing) setAccountCredentialStatus(editing);
+
+            $('accountWizard').hidden = false;
             await loadImmichUsers(false);
             populateImmichUserSelect(editing ? editing.immichUserId : '');
             updateAccountManualFields();
@@ -3287,18 +3921,40 @@
                 result.className = 'test-result danger';
                 return;
             }
+
+            const values = {
+                immichKey: $('accountImmichAPIKey').value.trim(),
+                oauth: $('accountOAuthToken').value.trim(),
+                cookies: $('accountCookies').value.trim()
+            };
+            if (editId) {
+                const labels = {
+                    immichKey: 'Immich API key',
+                    oauth: 'Google credential',
+                    cookies: 'cookies'
+                };
+                for (const key of ['immichKey', 'oauth', 'cookies']) {
+                    if (accountCreds[key] && !values[key]) {
+                        result.textContent = `Enter the new ${labels[key]}, or keep the current one.`;
+                        result.className = 'test-result danger';
+                        $(accountCredentialElements(key).input).focus();
+                        return;
+                    }
+                }
+            }
+
             const user = (state.immichUsers || []).find(item => item.id === userId);
             const name = $('accountName').value.trim() || (user && user.name) || '';
             const payload = {
                 immichUserId: userId,
                 name,
                 googleEmail: $('accountGoogleEmail').value.trim(),
-                immichApiKey: $('accountImmichAPIKey').value.trim(),
-                oauthToken: $('accountOAuthToken').value.trim(),
-                cookies: $('accountCookies').value.trim(),
                 isDefault: $('accountIsDefault').checked
             };
             if (editId) payload.id = editId;
+            if (values.immichKey) payload.immichApiKey = values.immichKey;
+            if (values.oauth) payload.oauthToken = values.oauth;
+            if (values.cookies) payload.cookies = values.cookies;
 
             button.disabled = true;
             result.textContent = 'Saving...';
@@ -3314,10 +3970,13 @@
                 applyAccountsPayload(data);
                 renderAccounts();
                 renderRoutingPreview();
+                renderPrimaryProfileCard();
                 populateAlbumAccountSelects();
+                populateNotificationAccountSelect();
                 updateBackgroundBanner();
                 closeAccountWizard();
                 showToast(editId ? 'Person updated' : 'Person linked');
+                loadAccounts();
             } catch (err) {
                 result.textContent = err.message;
                 result.className = 'test-result danger';
@@ -3336,7 +3995,9 @@
                 applyAccountsPayload(data);
                 renderAccounts();
                 renderRoutingPreview();
+                renderPrimaryProfileCard();
                 populateAlbumAccountSelects();
+                populateNotificationAccountSelect();
                 updateBackgroundBanner();
                 showToast('Person removed');
             } catch (err) {
@@ -3352,7 +4013,6 @@
                 state.config = config;
 
                 $('apiURL').value = config.apiURL || '';
-                $('apiKey').value = config.apiKey || '';
                 $('workers').value = config.workers || 1;
                 $('albumWorkers').value = config.albumWorkers || 1;
                 $('debug').checked = !!config.debug;
@@ -3371,23 +4031,39 @@
                 $('googleStrictMatching').checked = !!googleUpload.strictAccountMatching;
 
                 const notifications = config.notifications || {};
+                const ntfy = notifications.ntfy || {};
                 $('notificationsImmich').checked = !!notifications.immich;
+                $('notificationsImmichAccount').value = notifications.immichAccountId || '';
                 $('notificationsSyncFailed').checked = !!notifications.onSyncFailed;
                 $('notificationsImportComplete').checked = !!notifications.onImportComplete;
                 $('notificationsUploadComplete').checked = !!notifications.onUploadComplete;
+                $('notificationsNtfy').checked = !!ntfy.enabled;
+                $('ntfyUrl').value = ntfy.url || 'https://ntfy.sh';
+                $('ntfyTopic').value = ntfy.topic || '';
+                const numericPriority = { '1': 'min', '2': 'low', '3': 'default', '4': 'high', '5': 'max' };
+                const namedPriority = ['min', 'low', 'default', 'high', 'urgent', 'max'];
+                const priority = namedPriority.includes(ntfy.priority)
+                    ? ntfy.priority
+                    : (numericPriority[ntfy.priority] || 'default');
+                $('ntfyPriority').value = priority;
+                $('ntfySyncFailed').checked = !!ntfy.onSyncFailed;
+                $('ntfyImportComplete').checked = !!ntfy.onImportComplete;
+                $('ntfyUploadComplete').checked = !!ntfy.onUploadComplete;
+                state.ntfyToken = ntfy.token || '';
+                state.ntfyReplace = !state.ntfyToken;
+                updateNtfyTokenUI();
                 updateNotificationPill();
+                updateNtfyPill();
 
                 $('albumList').innerHTML = '';
                 (config.googlePhotos || []).forEach(gp => addAlbumRow(gp));
                 updateAlbumCount();
                 updateOverviewStats();
                 state.accounts = config.accounts || [];
+                state.primary = null;
                 const mode = config.uiMode || (state.accounts.length ? 'advanced' : 'standard');
                 setUIMode(mode, { persist: false });
-                loadImmichAlbums();
-                loadAccounts();
-                refreshGoogleAccount();
-                refreshWebSession(false);
+                renderPrimaryProfileCard();
                 setupSignature = '';
                 renderWhatsNew();
                 updateGettingStarted();
@@ -3399,8 +4075,12 @@
                 } else {
                     $('mainUI').style.display = 'block';
                     $('wizardUI').style.display = 'none';
+                    loadImmichAlbums();
+                    loadAccounts();
+                    refreshGoogleAccount();
+                    refreshWebSession(false);
                 }
-                clearDirty();
+                setAutosaveState('Saved', 'success');
             } catch (err) {
                 console.error(err);
                 showToast('Could not load configuration', true);
@@ -3409,9 +4089,13 @@
 
         function configPayload() {
             const mode = qs('input[name="dedupMode"]:checked')?.value || 'safe';
+            const typedToken = $('ntfyToken').value.trim();
+            const ntfyTokenValue = typedToken && (state.ntfyReplace || !state.ntfyToken)
+                ? typedToken
+                : (state.ntfyToken || '');
             return {
                 apiURL: $('apiURL').value.trim(),
-                apiKey: $('apiKey').value.trim(),
+                apiKey: (state.config && state.config.apiKey) || '',
                 debug: $('debug').checked,
                 workers: parseInt($('workers').value, 10) || 1,
                 albumWorkers: parseInt($('albumWorkers').value, 10) || 1,
@@ -3440,18 +4124,39 @@
                 },
                 notifications: {
                     immich: $('notificationsImmich').checked,
+                    immichAccountId: $('notificationsImmichAccount').value,
                     onSyncFailed: $('notificationsSyncFailed').checked,
                     onImportComplete: $('notificationsImportComplete').checked,
-                    onUploadComplete: $('notificationsUploadComplete').checked
+                    onUploadComplete: $('notificationsUploadComplete').checked,
+                    ntfy: {
+                        enabled: $('notificationsNtfy').checked,
+                        url: $('ntfyUrl').value.trim() || 'https://ntfy.sh',
+                        topic: $('ntfyTopic').value.trim(),
+                        token: ntfyTokenValue,
+                        priority: $('ntfyPriority').value,
+                        onSyncFailed: $('ntfySyncFailed').checked,
+                        onImportComplete: $('ntfyImportComplete').checked,
+                        onUploadComplete: $('ntfyUploadComplete').checked
+                    }
                 }
             };
         }
 
         async function saveConfig(options = {}) {
             const form = $('configForm');
-            if (!options.quiet && form && !form.reportValidity()) return;
+            if (!options.quiet && form && !form.reportValidity()) return false;
 
+            clearTimeout(autosave.timer);
+            autosave.timer = null;
+            if (autosave.inFlight) {
+                autosave.pending = true;
+                return false;
+            }
+
+            autosave.inFlight = true;
+            autosave.pending = false;
             const config = configPayload();
+            let saved = false;
 
             try {
                 const res = await fetch('/api/config', {
@@ -3466,24 +4171,47 @@
                 const previousAccounts = state.config && state.config.accounts;
                 state.config = config;
                 if (previousAccounts) state.config.accounts = previousAccounts;
-                clearDirty();
+                if (state.ntfyReplace || !state.ntfyToken) {
+                    const replacement = $('ntfyToken').value.trim();
+                    if (replacement) state.ntfyToken = replacement;
+                }
+                saved = true;
+                if (!autosave.pending) setAutosaveState('Saved', 'success');
                 updateOverviewStats();
                 updateBackgroundBanner();
+                renderPrimaryProfileCard();
                 if (!options.quiet) showToast('Configuration saved');
                 setTimeout(refreshActivity, 800);
             } catch (err) {
                 console.error(err);
+                if (!autosave.pending) {
+                    setAutosaveState('Could not save', 'error');
+                    const status = $('autosaveState');
+                    if (status) status.title = err.message;
+                }
                 showToast('Could not save: ' + err.message, true);
+            } finally {
+                autosave.inFlight = false;
+                if (autosave.pending) {
+                    autosave.pending = false;
+                    saveConfig({ quiet: true, autosave: true });
+                }
             }
+            return saved;
         }
 
         async function testConnection() {
             const btn = $('testConnectionBtn');
             const result = $('testConnectionResult');
             const apiURL = $('apiURL').value.trim();
-            const apiKey = $('apiKey').value.trim();
-            if (!apiURL || !apiKey) {
-                result.textContent = 'Fill in the URL and API key first.';
+            const apiKey = (state.config && state.config.apiKey) || '';
+            if (!apiURL) {
+                result.textContent = 'Enter the Immich API URL first.';
+                result.className = 'test-result danger';
+                return;
+            }
+            if (!apiKey) {
+                result.textContent = 'Add an API key in the primary profile first.';
                 result.className = 'test-result danger';
                 return;
             }
@@ -3970,15 +4698,6 @@
             }
         }
 
-        function togglePassword() {
-            const input = $('apiKey');
-            const button = $('toggleKeyBtn');
-            const show = input.type === 'password';
-            input.type = show ? 'text' : 'password';
-            button.innerHTML = `<svg class="icon"><use href="#icon-${show ? 'eye-off' : 'eye'}"/></svg>`;
-            button.title = show ? 'Hide API key' : 'Show API key';
-        }
-
         function finishWizard() {
             const apiURL = $('wizApiURL').value.trim();
             const apiKey = $('wizApiKey').value.trim();
@@ -3988,7 +4707,9 @@
                 return;
             }
             $('apiURL').value = apiURL;
-            $('apiKey').value = apiKey;
+            if (!state.config) state.config = { googlePhotos: [] };
+            state.config.apiURL = apiURL;
+            state.config.apiKey = apiKey;
             const url = $('wizAlbumUrl').value.trim();
             const name = $('wizAlbumName').value.trim();
             $('albumList').innerHTML = '';
@@ -4019,7 +4740,13 @@
         $('googleStrictMatching').addEventListener('change', renderRoutingPreview);
 
         document.addEventListener('keydown', event => {
-            if (event.key === 'Escape' && !$('accountWizard').hidden) {
+            if (event.key !== 'Escape') return;
+            if (!$('primaryProfileModal').hidden) {
+                event.preventDefault();
+                closePrimaryProfileModal();
+                return;
+            }
+            if (!$('accountWizard').hidden) {
                 event.preventDefault();
                 closeAccountWizard();
             }
@@ -4043,28 +4770,38 @@
             updateNotificationPill();
         });
 
+        $('notificationsNtfy').addEventListener('change', () => {
+            if ($('notificationsNtfy').checked
+                && !$('ntfySyncFailed').checked
+                && !$('ntfyImportComplete').checked
+                && !$('ntfyUploadComplete').checked) {
+                $('ntfySyncFailed').checked = true;
+                $('ntfyUploadComplete').checked = true;
+            }
+            updateNtfyPill();
+        });
+
+        ['notificationsSyncFailed', 'notificationsImportComplete', 'notificationsUploadComplete',
+            'ntfySyncFailed', 'ntfyImportComplete', 'ntfyUploadComplete'].forEach(id => {
+            $(id).addEventListener('change', updateNotificationEventHints);
+        });
+
         $('privateTarget').addEventListener('change', updatePrivateNewNameField);
 
         qsa('input[name="dedupMode"]').forEach(input => {
             input.addEventListener('change', () => {
                 qsa('.mode-card').forEach(card => card.classList.toggle('selected', card.querySelector('input').checked));
                 updateOverviewStats();
-                setDirty();
+                scheduleAutosave();
             });
         });
 
         document.addEventListener('input', event => {
-            if (event.target.closest('#configForm')) setDirty();
+            if (event.target.closest('#configForm')) scheduleAutosave();
         });
 
         document.addEventListener('change', event => {
-            if (event.target.closest('#configForm')) setDirty();
-        });
-
-        window.addEventListener('beforeunload', event => {
-            if (!state.dirty) return;
-            event.preventDefault();
-            event.returnValue = '';
+            if (event.target.closest('#configForm')) scheduleAutosave();
         });
 
         qsa('[data-activity-filter]').forEach(button => {

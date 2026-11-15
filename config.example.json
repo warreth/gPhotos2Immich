@@ -35,9 +35,20 @@
   },
   "notifications": {
     "immich": false,
+    "immichAccountId": "",
     "onSyncFailed": false,
     "onImportComplete": false,
-    "onUploadComplete": false
+    "onUploadComplete": false,
+    "ntfy": {
+      "enabled": false,
+      "url": "https://ntfy.sh",
+      "topic": "",
+      "token": "",
+      "priority": "default",
+      "onSyncFailed": false,
+      "onImportComplete": false,
+      "onUploadComplete": false
+    }
   },
   "googlePhotos": [
     {

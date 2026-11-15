@@ -2,10 +2,12 @@ package web
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"warreth.dev/gphotos2immich/pkg/config"
@@ -85,5 +87,77 @@ func TestNotificationTestMissingConfig(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestNotificationTestNtfyChannel(t *testing.T) {
+	var topic, title, body string
+	ntfyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		topic = strings.TrimPrefix(r.URL.Path, "/")
+		title = r.Header.Get("Title")
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ntfyServer.Close()
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.Config{
+		ApiURL: "http://immich.invalid/api",
+		ApiKey: "k",
+		Notifications: config.NotificationsConfig{
+			Ntfy: config.NtfyConfig{Enabled: true, URL: ntfyServer.URL, Topic: "family"},
+		},
+	}
+	content, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(path)
+	req := httptest.NewRequest(http.MethodPost, "/api/notifications/test", strings.NewReader(`{"channel":"ntfy"}`))
+	w := httptest.NewRecorder()
+	server.handleNotificationTest(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+	}
+	if topic != "family" || title != "gPhotos2Immich test" || body != "Notifications are working." {
+		t.Fatalf("topic = %q title = %q body = %q", topic, title, body)
+	}
+}
+
+func TestNotificationTestNtfyFailure(t *testing.T) {
+	ntfyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "topic is reserved", http.StatusForbidden)
+	}))
+	defer ntfyServer.Close()
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.Config{
+		ApiURL: "http://immich.invalid/api",
+		ApiKey: "k",
+		Notifications: config.NotificationsConfig{
+			Ntfy: config.NtfyConfig{Enabled: true, URL: ntfyServer.URL, Topic: "family"},
+		},
+	}
+	content, _ := json.Marshal(cfg)
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(path)
+	req := httptest.NewRequest(http.MethodPost, "/api/notifications/test", strings.NewReader(`{"channel":"ntfy"}`))
+	w := httptest.NewRecorder()
+	server.handleNotificationTest(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "topic is reserved") {
+		t.Fatalf("body = %s", w.Body.String())
 	}
 }

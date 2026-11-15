@@ -44,6 +44,17 @@ type AccountInput struct {
 	Cookies        string `json:"cookies,omitempty"`
 }
 
+// PrimaryStatus describes the primary Immich profile for the accounts page.
+type PrimaryStatus struct {
+	Name             string `json:"name,omitempty"`
+	UserID           string `json:"userId,omitempty"`
+	APIKeyConfigured bool   `json:"apiKeyConfigured"`
+	GoogleEmail      string `json:"googleEmail,omitempty"`
+	GoogleConnected  bool   `json:"googleConnected"`
+	WebSessionOK     bool   `json:"webSessionOk"`
+	Error            string `json:"error,omitempty"`
+}
+
 // AccountMappingStatus is a configured mapping plus its live status.
 type AccountMappingStatus struct {
 	config.AccountMapping
@@ -256,6 +267,39 @@ func (s *Service) AccountMappings(ctx context.Context) []AccountMappingStatus {
 		out = append(out, s.accountMappingStatus(ctx, acc, googleAccounts, googleErr))
 	}
 	return out
+}
+
+// PrimaryStatus collects the live state of the primary Immich profile. It is
+// best-effort: a failure is reported in Error instead of failing the request.
+func (s *Service) PrimaryStatus(ctx context.Context, cfg *config.Config) PrimaryStatus {
+	status := PrimaryStatus{}
+	if cfg == nil {
+		status.Error = "configuration is unavailable"
+		return status
+	}
+	status.APIKeyConfigured = strings.TrimSpace(cfg.ApiKey) != ""
+
+	if strings.TrimSpace(cfg.ApiURL) == "" {
+		status.Error = "Immich URL is not configured"
+	} else if !status.APIKeyConfigured {
+		status.Error = "Immich API key is not configured"
+	} else if id, name, err := immich.NewClient(cfg.ApiURL, cfg.ApiKey, 1).GetUser(ctx); err != nil {
+		status.Error = err.Error()
+	} else {
+		status.UserID = id
+		status.Name = name
+	}
+
+	if s != nil && s.Google != nil {
+		if accounts, err := s.Google.ListAccounts(ctx); err == nil && len(accounts) > 0 {
+			status.GoogleEmail = strings.TrimSpace(accounts[0])
+			status.GoogleConnected = status.GoogleEmail != ""
+		}
+	}
+	if s != nil {
+		status.WebSessionOK = s.WebSessionStatus(ctx).Connected
+	}
+	return status
 }
 
 // googleAccountList returns the emails stored in gotohp, when available.

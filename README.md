@@ -32,7 +32,7 @@ Sync photos from Google Photos shared albums to your [Immich](https://immich.app
    docker compose up -d
    ```
 
-2. Open **[http://localhost:8080](http://localhost:8080)** in your browser to configure your Immich API details and Google Photos shared album links via the Web UI! The app will automatically hot-reload when you save changes.
+2. Open **[http://localhost:8080](http://localhost:8080)** in your browser to configure your Immich API details and Google Photos shared album links via the Web UI! Settings save automatically, and only connection-level changes restart the app.
 
 ### Docker image tags
 
@@ -95,7 +95,7 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 ## Features
 
 - **No Google API Keys:** We scrape directly from shared album URLs, so there's no complex Google Cloud setup required!
-- **Web UI & Hot Reloading:** Manage every setting from the web interface on port 8080: connection, workers, dedup mode, metadata backfill, albums, storage and live logs. Changes apply instantly without restarting the container.
+- **Web UI & Hot Reloading:** Manage every setting from the web interface on port 8080: connection, workers, dedup mode, metadata backfill, albums, storage and live logs. Settings save automatically, and ordinary changes apply to a running sync without a restart.
 - **Trigger Sync API:** Trigger a sync on demand outside the regular schedule via `POST /api/sync` or `GET /sync_now` (ideal for Home Assistant buttons, webhooks, or automation scripts). See [home-assistant.yaml](home-assistant.yaml) for a ready-to-use Home Assistant configuration.
 - **Smart Syncing:** We pull down the full images and videos (no compressed thumbnails), extract the correct "taken" dates, and smoothly avoid Google's rate limits.
 - **Photographer Metadata:** The person who added each photo to the shared album is written to the Immich description as `Photographer: <name>`, next to the source album. Enable `updateExistingMetadata` to backfill photos that were imported before this feature.
@@ -105,7 +105,8 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Three experience modes:** Switch between Simple, Standard, and Advanced at the top of the sidebar. Simple keeps the basics, Standard adds two-way sync with one Google account, and Advanced exposes multi-account routing and every setting. The mode is stored in `uiMode`.
 - **Multi-account routing:** Link each Immich person to their own Google account in **Accounts & Users**. Uploads from Immich use the Google account of each photo owner, and shared album imports can use that person's Immich API key.
 - **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging.
-- **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification in Immich.
+- **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification, and choose which linked Immich profile sends it.
+- **ntfy notifications:** Send the same events to ntfy.sh or your own ntfy server as an independent second channel.
 - **Private album import (experimental):** Import albums from your own Google Photos account into Immich from a separate tab. Originals are downloaded, items are deduplicated, and progress is shown live.
 - **Guided setup:** The Overview page shows a first-run checklist and a short What's new card when a release adds features.
 - **Re-upload control:** Photos deleted from Google Photos stay deleted by default. Turn on the check per Google upload if you want missing items restored.
@@ -142,7 +143,12 @@ Limitations: Live Photo motion is imported as the still only. If Google asks for
 
 ## Notifications
 
-Enable **Notifications** in the Web UI to get an Immich notification when a sync fails, an import finishes, or a Google Photos upload finishes. The Immich API key needs `notification.create`, which Immich currently grants to admin keys. The test button shows the exact error if the key is not allowed.
+Notifications are optional and configured under **Notifications** in the Web UI. Two independent channels are available:
+
+- **Immich** sends a notification through the admin notification API. Choose the primary profile or another linked person with an Immich API key; the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys.
+- **ntfy** posts to ntfy.sh or your own server. Set the URL, topic, optional access token, and priority, then pick the events for that channel.
+
+Each channel has its own event switches. A failure in one channel never blocks the other, and a failed notification never interrupts a sync. The test buttons show the exact error if a channel is not configured correctly.
 
 
 ---

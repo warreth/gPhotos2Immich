@@ -42,6 +42,23 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
     "enabled": false,
     "strictAccountMatching": false
   },
+  "notifications": {
+    "immich": false,
+    "immichAccountId": "",
+    "onSyncFailed": false,
+    "onImportComplete": false,
+    "onUploadComplete": false,
+    "ntfy": {
+      "enabled": false,
+      "url": "https://ntfy.sh",
+      "topic": "",
+      "token": "",
+      "priority": "default",
+      "onSyncFailed": false,
+      "onImportComplete": false,
+      "onUploadComplete": false
+    }
+  },
   "googlePhotos": [
     {
       "url": "https://photos.app.goo.gl/YourAlbumLink1",
@@ -59,6 +76,8 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 ```
 
 ## Options
+
+Settings in the Web UI save automatically as you change them. The top bar shows **Saving**, **Saved**, or **Could not save**. Ordinary settings are applied to the running sync immediately. Changing the Immich URL, the primary API key, the data directory, or the Google uploader paths restarts the application so the connection is rebuilt.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -86,9 +105,18 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 | `googleUpload.maxRetries` | int | `3` | Reserved. A failed asset is retried on the next scheduled run. |
 | `googleUpload.autoUpdate` | bool | `false` | Reserved. Updating the pinned binary is done through the app image, not at runtime. |
 | `notifications.immich` | bool | `false` | Send notifications through Immich's admin notification API. |
+| `notifications.immichAccountId` | string | empty | Account mapping id or Immich user id whose API key sends the notification. Empty uses the primary profile. |
 | `notifications.onSyncFailed` | bool | `false` | Notify when an album cannot be read or an item fails. |
 | `notifications.onImportComplete` | bool | `false` | Notify when new photos were imported into Immich. |
 | `notifications.onUploadComplete` | bool | `false` | Notify when an Immich album finished uploading to Google Photos. |
+| `notifications.ntfy.enabled` | bool | `false` | Send notifications through ntfy as an independent second channel. |
+| `notifications.ntfy.url` | string | `https://ntfy.sh` | ntfy server base URL. |
+| `notifications.ntfy.topic` | string | none | ntfy topic. Required when ntfy is enabled. |
+| `notifications.ntfy.token` | string | none | Optional bearer token for a protected ntfy server. Mode 0600 inside `config.json`. |
+| `notifications.ntfy.priority` | string | `default` | `min`, `low`, `default`, `high`, `urgent`, `max`, or `1`–`5`. |
+| `notifications.ntfy.onSyncFailed` | bool | `false` | Notify through ntfy when a sync fails. |
+| `notifications.ntfy.onImportComplete` | bool | `false` | Notify through ntfy when an import finishes. |
+| `notifications.ntfy.onUploadComplete` | bool | `false` | Notify through ntfy when an Immich album finished uploading to Google Photos. |
 
 ## Dedup modes
 
@@ -180,9 +208,14 @@ In the other direction, the uploader reads each asset's `ownerId` and looks up t
 
 ## Notifications
 
-Notifications are optional and sent through Immich's admin notification API. Enable **Notifications** in the Web UI and choose which events you want. The Immich API key needs `notification.create`, which Immich currently grants to admin keys with all permissions. The **Send test notification** button reports the exact error if the key is not allowed.
+Notifications are optional. Two independent channels are available:
 
-A failed notification never interrupts a sync. If Immich rejects the call, the error is written to the log and the sync continues.
+- **Immich** sends a notification through the admin notification API. Choose the profile that should send it: the primary profile or a linked person with an Immich API key. That profile's key is used, and the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys with all permissions.
+- **ntfy** posts to `notifications.ntfy.url` and `notifications.ntfy.topic`. Use `https://ntfy.sh` or your own server, and add a bearer token if the topic is protected.
+
+Each channel has its own event switches. If one channel fails, the other still sends, and a failed notification never interrupts a sync. The **Send test notification** button reports the exact error for the chosen channel.
+
+Everything is configured under **Notifications** in the Web UI. The Immich target list only offers profiles with a working Immich API key. ntfy settings and the access token are stored in `config.json`, so keep the data directory private.
 
 ## Private album import (experimental)
 
@@ -207,8 +240,9 @@ When the Web UI is enabled, the embedded server provides the following endpoints
 | `/api/live` | `GET` | Server-Sent Events stream with activity snapshots and structured events. |
 | `/api/config` | `GET` / `POST` | Retrieve or update the application configuration. |
 | `/api/immich/users` | `GET` | List Immich users for the account wizard dropdown. |
-| `/api/accounts` | `GET` / `POST` / `DELETE` | Read account mappings and the routing preview, save one mapping, or delete one by `?id=<id>` or `{"id":"..."}`. |
-| `/api/notifications/test` | `POST` | Send one test notification through Immich. |
+| `/api/accounts` | `GET` / `POST` / `DELETE` | Read account mappings, the primary profile status, and the routing preview; save one mapping; or delete one by `?id=<id>` or `{"id":"..."}`. |
+| `/api/primary-profile` | `POST` | Update the Immich URL and primary API key, test the connection, and apply it. Omit `apiKey` to keep the stored key. |
+| `/api/notifications/test` | `POST` | Send one test notification through `immich` (default) or `ntfy`, using `{"channel":"ntfy"}`. |
 | `/api/google/account` | `GET` / `POST` / `DELETE` | Read, connect, or remove the gotohp Google credential. |
 | `/api/google/web-session` | `GET` / `POST` / `DELETE` | Read, connect, or remove the optional photos.google.com browser session. |
 | `/api/google/albums` | `GET` | List Immich albums for the upload mapping dropdown. |

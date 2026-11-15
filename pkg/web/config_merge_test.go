@@ -41,3 +41,40 @@ func TestMergeGoogleUploadPreservesNonUIFields(t *testing.T) {
 		t.Fatalf("strictAccountMatching = %#v", merged["strictAccountMatching"])
 	}
 }
+
+func TestMergeNotificationsPreservesNestedSettings(t *testing.T) {
+	existing := map[string]interface{}{
+		"immich":          true,
+		"immichAccountId": "acc-1",
+		"onSyncFailed":    true,
+		"ntfy": map[string]interface{}{
+			"enabled": true,
+			"url":     "https://ntfy.sh",
+			"topic":   "family",
+		},
+	}
+	incoming := config.NotificationsConfig{
+		Immich:       false,
+		OnSyncFailed: false,
+	}
+	raw := []byte(`{"immich":false,"onSyncFailed":false}`)
+	merged := mergeNotifications(existing, incoming, raw)
+
+	if merged["immich"] != false || merged["onSyncFailed"] != false {
+		t.Fatalf("form fields were not applied: %#v", merged)
+	}
+	if merged["immichAccountId"] != "acc-1" {
+		t.Fatalf("immichAccountId = %#v", merged["immichAccountId"])
+	}
+	if _, ok := merged["ntfy"]; !ok {
+		t.Fatal("an omitted ntfy block must be preserved")
+	}
+
+	// A submitted ntfy block replaces the stored one.
+	incoming.Ntfy = config.NtfyConfig{Enabled: true, URL: "https://ntfy.example", Topic: "new"}
+	merged = mergeNotifications(existing, incoming, []byte(`{"ntfy":{"enabled":true}}`))
+	ntfy, ok := merged["ntfy"].(config.NtfyConfig)
+	if !ok || ntfy.URL != "https://ntfy.example" || ntfy.Topic != "new" {
+		t.Fatalf("ntfy = %#v", merged["ntfy"])
+	}
+}

@@ -231,3 +231,177 @@ func TestSaveConfigKeepsAutomationFields(t *testing.T) {
 		t.Fatalf("service accounts = %#v", service.Accounts())
 	}
 }
+
+func TestSaveConfigPreservesOmittedAPIKey(t *testing.T) {
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiKey: "stored-secret",
+		ApiURL: "http://immich.invalid/api",
+		Accounts: []config.AccountMapping{{
+			ID: "acc-1", ImmichUserID: "u1", Name: "Lotte",
+		}},
+		GooglePhotos: []config.GooglePhotosConfig{{URL: "https://photos.app.goo.gl/x"}},
+	})
+
+	body := []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"googlePhotos": [{"url":"https://photos.app.goo.gl/x"}]
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiKey != "stored-secret" {
+		t.Fatalf("apiKey = %q, want the stored key", cfg.ApiKey)
+	}
+	if len(cfg.Accounts) != 1 || cfg.Accounts[0].ID != "acc-1" {
+		t.Fatalf("accounts were not preserved: %#v", cfg.Accounts)
+	}
+
+	// An explicit new key still replaces the stored one.
+	body = []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"apiKey": "rotated-secret",
+		"googlePhotos": [{"url":"https://photos.app.goo.gl/x"}]
+	}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	server.handleConfig(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if cfg := readSavedConfig(t, path); cfg.ApiKey != "rotated-secret" {
+		t.Fatalf("apiKey = %q", cfg.ApiKey)
+	}
+}
+
+func TestHandlePrimaryProfile(t *testing.T) {
+	var gotKey string
+	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/me" {
+			http.NotFound(w, r)
+			return
+		}
+		gotKey = r.Header.Get("x-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"primary-user","name":"Warre"}`))
+	}))
+	defer immichServer.Close()
+
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiKey:   "old-key",
+		ApiURL:   "http://old-immich.invalid/api",
+		UIMode:   config.UIModeAdvanced,
+		Accounts: []config.AccountMapping{{ID: "acc-1", ImmichUserID: "u1", Name: "Lotte"}},
+		GooglePhotos: []config.GooglePhotosConfig{{
+			URL: "https://photos.app.goo.gl/x", ImmichAccountID: "acc-1",
+		}},
+	})
+
+	body := []byte(`{"apiURL":"` + immichServer.URL + `","apiKey":"new-key"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/primary-profile", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handlePrimaryProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotKey != "new-key" {
+		t.Fatalf("tested key = %q", gotKey)
+	}
+	var resp struct {
+		OK     bool   `json:"ok"`
+		User   string `json:"user"`
+		UserID string `json:"userId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.OK || resp.User != "Warre" || resp.UserID != "primary-user" {
+		t.Fatalf("response = %#v", resp)
+	}
+
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiURL != immichServer.URL || cfg.ApiKey != "new-key" {
+		t.Fatalf("connection = %q %q", cfg.ApiURL, cfg.ApiKey)
+	}
+	if cfg.UIMode != config.UIModeAdvanced {
+		t.Fatalf("uiMode = %q", cfg.UIMode)
+	}
+	if len(cfg.Accounts) != 1 || cfg.Accounts[0].ID != "acc-1" {
+		t.Fatalf("accounts were not preserved: %#v", cfg.Accounts)
+	}
+	if len(cfg.GooglePhotos) != 1 || cfg.GooglePhotos[0].ImmichAccountID != "acc-1" {
+		t.Fatalf("albums were not preserved: %#v", cfg.GooglePhotos)
+	}
+
+	// Omitting the key keeps the stored one and tests with it.
+	gotKey = ""
+	body = []byte(`{"apiURL":"` + immichServer.URL + `"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/primary-profile", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	server.handlePrimaryProfile(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotKey != "new-key" {
+		t.Fatalf("second tested key = %q", gotKey)
+	}
+}
+
+func TestHandlePrimaryProfileRejectsBadConnection(t *testing.T) {
+	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"Invalid API key"}`, http.StatusUnauthorized)
+	}))
+	defer immichServer.Close()
+
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiKey: "old-key",
+		ApiURL: "http://old-immich.invalid/api",
+	})
+
+	body := []byte(`{"apiURL":"` + immichServer.URL + `","apiKey":"bad-key"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/primary-profile", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handlePrimaryProfile(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiKey != "old-key" || cfg.ApiURL != "http://old-immich.invalid/api" {
+		t.Fatalf("failed test must not rewrite the config: %q %q", cfg.ApiURL, cfg.ApiKey)
+	}
+}
+
+func TestAccountsResponseIncludesPrimary(t *testing.T) {
+	server, _, _ := newAccountsTestServer(t, config.Config{
+		ApiKey: "k",
+		// No API URL: PrimaryStatus reports an error without any network call.
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts", nil)
+	rec := httptest.NewRecorder()
+	server.handleAccounts(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Primary struct {
+			APIKeyConfigured bool   `json:"apiKeyConfigured"`
+			Error            string `json:"error"`
+		} `json:"primary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Primary.APIKeyConfigured {
+		t.Fatal("expected apiKeyConfigured")
+	}
+	if resp.Primary.Error == "" {
+		t.Fatal("expected an error for the missing Immich URL")
+	}
+}

@@ -124,9 +124,101 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 func accountsResponse(ctx context.Context, sb *syncback.Service, configPath string) map[string]interface{} {
 	cfg, _ := config.ReadConfig(configPath)
 	return map[string]interface{}{
+		"primary":  sb.PrimaryStatus(ctx, cfg),
 		"accounts": sb.AccountMappings(ctx),
 		"routing":  sb.RoutingPreview(ctx, cfg),
 	}
+}
+
+// handlePrimaryProfile edits the primary Immich URL and API key without
+// exposing the rest of the connection settings on a separate page.
+func (s *Server) handlePrimaryProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cfg, err := config.ReadConfig(s.configPath)
+	if err != nil {
+		http.Error(w, "Could not read configuration: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		ApiURL string `json:"apiURL"`
+		ApiKey string `json:"apiKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	apiURL := strings.TrimSpace(req.ApiURL)
+	if apiURL == "" {
+		apiURL = strings.TrimSpace(cfg.ApiURL)
+	}
+	apiKey := strings.TrimSpace(req.ApiKey)
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(cfg.ApiKey)
+	}
+	if apiURL == "" || apiKey == "" {
+		http.Error(w, "apiURL and apiKey are required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	userID, userName, err := immich.NewClient(apiURL, apiKey, 1).GetUserOnce(ctx)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Could not connect to Immich: " + err.Error()})
+		return
+	}
+
+	if err := s.writePrimaryProfile(apiURL, apiKey); err != nil {
+		http.Error(w, "Could not save the primary profile: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	cachedImmichUserMu.Lock()
+	cachedImmichUser = ""
+	cachedImmichUserMu.Unlock()
+	s.notifyConfigChange()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":     true,
+		"user":   userName,
+		"userId": userID,
+	})
+}
+
+// writePrimaryProfile changes only the connection fields and preserves every
+// other value in config.json.
+func (s *Server) writePrimaryProfile(apiURL, apiKey string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existingContent, err := os.ReadFile(s.configPath)
+	if err != nil {
+		return err
+	}
+	var existingMap map[string]interface{}
+	if err := json.Unmarshal(existingContent, &existingMap); err != nil {
+		return err
+	}
+	if existingMap == nil {
+		existingMap = make(map[string]interface{})
+	}
+	existingMap["apiURL"] = apiURL
+	existingMap["apiKey"] = apiKey
+
+	outBytes, err := json.MarshalIndent(existingMap, "", "    ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(s.configPath, outBytes, 0644)
 }
 
 // accountIDFromRequest accepts ?id=<id> or a JSON body with {"id": "..."}.

@@ -67,15 +67,34 @@ const (
 	UIModeAdvanced = "advanced"
 )
 
-// NotificationsConfig controls optional notifications sent through Immich.
-// Immich notifications use the admin notification API, so the API key needs
-// the notification.create permission (or all permissions).
-type NotificationsConfig struct {
-	Immich           bool `json:"immich"`
-	OnSyncFailed     bool `json:"onSyncFailed"`
-	OnImportComplete bool `json:"onImportComplete"`
-	OnUploadComplete bool `json:"onUploadComplete"`
+// NtfyConfig controls the optional ntfy push channel.
+type NtfyConfig struct {
+	Enabled          bool   `json:"enabled"`
+	URL              string `json:"url"`
+	Topic            string `json:"topic"`
+	Token            string `json:"token,omitempty"`
+	Priority         string `json:"priority,omitempty"`
+	OnSyncFailed     bool   `json:"onSyncFailed"`
+	OnImportComplete bool   `json:"onImportComplete"`
+	OnUploadComplete bool   `json:"onUploadComplete"`
 }
+
+// NotificationsConfig controls optional notifications. Immich notifications
+// use the admin notification API, so the API key needs the notification.create
+// permission (or all permissions). Ntfy is an independent channel.
+type NotificationsConfig struct {
+	Immich           bool       `json:"immich"`
+	ImmichAccountID  string     `json:"immichAccountId,omitempty"` // AccountMapping.ID or ImmichUserID; empty = primary profile
+	OnSyncFailed     bool       `json:"onSyncFailed"`
+	OnImportComplete bool       `json:"onImportComplete"`
+	OnUploadComplete bool       `json:"onUploadComplete"`
+	Ntfy             NtfyConfig `json:"ntfy"`
+}
+
+const (
+	defaultNtfyURL      = "https://ntfy.sh"
+	defaultNtfyPriority = "default"
+)
 
 const (
 	StorageModeQuota     = "quota"
@@ -412,6 +431,18 @@ func ReadConfig(path string) (*Config, error) {
 	config.GoogleUpload.WebCookiesFile = strings.TrimSpace(config.GoogleUpload.WebCookiesFile)
 	config.GoogleUpload.StorageMode = strings.TrimSpace(config.GoogleUpload.StorageMode)
 	config.GoogleUpload.Quality = strings.TrimSpace(config.GoogleUpload.Quality)
+
+	config.Notifications.ImmichAccountID = strings.TrimSpace(config.Notifications.ImmichAccountID)
+	config.Notifications.Ntfy.URL = strings.TrimSpace(config.Notifications.Ntfy.URL)
+	config.Notifications.Ntfy.Topic = strings.TrimSpace(config.Notifications.Ntfy.Topic)
+	config.Notifications.Ntfy.Token = strings.TrimSpace(config.Notifications.Ntfy.Token)
+	config.Notifications.Ntfy.Priority = strings.ToLower(strings.TrimSpace(config.Notifications.Ntfy.Priority))
+	if config.Notifications.Ntfy.URL == "" {
+		config.Notifications.Ntfy.URL = defaultNtfyURL
+	}
+	if config.Notifications.Ntfy.Priority == "" {
+		config.Notifications.Ntfy.Priority = defaultNtfyPriority
+	}
 	if config.GoogleUpload.GotohpBinary == "" {
 		config.GoogleUpload.GotohpBinary = "gotohp-cli"
 	}
@@ -482,6 +513,18 @@ func (c *Config) Validate() error {
 	if err := validateQuality("googleUpload.quality", c.GoogleUpload.Quality); err != nil {
 		return err
 	}
+	if c.Notifications.Ntfy.Enabled {
+		url := strings.TrimSpace(c.Notifications.Ntfy.URL)
+		if url == "" {
+			return fmt.Errorf("notifications.ntfy.url is required when ntfy is enabled")
+		}
+		if strings.TrimSpace(c.Notifications.Ntfy.Topic) == "" {
+			return fmt.Errorf("notifications.ntfy.topic is required when ntfy is enabled")
+		}
+		if err := validateNtfyPriority(c.Notifications.Ntfy.Priority); err != nil {
+			return err
+		}
+	}
 	if c.GoogleUpload.Threads < 0 {
 		return fmt.Errorf("googleUpload.threads must be non-negative")
 	}
@@ -527,5 +570,17 @@ func validateQuality(field, value string) error {
 		return nil
 	default:
 		return fmt.Errorf("%s must be %q or %q", field, QualityOriginal, QualitySaver)
+	}
+}
+
+// validateNtfyPriority accepts the named ntfy priorities and the numeric
+// aliases 1-5, which ntfy maps from min to max.
+func validateNtfyPriority(value string) error {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "min", "low", "default", "high", "urgent", "max",
+		"1", "2", "3", "4", "5":
+		return nil
+	default:
+		return fmt.Errorf("notifications.ntfy.priority must be min, low, default, high, urgent, max or a number from 1 to 5")
 	}
 }

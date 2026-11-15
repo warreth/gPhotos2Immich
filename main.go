@@ -58,6 +58,21 @@ func main() {
 		// Start web UI in the background
 		webUI = web.NewServer("config.json")
 		webUI.OnConfigChange = func() {
+			cfg, err := config.ReadConfig("config.json")
+			if err != nil || cfg.Validate() != nil {
+				// Invalid or unreadable configuration cannot be applied live;
+				// the startup path reports it and waits for the next update.
+				log.Println("Configuration updated via web UI, but it is not valid yet.")
+				return
+			}
+			currentAppMu.RLock()
+			appl := currentApp
+			currentAppMu.RUnlock()
+			if appl != nil && !app.NeedsRestart(appl.Config(), cfg) {
+				appl.UpdateConfig(cfg)
+				log.Println("Configuration applied live.")
+				return
+			}
 			log.Println("Configuration updated via web UI.")
 			select {
 			case reloadCh <- struct{}{}:

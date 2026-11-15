@@ -460,3 +460,91 @@ func TestResolveAlbumIDCreatesWithGivenClient(t *testing.T) {
 		t.Fatalf("keys = %#v", keys)
 	}
 }
+
+func TestNeedsRestart(t *testing.T) {
+	base := func() *config.Config {
+		return &config.Config{
+			ApiURL:  "http://immich/api",
+			ApiKey:  "key",
+			DataDir: "./data",
+			GoogleUpload: config.GoogleUploadConfig{
+				GotohpBinary:   "gotohp-cli",
+				GotohpConfig:   "./data/gotohp.config",
+				WebCookiesFile: "./data/cookies.txt",
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		change func(*config.Config)
+		want   bool
+	}{
+		{name: "no change", change: func(*config.Config) {}, want: false},
+		{name: "api url", change: func(c *config.Config) { c.ApiURL = "http://new/api" }, want: true},
+		{name: "api key", change: func(c *config.Config) { c.ApiKey = "new" }, want: true},
+		{name: "data dir", change: func(c *config.Config) { c.DataDir = "./other" }, want: true},
+		{name: "gotohp binary", change: func(c *config.Config) { c.GoogleUpload.GotohpBinary = "/app/gotohp" }, want: true},
+		{name: "gotohp config", change: func(c *config.Config) { c.GoogleUpload.GotohpConfig = "./x" }, want: true},
+		{name: "cookies file", change: func(c *config.Config) { c.GoogleUpload.WebCookiesFile = "./x" }, want: true},
+		{name: "debug", change: func(c *config.Config) { c.Debug = true }, want: false},
+		{name: "workers", change: func(c *config.Config) { c.Workers = 4 }, want: false},
+		{name: "dedup mode", change: func(c *config.Config) { c.DedupMode = "fast" }, want: false},
+		{name: "notifications", change: func(c *config.Config) { c.Notifications.Immich = true }, want: false},
+		{name: "accounts", change: func(c *config.Config) {
+			c.Accounts = []config.AccountMapping{{ID: "acc-1", ImmichUserID: "u1"}}
+		}, want: false},
+		{name: "albums", change: func(c *config.Config) {
+			c.GooglePhotos = []config.GooglePhotosConfig{{URL: "https://photos.app.goo.gl/x"}}
+		}, want: false},
+		{name: "upload schedule", change: func(c *config.Config) { c.GoogleUpload.Enabled = true }, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old := base()
+			updated := base()
+			tt.change(updated)
+			if got := NeedsRestart(old, updated); got != tt.want {
+				t.Fatalf("NeedsRestart() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	if !NeedsRestart(nil, base()) || !NeedsRestart(base(), nil) {
+		t.Fatal("a missing configuration must need a restart")
+	}
+}
+
+func TestUpdateConfigAppliesLiveAndSignalsSchedule(t *testing.T) {
+	app := newTestApp(t, "http://localhost:2283/api")
+	initial := app.Config()
+
+	updated := &config.Config{
+		ApiKey:  "test-key",
+		ApiURL:  "http://localhost:2283/api",
+		DataDir: initial.DataDir,
+		Debug:   true,
+		Accounts: []config.AccountMapping{{
+			ID: "acc-1", ImmichUserID: "u1", Name: "Lotte",
+		}},
+		GooglePhotos: []config.GooglePhotosConfig{{
+			URL: "https://photos.app.goo.gl/x", SyncInterval: "1h",
+		}},
+	}
+	app.UpdateConfig(updated)
+
+	if app.Config() != updated {
+		t.Fatal("Config() did not return the updated pointer")
+	}
+	if len(app.SyncBack.Accounts()) != 1 || app.SyncBack.Accounts()[0].ID != "acc-1" {
+		t.Fatalf("syncback accounts = %#v", app.SyncBack.Accounts())
+	}
+
+	select {
+	case <-app.configCh:
+		// The schedule loop is woken to reconcile the album list.
+	case <-time.After(time.Second):
+		t.Fatal("expected a config change signal")
+	}
+}

@@ -32,8 +32,11 @@ type App struct {
 	SyncBack      *syncback.Service
 	PrivateImport *privateimport.Manager
 	Notifier      *notify.Service
+	ImmichUserID  string
 	syncCh        chan struct{}
 	descriptionCh chan descriptionUpdate
+	configCh      chan struct{}
+	cfgMu         sync.RWMutex
 }
 
 type descriptionUpdate struct {
@@ -88,9 +91,11 @@ func New(cfg *config.Config) (*App, error) {
 		State:         syncState,
 		syncCh:        make(chan struct{}, 1),
 		descriptionCh: make(chan descriptionUpdate, 10000),
+		configCh:      make(chan struct{}, 1),
 	}
 	webClient := gphotosweb.NewClient(cfg.EffectiveWebCookiesFile())
 	application.Notifier = notify.New(client, cfg.Notifications, logger)
+	application.applyNotificationTarget(cfg)
 	application.SyncBack = NewSyncBack(cfg, syncState, logger, application.Notifier, webClient)
 	application.PrivateImport = privateimport.NewManager(&privateimport.Service{
 		Web:         webClient,
@@ -102,13 +107,102 @@ func New(cfg *config.Config) (*App, error) {
 	return application, nil
 }
 
-// StartSyncBack starts the automatic backward upload schedule when it is
-// enabled in the configuration.
-func (a *App) StartSyncBack(ctx context.Context) {
-	if !a.Cfg.GoogleUpload.Enabled || a.SyncBack == nil {
+// Config returns the current configuration. A caller may keep the pointer for
+// the duration of one operation: UpdateConfig replaces the pointer instead of
+// mutating the previous value.
+func (a *App) Config() *config.Config {
+	if a == nil {
+		return nil
+	}
+	a.cfgMu.RLock()
+	defer a.cfgMu.RUnlock()
+	return a.Cfg
+}
+
+// UpdateConfig applies settings that do not need a restart. The changed
+// pointer is published first; dependent services are updated afterwards so
+// they never observe a half-applied configuration.
+func (a *App) UpdateConfig(cfg *config.Config) {
+	if a == nil || cfg == nil {
 		return
 	}
-	a.SyncBack.StartSchedule(ctx, a.Cfg, 15*time.Minute)
+	a.cfgMu.Lock()
+	a.Cfg = cfg
+	a.cfgMu.Unlock()
+
+	if a.SyncBack != nil {
+		a.SyncBack.SetAccounts(cfg.Accounts, cfg.GoogleUpload.StrictAccountMatching)
+	}
+	if a.Notifier != nil {
+		a.Notifier.SetConfig(cfg.Notifications)
+	}
+	a.applyNotificationTarget(cfg)
+
+	select {
+	case a.configCh <- struct{}{}:
+	default:
+	}
+}
+
+// NeedsRestart reports whether a change to one of the connection-level fields
+// requires rebuilding the app. Everything else is applied live.
+func NeedsRestart(old, new *config.Config) bool {
+	if old == nil || new == nil {
+		return true
+	}
+	if old.ApiURL != new.ApiURL || old.ApiKey != new.ApiKey || old.DataDir != new.DataDir {
+		return true
+	}
+	if old.GoogleUpload.GotohpBinary != new.GoogleUpload.GotohpBinary ||
+		old.GoogleUpload.GotohpConfig != new.GoogleUpload.GotohpConfig ||
+		old.GoogleUpload.WebCookiesFile != new.GoogleUpload.WebCookiesFile {
+		return true
+	}
+	return false
+}
+
+// applyNotificationTarget points the notifier at the configured Immich account
+// or, when no account is selected, at the primary profile.
+func (a *App) applyNotificationTarget(cfg *config.Config) {
+	if a == nil || a.Notifier == nil {
+		return
+	}
+	if cfg == nil {
+		a.Notifier.SetImmichTarget(nil, "")
+		return
+	}
+	wanted := strings.TrimSpace(cfg.Notifications.ImmichAccountID)
+	if wanted == "" {
+		a.cfgMu.RLock()
+		userID := a.ImmichUserID
+		a.cfgMu.RUnlock()
+		a.Notifier.SetImmichTarget(a.Client, userID)
+		return
+	}
+	for _, acc := range cfg.Accounts {
+		if !strings.EqualFold(strings.TrimSpace(acc.ID), wanted) &&
+			!strings.EqualFold(strings.TrimSpace(acc.ImmichUserID), wanted) {
+			continue
+		}
+		key := strings.TrimSpace(acc.ImmichAPIKey)
+		if key == "" {
+			a.Notifier.SetImmichTarget(nil, "")
+			return
+		}
+		a.Notifier.SetImmichTarget(immich.NewClient(cfg.ApiURL, key, 1), strings.TrimSpace(acc.ImmichUserID))
+		return
+	}
+	a.Notifier.SetImmichTarget(nil, "")
+}
+
+// StartSyncBack starts the automatic backward upload schedule. The schedule
+// reads the live configuration on every tick, so it is always started and the
+// GoogleUpload.Enabled switch inside the tick controls the work.
+func (a *App) StartSyncBack(ctx context.Context) {
+	if a.SyncBack == nil {
+		return
+	}
+	a.SyncBack.StartSchedule(ctx, a.Config, 15*time.Minute)
 }
 
 // TriggerSync requests an immediate sync of all albums outside the schedule
@@ -198,7 +292,7 @@ func (a *App) queueUploadDescription(assetID, description string, isDup bool) {
 	if description == "" || assetID == "" {
 		return
 	}
-	if isDup && !a.Cfg.UpdateExistingMetadata {
+	if cfg := a.Config(); isDup && (cfg == nil || !cfg.UpdateExistingMetadata) {
 		return
 	}
 	a.queueDescription(descriptionUpdate{
@@ -210,7 +304,8 @@ func (a *App) queueUploadDescription(assetID, description string, isDup bool) {
 }
 
 func (a *App) maybeQueueDescription(assetID string, p googlephotos.Photo, albumTitle, albumURL string, globalAssets *immich.AssetIndex) {
-	if !a.Cfg.UpdateExistingMetadata || assetID == "" {
+	cfg := a.Config()
+	if cfg == nil || !cfg.UpdateExistingMetadata || assetID == "" {
 		return
 	}
 	description := buildDescription(p, albumTitle, albumURL)
@@ -310,7 +405,8 @@ func isPermanentImmichError(err error) bool {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	a.Logger.Info("Starting Immich Sync", "dedup_mode", a.Cfg.EffectiveDedupMode())
+	cfg := a.Config()
+	a.Logger.Info("Starting Immich Sync", "dedup_mode", cfg.EffectiveDedupMode())
 
 	id, name, err := a.waitForImmich(ctx)
 	if err != nil {
@@ -321,14 +417,14 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to Immich: %w", err)
 	}
 	a.Logger.Info("Connected to Immich", "user_id", id, "name", name)
-	if a.Notifier != nil {
-		a.Notifier.SetUserID(id)
-	}
+	a.cfgMu.Lock()
+	a.ImmichUserID = id
+	a.cfgMu.Unlock()
+	a.applyNotificationTarget(a.Config())
 	progress.AddEvent("info", "system", "Connected to Immich", map[string]any{"name": name})
 
-	if len(a.Cfg.GooglePhotos) == 0 {
-		a.Logger.Warn("No albums configured")
-		return nil
+	if len(cfg.GooglePhotos) == 0 {
+		a.Logger.Warn("No albums configured; waiting for an album to be added")
 	}
 
 	// Description updates are applied asynchronously so a slow metadata
@@ -340,15 +436,10 @@ func (a *App) Run(ctx context.Context) error {
 	// Initialize schedule - all albums due immediately
 	nextRun := make(map[string]time.Time)
 	nowStart := time.Now()
-	for _, ac := range a.Cfg.GooglePhotos {
+	for _, ac := range cfg.GooglePhotos {
 		nextRun[ac.URL] = nowStart
 	}
 	progress.SetScheduleTimes(time.Time{}, nowStart)
-
-	albumWorkers := a.Cfg.AlbumWorkers
-	if albumWorkers < 1 {
-		albumWorkers = 1
-	}
 
 	for {
 		// Check for shutdown between cycles
@@ -359,11 +450,35 @@ func (a *App) Run(ctx context.Context) error {
 		default:
 		}
 
+		cfg = a.Config()
+		if cfg == nil {
+			cfg = &config.Config{}
+		}
+		// Pick up albums and intervals saved while the app was running. New
+		// albums run immediately; removed albums stop being scheduled.
+		current := make(map[string]bool, len(cfg.GooglePhotos))
+		for _, ac := range cfg.GooglePhotos {
+			current[ac.URL] = true
+			if _, ok := nextRun[ac.URL]; !ok {
+				nextRun[ac.URL] = time.Now()
+			}
+		}
+		for url := range nextRun {
+			if !current[url] {
+				delete(nextRun, url)
+			}
+		}
+
+		albumWorkers := cfg.AlbumWorkers
+		if albumWorkers < 1 {
+			albumWorkers = 1
+		}
+
 		// Collect albums due for sync and find earliest next run
 		var due []config.GooglePhotosConfig
 		earliest := time.Now().Add(24 * time.Hour)
 
-		for _, ac := range a.Cfg.GooglePhotos {
+		for _, ac := range cfg.GooglePhotos {
 			if !time.Now().Before(nextRun[ac.URL]) {
 				due = append(due, ac)
 			} else if nextRun[ac.URL].Before(earliest) {
@@ -472,12 +587,17 @@ func (a *App) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			a.Logger.Info("Shutdown requested, stopping sync loop")
 			return nil
+		case <-a.configCh:
+			a.Logger.Debug("Configuration changed, refreshing schedule")
+			continue
 		case <-a.syncCh:
 			a.Logger.Info("Sync triggered manually, running all albums immediately")
 			progress.AddEvent("info", "system", "Sync triggered manually", nil)
 			now := time.Now()
-			for _, ac := range a.Cfg.GooglePhotos {
-				nextRun[ac.URL] = now
+			if latest := a.Config(); latest != nil {
+				for _, ac := range latest.GooglePhotos {
+					nextRun[ac.URL] = now
+				}
 			}
 		case <-time.After(waitDuration):
 		}
@@ -497,14 +617,15 @@ type processResult struct {
 // the assets land in that user's library (Option A). Unknown or keyless
 // mappings fall back to the primary client.
 func (a *App) immichClientFor(ac config.GooglePhotosConfig) *immich.Client {
-	if a.Cfg == nil || a.Client == nil {
+	cfg := a.Config()
+	if cfg == nil || a.Client == nil {
 		return a.Client
 	}
 	wanted := strings.TrimSpace(ac.ImmichAccountID)
 	if wanted == "" {
 		return a.Client
 	}
-	for _, acc := range a.Cfg.Accounts {
+	for _, acc := range cfg.Accounts {
 		if !strings.EqualFold(strings.TrimSpace(acc.ID), wanted) &&
 			!strings.EqualFold(strings.TrimSpace(acc.ImmichUserID), wanted) {
 			continue
@@ -513,11 +634,11 @@ func (a *App) immichClientFor(ac config.GooglePhotosConfig) *immich.Client {
 		if key == "" {
 			return a.Client
 		}
-		workers := a.Cfg.Workers
+		workers := cfg.Workers
 		if workers < 1 {
 			workers = 1
 		}
-		return immich.NewClient(a.Cfg.ApiURL, key, workers)
+		return immich.NewClient(cfg.ApiURL, key, workers)
 	}
 	return a.Client
 }
@@ -568,6 +689,10 @@ type albumRunResult struct {
 }
 
 func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, albumCache []immich.Album, globalAssets *immich.AssetIndex) albumRunResult {
+	cfg := a.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
 	logger := a.Logger.With("album_url", ac.URL)
 	logger.Info("Syncing Google Photos Album")
 
@@ -613,7 +738,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	failed := 0
 	progress.StartAlbum(albumTitle, total)
 
-	numWorkers := a.Cfg.Workers
+	numWorkers := cfg.Workers
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
@@ -624,7 +749,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	logger.Debug("Processing items", "total_items", total, "workers", numWorkers)
 
 	// Create and start progress tracker
-	tracker := progress.New(albumTitle, total, a.Cfg.Debug)
+	tracker := progress.New(albumTitle, total, cfg.Debug)
 	tracker.Start()
 
 	jobs := make(chan googlephotos.Photo, numWorkers*2)
@@ -636,7 +761,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		go func() {
 			defer wg.Done()
 			for p := range jobs {
-				id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, albumClient, p, albumTitle, ac.URL, existingFiles, globalAssets)
+				id, uploaded, bytesDown, bytesUp, err := a.processItem(ctx, cfg, albumClient, p, albumTitle, ac.URL, existingFiles, globalAssets)
 				results <- processResult{ID: id, WasUploaded: uploaded, Error: err, BytesDownloaded: bytesDown, BytesUploaded: bytesUp}
 			}
 		}()
@@ -705,7 +830,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 		}
 
 		// Log progress every 100 items in debug mode
-		if a.Cfg.Debug && processed%100 == 0 {
+		if cfg.Debug && processed%100 == 0 {
 			logger.Debug("Progress", "processed", processed, "total", total, "added", added, "skipped", skipped, "failed", failed)
 		}
 	}
@@ -721,7 +846,7 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 			logger.Error("Error adding assets to album", "error", err)
 		}
 	}
-	if a.Cfg.Debug {
+	if cfg.Debug {
 		logger.Info("Sync finished", "added", added, "skipped", skipped, "failed", failed, "total", processed)
 	}
 
@@ -734,7 +859,10 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	return albumRunResult{Album: albumTitle, Added: added, Skipped: skipped, Failed: failed}
 }
 
-func (a *App) processItem(ctx context.Context, client *immich.Client, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {
+func (a *App) processItem(ctx context.Context, cfg *config.Config, client *immich.Client, p googlephotos.Photo, albumTitle, albumURL string, albumAssets, globalAssets *immich.AssetIndex) (string, bool, int64, int64, error) {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
 	safeId := strings.ReplaceAll(p.ID, "/", "_")
 	safeId = strings.ReplaceAll(safeId, ":", "_")
 	baseName := fmt.Sprintf("gp_%s", safeId)
@@ -784,7 +912,7 @@ func (a *App) processItem(ctx context.Context, client *immich.Client, p googleph
 		"gp_item_id", p.ID,
 	)
 
-	if a.Cfg.StrictMetadata && p.TakenAt.IsZero() {
+	if cfg.StrictMetadata && p.TakenAt.IsZero() {
 		a.Logger.Warn("Skipping item with missing metadata date",
 			"id", p.ID, "url", p.URL)
 		return "", false, 0, 0, nil
@@ -816,7 +944,7 @@ func (a *App) processItem(ctx context.Context, client *immich.Client, p googleph
 		}
 	}
 
-	if isVideo && a.Cfg.SkipVideos {
+	if isVideo && cfg.SkipVideos {
 		a.Logger.Debug("Skipping video item", "id", p.ID)
 		return "", false, bytesDownloaded, 0, nil
 	}
@@ -996,7 +1124,11 @@ func (a *App) resolveStateAsset(baseName string, isVideo bool, globalAssets *imm
 		return "", stateNone
 	}
 
-	if !a.Cfg.VerifyDedupState() || globalAssets == nil {
+	cfg := a.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	if !cfg.VerifyDedupState() || globalAssets == nil {
 		return assetID, stateUse
 	}
 
@@ -1013,14 +1145,14 @@ func (a *App) resolveStateAsset(baseName string, isVideo bool, globalAssets *imm
 		return assetID, stateReprocess
 	}
 
-	if a.Cfg.AdoptReplacements() {
+	if cfg.AdoptReplacements() {
 		if replacement, ok := globalAssets.FindReplacement(baseName, isVideo); ok {
 			a.State.Set(baseName, replacement)
 			return replacement, stateUse
 		}
 	}
 
-	if a.Cfg.ReuploadMissing() {
+	if cfg.ReuploadMissing() {
 		return "", stateReupload
 	}
 	return "", stateSkip

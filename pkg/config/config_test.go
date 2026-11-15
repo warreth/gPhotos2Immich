@@ -475,3 +475,96 @@ func TestStrictAccountMatchingAndImmichAccountIDRoundTrip(t *testing.T) {
 		t.Fatal("an empty immichAccountId must be omitted from JSON")
 	}
 }
+
+func TestNtfyDefaultsAndNormalization(t *testing.T) {
+	path := writeTestConfig(t, `{
+		"apiKey": "k",
+		"apiURL": "http://immich/api",
+		"notifications": {
+			"immich": true,
+			"immichAccountId": "  acc-1 ",
+			"ntfy": {
+				"enabled": true,
+				"topic": "  family-photos ",
+				"token": "  tk_secret ",
+				"priority": "  HIGH "
+			}
+		}
+	}`)
+
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+	ntfy := cfg.Notifications.Ntfy
+	if ntfy.URL != "https://ntfy.sh" {
+		t.Fatalf("ntfy URL = %q, want the public default", ntfy.URL)
+	}
+	if ntfy.Topic != "family-photos" || ntfy.Token != "tk_secret" {
+		t.Fatalf("ntfy was not trimmed: %#v", ntfy)
+	}
+	if ntfy.Priority != "high" {
+		t.Fatalf("priority = %q, want high", ntfy.Priority)
+	}
+	if cfg.Notifications.ImmichAccountID != "acc-1" {
+		t.Fatalf("immichAccountId = %q", cfg.Notifications.ImmichAccountID)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("normalized ntfy config must validate: %v", err)
+	}
+}
+
+func TestNtfyPriorityDefaultsWhenMissing(t *testing.T) {
+	path := writeTestConfig(t, `{
+		"apiKey": "k",
+		"apiURL": "http://immich/api"
+	}`)
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		t.Fatalf("ReadConfig failed: %v", err)
+	}
+	if cfg.Notifications.Ntfy.Priority != "default" {
+		t.Fatalf("priority = %q, want default", cfg.Notifications.Ntfy.Priority)
+	}
+	if cfg.Notifications.Ntfy.URL != "https://ntfy.sh" {
+		t.Fatalf("URL = %q", cfg.Notifications.Ntfy.URL)
+	}
+}
+
+func TestNtfyValidation(t *testing.T) {
+	base := func(ntfy NtfyConfig) *Config {
+		cfg := &Config{ApiKey: "k", ApiURL: "http://x/api"}
+		cfg.Notifications.Ntfy = ntfy
+		return cfg
+	}
+
+	valid := []NtfyConfig{
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "min"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "MAX"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "3"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: " 5 "},
+	}
+	for _, ntfy := range valid {
+		if err := base(ntfy).Validate(); err != nil {
+			t.Fatalf("valid ntfy config %#v rejected: %v", ntfy, err)
+		}
+	}
+
+	invalid := []NtfyConfig{
+		{Enabled: true, Topic: "photos"},
+		{Enabled: true, URL: "https://ntfy.sh"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "loud"},
+		{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "6"},
+	}
+	for _, ntfy := range invalid {
+		if err := base(ntfy).Validate(); err == nil {
+			t.Fatalf("invalid ntfy config %#v was accepted", ntfy)
+		}
+	}
+
+	// A disabled channel may keep empty values.
+	if err := base(NtfyConfig{}).Validate(); err != nil {
+		t.Fatalf("disabled ntfy must not require a URL or topic: %v", err)
+	}
+}

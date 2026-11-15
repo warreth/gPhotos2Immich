@@ -463,10 +463,12 @@ func (s *Service) Running(albumID string) bool {
 }
 
 // StartSchedule runs the backward upload for every album with uploadToGoogle
-// enabled, every interval, until ctx is cancelled. It is the automatic half of
-// the feature; the manual per-album button works without it.
-func (s *Service) StartSchedule(ctx context.Context, cfg *config.Config, interval time.Duration) {
-	if s == nil || cfg == nil {
+// enabled, every interval, until ctx is cancelled. The configuration is read
+// on every tick so enabling the schedule or editing albums does not need a
+// restart. It is the automatic half of the feature; the manual per-album
+// button works without it.
+func (s *Service) StartSchedule(ctx context.Context, cfgFn func() *config.Config, interval time.Duration) {
+	if s == nil || cfgFn == nil {
 		return
 	}
 	if interval <= 0 {
@@ -480,6 +482,10 @@ func (s *Service) StartSchedule(ctx context.Context, cfg *config.Config, interva
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				cfg := cfgFn()
+				if cfg == nil || !cfg.GoogleUpload.Enabled {
+					continue
+				}
 				for i, gp := range cfg.GooglePhotos {
 					if !gp.UploadToGoogle || gp.ImmichAlbumID == "" {
 						continue

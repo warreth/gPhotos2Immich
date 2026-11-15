@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,7 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/immich/users", s.handleImmichUsers)
 	mux.HandleFunc("/api/accounts", s.handleAccounts)
+	mux.HandleFunc("/api/primary-profile", s.handlePrimaryProfile)
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/logs", s.handleLogs)
 	mux.HandleFunc("/api/activity", s.handleActivity)
@@ -279,11 +281,23 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	if existingMap == nil {
 		existingMap = make(map[string]interface{})
 	}
+	var existingCfg config.Config
+	if len(existingContent) > 0 {
+		_ = json.Unmarshal(existingContent, &existingCfg)
+	}
+
+	// The settings form may omit the API key so a saved page never overwrites
+	// the stored secret with an empty value.
+	apiKey := newCfg.ApiKey
+	if strings.TrimSpace(apiKey) == "" {
+		apiKey = existingCfg.ApiKey
+	}
+	connectionChanged := newCfg.ApiURL != existingCfg.ApiURL || apiKey != existingCfg.ApiKey
 
 	// Update every field exposed in the UI, preserving any extra fields that
 	// were added to config.json by hand.
 	existingMap["apiURL"] = newCfg.ApiURL
-	existingMap["apiKey"] = newCfg.ApiKey
+	existingMap["apiKey"] = apiKey
 	existingMap["debug"] = newCfg.Debug
 	existingMap["workers"] = newCfg.Workers
 	existingMap["albumWorkers"] = newCfg.AlbumWorkers
@@ -292,7 +306,7 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	existingMap["dataDir"] = newCfg.DataDir
 	existingMap["dedupMode"] = newCfg.DedupMode
 	existingMap["updateExistingMetadata"] = newCfg.UpdateExistingMetadata
-	existingMap["notifications"] = newCfg.Notifications
+	existingMap["notifications"] = mergeNotifications(existingMap["notifications"], newCfg.Notifications, raw["notifications"])
 	if _, ok := raw["uiMode"]; ok {
 		existingMap["uiMode"] = newCfg.UIMode
 	}
@@ -307,10 +321,6 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	if _, ok := raw["accounts"]; ok {
 		existingMap["accounts"] = accounts
 	} else {
-		var existingCfg config.Config
-		if len(existingContent) > 0 {
-			_ = json.Unmarshal(existingContent, &existingCfg)
-		}
 		accounts = existingCfg.Accounts
 	}
 
@@ -334,9 +344,11 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The cached Immich user may belong to the previous credentials.
-	cachedImmichUserMu.Lock()
-	cachedImmichUser = ""
-	cachedImmichUserMu.Unlock()
+	if connectionChanged {
+		cachedImmichUserMu.Lock()
+		cachedImmichUser = ""
+		cachedImmichUserMu.Unlock()
+	}
 
 	if s.OnConfigChange != nil {
 		go s.OnConfigChange()
@@ -344,6 +356,44 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status": "ok"}`))
+}
+
+// mergeNotifications keeps nested notification settings the current form does
+// not expose. The Immich toggles are owned by the form; an account selection
+// or ntfy block that was not submitted stays as stored.
+func mergeNotifications(existing interface{}, incoming config.NotificationsConfig, raw json.RawMessage) map[string]interface{} {
+	merged := map[string]interface{}{}
+	if stored, ok := existing.(map[string]interface{}); ok {
+		for key, value := range stored {
+			merged[key] = value
+		}
+	}
+	if len(raw) == 0 {
+		return merged
+	}
+	var sent map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		return merged
+	}
+	if _, ok := sent["immich"]; ok {
+		merged["immich"] = incoming.Immich
+	}
+	if _, ok := sent["immichAccountId"]; ok {
+		merged["immichAccountId"] = incoming.ImmichAccountID
+	}
+	if _, ok := sent["onSyncFailed"]; ok {
+		merged["onSyncFailed"] = incoming.OnSyncFailed
+	}
+	if _, ok := sent["onImportComplete"]; ok {
+		merged["onImportComplete"] = incoming.OnImportComplete
+	}
+	if _, ok := sent["onUploadComplete"]; ok {
+		merged["onUploadComplete"] = incoming.OnUploadComplete
+	}
+	if _, ok := sent["ntfy"]; ok {
+		merged["ntfy"] = incoming.Ntfy
+	}
+	return merged
 }
 
 // mergeGoogleUpload keeps non-UI fields from the existing config while taking
