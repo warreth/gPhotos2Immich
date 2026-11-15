@@ -69,6 +69,9 @@ func TestSendRequiresUserID(t *testing.T) {
 	if len(sender.calls) != 0 {
 		t.Fatalf("notification without a user id was sent: %#v", sender.calls)
 	}
+	if service.Enabled(EventSyncFailed) {
+		t.Fatal("an Immich-only event must be disabled without a target")
+	}
 }
 
 func TestFailedSendDoesNotPanic(t *testing.T) {

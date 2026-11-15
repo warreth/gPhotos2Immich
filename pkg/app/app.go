@@ -145,7 +145,9 @@ func (a *App) UpdateConfig(cfg *config.Config) {
 }
 
 // NeedsRestart reports whether a change to one of the connection-level fields
-// requires rebuilding the app. Everything else is applied live.
+// requires rebuilding the app. The upload thread count is fixed when the
+// uploader is built, so it also needs a restart. Everything else is applied
+// live.
 func NeedsRestart(old, new *config.Config) bool {
 	if old == nil || new == nil {
 		return true
@@ -155,7 +157,8 @@ func NeedsRestart(old, new *config.Config) bool {
 	}
 	if old.GoogleUpload.GotohpBinary != new.GoogleUpload.GotohpBinary ||
 		old.GoogleUpload.GotohpConfig != new.GoogleUpload.GotohpConfig ||
-		old.GoogleUpload.WebCookiesFile != new.GoogleUpload.WebCookiesFile {
+		old.GoogleUpload.WebCookiesFile != new.GoogleUpload.WebCookiesFile ||
+		old.GoogleUpload.Threads != new.GoogleUpload.Threads {
 		return true
 	}
 	return false
@@ -435,9 +438,11 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Initialize schedule - all albums due immediately
 	nextRun := make(map[string]time.Time)
+	intervals := make(map[string]string, len(cfg.GooglePhotos))
 	nowStart := time.Now()
 	for _, ac := range cfg.GooglePhotos {
 		nextRun[ac.URL] = nowStart
+		intervals[ac.URL] = ac.SyncInterval
 	}
 	progress.SetScheduleTimes(time.Time{}, nowStart)
 
@@ -462,10 +467,17 @@ func (a *App) Run(ctx context.Context) error {
 			if _, ok := nextRun[ac.URL]; !ok {
 				nextRun[ac.URL] = time.Now()
 			}
+			if previous, ok := intervals[ac.URL]; ok && previous != ac.SyncInterval {
+				// The interval changed while the app was running. Run the album
+				// now and apply the new interval from this completion.
+				nextRun[ac.URL] = time.Now()
+			}
+			intervals[ac.URL] = ac.SyncInterval
 		}
 		for url := range nextRun {
 			if !current[url] {
 				delete(nextRun, url)
+				delete(intervals, url)
 			}
 		}
 

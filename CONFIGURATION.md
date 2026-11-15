@@ -77,7 +77,7 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 
 ## Options
 
-Settings in the Web UI save automatically as you change them. The top bar shows **Saving**, **Saved**, or **Could not save**. Ordinary settings are applied to the running sync immediately. Changing the Immich URL, the primary API key, the data directory, or the Google uploader paths restarts the application so the connection is rebuilt.
+Settings in the Web UI save automatically as you change them. The top bar shows **Saving**, **Saved**, or **Could not save**. Ordinary settings are applied to the running sync immediately. Changing the Immich URL, the primary API key, the data directory, the Google uploader paths, or the parallel upload count restarts the application so the connection is rebuilt.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -92,7 +92,7 @@ Settings in the Web UI save automatically as you change them. The top bar shows 
 | `updateExistingMetadata` | bool | `false` | Backfill the photographer/source-album description on assets that already exist in Immich. User-edited descriptions are left untouched. |
 | `uiMode` | string | `standard` | Interface mode: `simple`, `standard`, or `advanced`. It only changes which Web UI sections are shown. A config with `accounts` opens in `advanced` when `uiMode` is empty. |
 | `accounts` | array | `[]` | Immich user to Google account mappings. See [Accounts and routing](#accounts-and-routing). |
-| `googleUpload.enabled` | bool | `false` | Enable the optional Immich → Google Photos direction. The per-album `uploadToGoogle` switch is the real opt-in. |
+| `googleUpload.enabled` | bool | `false` | Master switch for the optional Immich → Google Photos direction. Each album also needs its own `uploadToGoogle` switch. |
 | `googleUpload.gotohpBinary` | string | `gotohp-cli` | Path to the pinned `gotohp-cli` binary. The Docker image ships `/app/gotohp-cli`. |
 | `googleUpload.gotohpConfig` | string | `./data/gotohp.config` | Private file where `gotohp-cli` stores the Google credential. Mode 0600. |
 | `googleUpload.webCookiesFile` | string | `./data/gphotos-web-cookies.txt` | Optional private cookies.txt for the photos.google.com browser session. Needed only for albums you do not own. Mode 0600. |
@@ -112,7 +112,7 @@ Settings in the Web UI save automatically as you change them. The top bar shows 
 | `notifications.ntfy.enabled` | bool | `false` | Send notifications through ntfy as an independent second channel. |
 | `notifications.ntfy.url` | string | `https://ntfy.sh` | ntfy server base URL. |
 | `notifications.ntfy.topic` | string | none | ntfy topic. Required when ntfy is enabled. |
-| `notifications.ntfy.token` | string | none | Optional bearer token for a protected ntfy server. Mode 0600 inside `config.json`. |
+| `notifications.ntfy.token` | string | none | Optional bearer token for a protected ntfy server. Stored in `config.json`; keep the data directory private. |
 | `notifications.ntfy.priority` | string | `default` | `min`, `low`, `default`, `high`, `urgent`, `max`, or `1`–`5`. |
 | `notifications.ntfy.onSyncFailed` | bool | `false` | Notify through ntfy when a sync fails. |
 | `notifications.ntfy.onImportComplete` | bool | `false` | Notify through ntfy when an import finishes. |

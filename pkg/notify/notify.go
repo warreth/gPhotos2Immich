@@ -118,8 +118,13 @@ func (s *Service) Enabled(event Event) bool {
 	}
 	s.mu.RLock()
 	cfg := s.cfg
+	sender := s.sender
+	userID := s.userID
 	s.mu.RUnlock()
-	return immichEventEnabled(cfg, event) || ntfyEventEnabled(cfg.Ntfy, event)
+	if immichEventEnabled(cfg, event) && sender != nil && userID != "" {
+		return true
+	}
+	return ntfyEventEnabled(cfg.Ntfy, event)
 }
 
 func immichEventEnabled(cfg config.NotificationsConfig, event Event) bool {

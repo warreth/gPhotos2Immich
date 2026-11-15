@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -331,7 +332,27 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(s.configPath, outBytes, 0644); err != nil {
+	// Validate the merged document before writing it. The live app refuses an
+	// invalid config, so writing one would leave the file and the running
+	// service out of sync while the UI reported a successful save.
+	mergedBytes, err := json.Marshal(existingMap)
+	if err != nil {
+		http.Error(w, "Failed to serialize config", http.StatusInternalServerError)
+		return
+	}
+	var mergedCfg config.Config
+	if err := json.Unmarshal(mergedBytes, &mergedCfg); err != nil {
+		http.Error(w, "Failed to read merged config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := mergedCfg.Validate(); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	if err := writeConfigFile(s.configPath, outBytes); err != nil {
 		fmt.Printf("Failed to write config file %s: %v\n", s.configPath, err)
 		http.Error(w, fmt.Sprintf("Failed to write config file: %v", err), http.StatusInternalServerError)
 		return
@@ -356,6 +377,38 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status": "ok"}`))
+}
+
+// writeConfigFile replaces the config atomically so a concurrent reader never
+// sees a half-written JSON document. The existing file mode is preserved.
+func writeConfigFile(path string, data []byte) error {
+	mode := os.FileMode(0644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".config-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // mergeNotifications keeps nested notification settings the current form does
@@ -405,7 +458,7 @@ func mergeGoogleUpload(existing interface{}, incoming config.GoogleUploadConfig)
 			merged[key] = value
 		}
 	}
-	merged["enabled"] = true
+	merged["enabled"] = incoming.Enabled
 	merged["storageMode"] = incoming.StorageMode
 	merged["quality"] = incoming.Quality
 	merged["skipLivePhotos"] = incoming.SkipLivePhotos

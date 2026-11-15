@@ -14,6 +14,7 @@ func TestMergeGoogleUploadPreservesNonUIFields(t *testing.T) {
 		"autoUpdate":     false,
 	}
 	merged := mergeGoogleUpload(existing, config.GoogleUploadConfig{
+		Enabled:               true,
 		StorageMode:           config.StorageModeQuota,
 		Quality:               config.QualityOriginal,
 		SkipLivePhotos:        true,
@@ -39,6 +40,12 @@ func TestMergeGoogleUploadPreservesNonUIFields(t *testing.T) {
 	}
 	if merged["strictAccountMatching"] != true {
 		t.Fatalf("strictAccountMatching = %#v", merged["strictAccountMatching"])
+	}
+
+	// The master switch follows the form, so a user can turn uploads off.
+	merged = mergeGoogleUpload(existing, config.GoogleUploadConfig{Enabled: false})
+	if merged["enabled"] != false {
+		t.Fatalf("enabled = %#v, want false", merged["enabled"])
 	}
 }
 

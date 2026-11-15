@@ -1689,6 +1689,13 @@
                             <div class="card-header">
                                 <div><h3>Upload settings</h3><p>Applies to every album unless the album overrides it.</p></div>
                             </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Enable upload to Google Photos</div>
+                                    <div class="toggle-desc">Master switch for the reverse direction. Each album also needs its own upload toggle.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="googleUploadEnabled"><span class="switch-track"></span></span>
+                            </label>
                             <div class="field-grid">
                                 <div class="field">
                                     <label for="googleStorageMode">Storage</label>
@@ -3008,8 +3015,7 @@
             } catch (err) {
                 pill.className = 'pill pill-muted';
                 pill.innerHTML = '<span class="status-dot"></span>Unavailable';
-                error.textContent = err.message;
-                error.className = 'test-result';
+                setCompactError(error, 'Google upload is unavailable.', err.message);
             }
         }
 
@@ -3017,7 +3023,7 @@
             const pill = $('googleAccountPill');
             const error = $('googleAccountError');
             state.googleAccount = { connected: !!data.connected };
-            error.textContent = '';
+            clearCompactError(error);
             if (data.connected) {
                 pill.className = 'pill pill-success';
                 pill.innerHTML = '<span class="status-dot"></span>Connected';
@@ -3031,8 +3037,7 @@
                 $('googleAccountConnected').style.display = 'none';
                 $('googleAccountDisconnected').style.display = 'block';
                 if (data.lastError) {
-                    error.textContent = data.lastError;
-                    error.className = 'test-result danger';
+                    setCompactError(error, 'The Google uploader could not be checked.', data.lastError);
                 }
             }
             qsa('#albumList .album-row').forEach(updateAlbumBackupState);
@@ -3120,8 +3125,7 @@
             } catch (err) {
                 pill.className = 'pill pill-muted';
                 pill.innerHTML = '<span class="status-dot"></span>Unavailable';
-                error.textContent = err.message;
-                error.className = 'test-result danger';
+                setCompactError(error, 'The browser session could not be checked.', err.message);
             }
         }
 
@@ -3135,11 +3139,9 @@
             $('googleWebConnected').style.display = connected ? 'block' : 'none';
             $('googleWebDisconnected').style.display = connected ? 'none' : 'block';
             if (!connected && data.lastError) {
-                error.textContent = data.lastError;
-                error.className = 'test-result danger';
+                setCompactError(error, 'The browser session could not be used.', data.lastError);
             } else {
-                error.textContent = '';
-                error.className = 'test-result';
+                clearCompactError(error);
             }
             qsa('#albumList .album-row').forEach(updateAlbumBackupState);
             applyPrivateSession();
@@ -3260,19 +3262,41 @@
         function populateNotificationAccountSelect(selected) {
             const select = $('notificationsImmichAccount');
             if (!select) return;
+            const accounts = state.accounts || [];
             const current = selected !== undefined ? selected : (select.value || '');
-            const accounts = (state.accounts || []).filter(account => account.immichKeyOk && account.immichUserName);
+            const currentAccount = accounts.find(account => account.id === current || account.immichUserId === current);
+            const currentValue = currentAccount ? currentAccount.id : current;
+            const usable = accounts.filter(account => (account.immichApiKey || account.immichKeyOk) && (account.immichUserName || account.name));
             const primaryName = (state.primary && state.primary.name) || '';
             let html = `<option value="">Primary profile${primaryName ? ` (${escapeHtml(primaryName)})` : ''}</option>`;
-            for (const account of accounts) {
+            for (const account of usable) {
                 const name = account.name || account.immichUserName;
                 const label = account.googleEmail ? `${name} (${account.googleEmail})` : name;
                 html += `<option value="${escapeHtml(account.id)}">${escapeHtml(label)}</option>`;
             }
+            if (currentValue && !usable.some(account => account.id === currentValue)) {
+                const known = accounts.find(account => account.id === currentValue);
+                const label = known
+                    ? `${known.name || known.immichUserName || currentValue} (no API key)`
+                    : `Saved target (${currentValue})`;
+                html += `<option value="${escapeHtml(currentValue)}">${escapeHtml(label)}</option>`;
+            }
             select.innerHTML = html;
-            select.value = current && accounts.some(account => account.id === current) ? current : '';
+            select.value = currentValue;
             const hint = $('notificationsImmichHint');
-            if (hint) hint.hidden = !(state.accounts || []).some(account => !account.immichKeyOk);
+            if (hint) {
+                const selectedAccount = accounts.find(account => account.id === currentValue);
+                if (currentValue && !selectedAccount) {
+                    hint.textContent = 'The saved notification profile is not in the loaded account list. Refresh Accounts & Users to check it.';
+                    hint.hidden = false;
+                } else if (selectedAccount && !(selectedAccount.immichApiKey || selectedAccount.immichKeyOk)) {
+                    hint.textContent = 'The selected profile has no Immich API key. Add one under Accounts & Users.';
+                    hint.hidden = false;
+                } else {
+                    hint.textContent = 'Only Immich accounts with an API key can receive notifications.';
+                    hint.hidden = !accounts.some(account => !(account.immichApiKey || account.immichKeyOk));
+                }
+            }
         }
 
         async function sendTestNotification(channel) {
@@ -3475,7 +3499,18 @@
                 connected = true;
                 result.textContent = `Connected as ${data.user || data.userId || 'Immich user'}`;
                 result.className = 'test-result success';
-                if (state.config) state.config.apiURL = apiURL;
+                if (state.config) {
+                    state.config.apiURL = apiURL;
+                    if (replacing) state.config.apiKey = apiKey;
+                }
+                state.primary = {
+                    ...(state.primary || {}),
+                    name: data.user || (state.primary && state.primary.name) || 'Primary profile',
+                    userId: data.userId || (state.primary && state.primary.userId) || '',
+                    apiKeyConfigured: true,
+                    error: ''
+                };
+                renderPrimaryProfileCard();
                 state.primaryModal.closeTimer = setTimeout(() => {
                     closePrimaryProfileModal();
                     loadConfig();
@@ -3525,6 +3560,22 @@
             pre.textContent = text;
             details.append(summary, pre);
             parent.appendChild(details);
+        }
+
+        function setCompactError(container, message, detail) {
+            if (!container) return;
+            container.textContent = '';
+            container.className = 'test-result danger';
+            const text = document.createElement('div');
+            text.textContent = message;
+            container.appendChild(text);
+            appendErrorDetails(container, detail);
+        }
+
+        function clearCompactError(container) {
+            if (!container) return;
+            container.textContent = '';
+            container.className = 'test-result';
         }
 
         function accountDisplayName(account) {
@@ -4023,6 +4074,7 @@
                 setDedupMode(config.dedupMode || 'safe');
 
                 const googleUpload = config.googleUpload || {};
+                $('googleUploadEnabled').checked = !!googleUpload.enabled;
                 $('googleStorageMode').value = googleUpload.storageMode || 'quota';
                 $('googleQuality').value = googleUpload.quality || 'original';
                 $('googleSkipLivePhotos').checked = !!googleUpload.skipLivePhotos;
@@ -4114,7 +4166,7 @@
                     uploadToGoogle: row.querySelector('[data-field="uploadToGoogle"]').checked
                 })).filter(gp => gp.url),
                 googleUpload: {
-                    enabled: true,
+                    enabled: $('googleUploadEnabled').checked,
                     storageMode: $('googleStorageMode').value,
                     quality: $('googleQuality').value,
                     skipLivePhotos: $('googleSkipLivePhotos').checked,
@@ -4166,7 +4218,14 @@
                 });
                 if (!res.ok) {
                     const text = await res.text();
-                    throw new Error(text || 'Failed to save');
+                    let message = text;
+                    try {
+                        const data = JSON.parse(text);
+                        message = data.error || text;
+                    } catch (err) {
+                        message = text;
+                    }
+                    throw new Error(message || 'Failed to save');
                 }
                 const previousAccounts = state.config && state.config.accounts;
                 state.config = config;
@@ -4802,6 +4861,9 @@
 
         document.addEventListener('change', event => {
             if (event.target.closest('#configForm')) scheduleAutosave();
+            if (event.target.matches('#albumList [data-field="uploadToGoogle"]') && event.target.checked) {
+                $('googleUploadEnabled').checked = true;
+            }
         });
 
         qsa('[data-activity-filter]').forEach(button => {

@@ -63,6 +63,35 @@ func TestSaveConfig(t *testing.T) {
 	}
 }
 
+func TestSaveConfigRejectsInvalidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	s := NewServer(configPath)
+
+	body := []byte(`{
+		"apiURL": "http://localhost:2283/api",
+		"apiKey": "test-key",
+		"notifications": {
+			"ntfy": {"enabled": true, "url": "https://ntfy.sh", "topic": ""}
+		},
+		"googlePhotos": []
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	s.handleConfig(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid ntfy config, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "notifications.ntfy.topic") {
+		t.Fatalf("expected the validation error, got %s", w.Body.String())
+	}
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Fatalf("invalid config was written to disk: %v", err)
+	}
+}
+
 func TestTestConnection(t *testing.T) {
 	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/users/me" {

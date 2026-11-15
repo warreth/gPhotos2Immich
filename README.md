@@ -32,7 +32,7 @@ Sync photos from Google Photos shared albums to your [Immich](https://immich.app
    docker compose up -d
    ```
 
-2. Open **[http://localhost:8080](http://localhost:8080)** in your browser to configure your Immich API details and Google Photos shared album links via the Web UI! Settings save automatically, and only connection-level changes restart the app.
+2. Open **[http://localhost:8080](http://localhost:8080)** in your browser to configure your Immich API details and Google Photos shared album links via the Web UI! Settings save automatically, and most changes apply to a running sync without a restart.
 
 ### Docker image tags
 
@@ -95,7 +95,7 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 ## Features
 
 - **No Google API Keys:** We scrape directly from shared album URLs, so there's no complex Google Cloud setup required!
-- **Web UI & Hot Reloading:** Manage every setting from the web interface on port 8080: connection, workers, dedup mode, metadata backfill, albums, storage and live logs. Settings save automatically, and ordinary changes apply to a running sync without a restart.
+- **Web UI & Hot Reloading:** Manage every setting from the web interface on port 8080: connection, workers, dedup mode, metadata backfill, albums, storage and live logs. Settings save automatically, and most changes apply to a running sync without a restart.
 - **Trigger Sync API:** Trigger a sync on demand outside the regular schedule via `POST /api/sync` or `GET /sync_now` (ideal for Home Assistant buttons, webhooks, or automation scripts). See [home-assistant.yaml](home-assistant.yaml) for a ready-to-use Home Assistant configuration.
 - **Smart Syncing:** We pull down the full images and videos (no compressed thumbnails), extract the correct "taken" dates, and smoothly avoid Google's rate limits.
 - **Photographer Metadata:** The person who added each photo to the shared album is written to the Immich description as `Photographer: <name>`, next to the source album. Enable `updateExistingMetadata` to backfill photos that were imported before this feature.

@@ -487,6 +487,7 @@ func TestNeedsRestart(t *testing.T) {
 		{name: "gotohp binary", change: func(c *config.Config) { c.GoogleUpload.GotohpBinary = "/app/gotohp" }, want: true},
 		{name: "gotohp config", change: func(c *config.Config) { c.GoogleUpload.GotohpConfig = "./x" }, want: true},
 		{name: "cookies file", change: func(c *config.Config) { c.GoogleUpload.WebCookiesFile = "./x" }, want: true},
+		{name: "upload threads", change: func(c *config.Config) { c.GoogleUpload.Threads = 4 }, want: true},
 		{name: "debug", change: func(c *config.Config) { c.Debug = true }, want: false},
 		{name: "workers", change: func(c *config.Config) { c.Workers = 4 }, want: false},
 		{name: "dedup mode", change: func(c *config.Config) { c.DedupMode = "fast" }, want: false},

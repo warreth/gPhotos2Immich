@@ -218,7 +218,7 @@ func (s *Server) writePrimaryProfile(apiURL, apiKey string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.configPath, outBytes, 0644)
+	return writeConfigFile(s.configPath, outBytes)
 }
 
 // accountIDFromRequest accepts ?id=<id> or a JSON body with {"id": "..."}.
@@ -266,7 +266,7 @@ func (s *Server) persistAccounts(accounts []config.AccountMapping) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.configPath, outBytes, 0644)
+	return writeConfigFile(s.configPath, outBytes)
 }
 
 // notifyConfigChange rebuilds the runtime services with the new configuration.
