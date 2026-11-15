@@ -580,7 +580,13 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 		ReuploadDeleted:       cfg.GoogleUpload.ReuploadDeleted && webReady,
 		StrictAccountMatching: cfg.GoogleUpload.StrictAccountMatching,
 	}
+	s.logger.Info("Google Photos upload source album",
+		"immich_album_id", albumID, "album", gp.AlbumName, "google_album", gp.URL)
 	summary, err := s.Uploader.SyncAlbum(ctx, mapping)
+	if err == nil && summary.Total == 0 {
+		s.logger.Warn("Google Photos upload found no assets in the linked Immich album; check the album mapping",
+			"immich_album_id", albumID, "album", gp.AlbumName)
+	}
 	if s.onUploadComplete != nil {
 		s.onUploadComplete(ctx, gp.URL, summary, err)
 	}

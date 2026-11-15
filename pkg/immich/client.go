@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -327,15 +328,113 @@ func (c *Client) ListAlbums(ctx context.Context) ([]Album, error) {
 	return albums, nil
 }
 
-// GetAlbum fetches a single album with its full asset list
+// GetAlbum fetches a single album with its full asset list. Immich v3 removed
+// the assets field from album responses, so an empty response falls back to
+// POST /search/metadata with an albumIds filter.
 func (c *Client) GetAlbum(ctx context.Context, albumId string) (*Album, error) {
 	body, err := c.request(ctx, "GET", fmt.Sprintf("albums/%s", albumId), nil, "")
 	if err != nil {
 		return nil, err
 	}
 	var album Album
-	err = json.Unmarshal(body, &album)
-	return &album, err
+	if err := json.Unmarshal(body, &album); err != nil {
+		return nil, err
+	}
+	if len(album.Assets) == 0 {
+		assets, err := c.ListAlbumAssets(ctx, albumId)
+		if err != nil {
+			return nil, fmt.Errorf("read album assets: %w", err)
+		}
+		album.Assets = assets
+	}
+	return &album, nil
+}
+
+// ListAlbumAssets returns the assets in an album through the metadata search
+// endpoint. Immich v3 removed the assets field from AlbumResponseDto.
+func (c *Client) ListAlbumAssets(ctx context.Context, albumId string) ([]AlbumAsset, error) {
+	albumId = strings.TrimSpace(albumId)
+	if albumId == "" {
+		return nil, nil
+	}
+	seen := make(map[string]bool)
+	var assets []AlbumAsset
+	cursor := ""
+	page := 1
+	for iterations := 0; iterations < 10000; iterations++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		payload := map[string]interface{}{
+			"albumIds": []string{albumId},
+			"size":     1000,
+			"withExif": true,
+		}
+		if cursor != "" {
+			payload["cursor"] = cursor
+		} else if page > 1 {
+			payload["page"] = page
+		}
+		jsonPayload, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal album search payload: %w", err)
+		}
+		body, err := c.request(ctx, "POST", "search/metadata", jsonPayload, "")
+		if err != nil {
+			return nil, err
+		}
+		var resp assetSearchResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("failed to parse album search response: %w", err)
+		}
+		added := 0
+		for _, item := range resp.Assets.Items {
+			if item.Id == "" || seen[item.Id] {
+				continue
+			}
+			seen[item.Id] = true
+			assets = append(assets, AlbumAsset{
+				Id:               item.Id,
+				OriginalFileName: item.OriginalFileName,
+				Type:             item.Type,
+				LivePhotoVideoID: item.LivePhotoVideoID,
+				FileCreatedAt:    item.FileCreatedAt,
+				Checksum:         item.Checksum,
+				OwnerID:          item.OwnerID,
+			})
+			added++
+		}
+		nextCursor := ""
+		if resp.Assets.NextCursor != nil {
+			nextCursor = strings.TrimSpace(*resp.Assets.NextCursor)
+		}
+		if nextCursor == "" && resp.Assets.NextPage == nil {
+			break
+		}
+		// Some v3 releases ignore pagination parameters and return the same
+		// page forever. Stop when a page adds nothing new.
+		if added == 0 {
+			break
+		}
+		if nextCursor != "" {
+			if nextCursor == cursor {
+				break
+			}
+			cursor = nextCursor
+			continue
+		}
+		next := page + 1
+		if raw := fmt.Sprint(resp.Assets.NextPage); raw != "" && raw != "<nil>" {
+			if n, err := strconv.Atoi(raw); err == nil && n > page {
+				next = n
+			}
+		}
+		if next <= page {
+			break
+		}
+		page = next
+	}
+	return assets, nil
 }
 
 func (c *Client) CreateAlbum(ctx context.Context, name string) (*Album, error) {
@@ -579,10 +678,14 @@ func (c *Client) LinkLivePhotoToAsset(ctx context.Context, assetId string, liveP
 }
 
 type assetSearchItem struct {
-	Id               string `json:"id"`
-	OriginalFileName string `json:"originalFileName"`
-	DeviceAssetId    string `json:"deviceAssetId"`
-	Type             string `json:"type"`
+	Id               string    `json:"id"`
+	OriginalFileName string    `json:"originalFileName"`
+	DeviceAssetId    string    `json:"deviceAssetId"`
+	Type             string    `json:"type"`
+	LivePhotoVideoID string    `json:"livePhotoVideoId"`
+	FileCreatedAt    time.Time `json:"fileCreatedAt"`
+	Checksum         string    `json:"checksum"`
+	OwnerID          string    `json:"ownerId"`
 	ExifInfo         struct {
 		Description string `json:"description"`
 	} `json:"exifInfo"`

@@ -141,6 +141,10 @@ Immich assigns every imported asset to the owner of the API key that calls `POST
 
 The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Google credentials and browser cookies are managed per account under **Accounts & Users**. The default Google account uploads when the Immich owner has no linked Google account. Albums shared with you use the browser cookies of the account that owns the import, because Google's mobile API cannot add to an album you do not own. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
 
+- A Google credential is optional. Without it, the account can still import photos and receive notifications, but it cannot upload to Google Photos.
+- Browser cookies are optional. They are only needed for shared albums someone else owns and for private album imports. Albums you own upload without cookies.
+- Immich v3 removed album assets from its album response. The app reads album contents through Immich search, so uploads work on v3.
+
 ### Unlimited storage
 
 The optional `unlimited` storage mode makes the uploader identify as a Pixel phone. Google then stores the upload without charging your storage quota. This is an unofficial mobile-API behavior, not a Google feature. There are no known reports of accounts being banned for using it, but Google can change or enforce this at any time. The default is `quota`; enable `unlimited` only if you accept that risk.

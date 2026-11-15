@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -111,6 +112,95 @@ func TestSearchAssetsFallsBackToDeviceID(t *testing.T) {
 	}
 	if index.IDs["other"] {
 		t.Fatal("ignored-filter result must not leak into the index")
+	}
+}
+
+func TestGetAlbumFallsBackToSearchForV3(t *testing.T) {
+	searchPayloads := []map[string]interface{}{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/albums/album-1"):
+			w.Write([]byte(`{"id":"album-1","albumName":"Werkjaar"}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/search/metadata"):
+			var body map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&body)
+			searchPayloads = append(searchPayloads, body)
+			w.Write([]byte(`{"assets":{"items":[
+				{"id":"asset-1","originalFileName":"gp_one.jpg","type":"IMAGE","ownerId":"user-1"},
+				{"id":"asset-2","originalFileName":"gp_two.mp4","type":"VIDEO","ownerId":"user-2","livePhotoVideoId":"asset-1"}
+			],"nextPage":null}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "key", 1)
+	album, err := client.GetAlbum(context.Background(), "album-1")
+	if err != nil {
+		t.Fatalf("GetAlbum failed: %v", err)
+	}
+	if len(album.Assets) != 2 {
+		t.Fatalf("assets = %#v", album.Assets)
+	}
+	if album.Assets[0].OwnerID != "user-1" || album.Assets[1].LivePhotoVideoID != "asset-1" {
+		t.Fatalf("assets = %#v", album.Assets)
+	}
+	if len(searchPayloads) != 1 {
+		t.Fatalf("search payloads = %d", len(searchPayloads))
+	}
+	albumIDs, ok := searchPayloads[0]["albumIds"].([]interface{})
+	if !ok || len(albumIDs) != 1 || albumIDs[0] != "album-1" {
+		t.Fatalf("albumIds payload = %#v", searchPayloads[0]["albumIds"])
+	}
+}
+
+func TestGetAlbumKeepsLegacyAssetsWithoutSearch(t *testing.T) {
+	searchRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/search/metadata") {
+			searchRequests++
+			w.Write([]byte(`{"assets":{"items":[],"nextPage":null}}`))
+			return
+		}
+		w.Write([]byte(`{"id":"album-1","albumName":"Werkjaar","assets":[{"id":"legacy-1","originalFileName":"gp_legacy.jpg","type":"IMAGE"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "key", 1)
+	album, err := client.GetAlbum(context.Background(), "album-1")
+	if err != nil {
+		t.Fatalf("GetAlbum failed: %v", err)
+	}
+	if len(album.Assets) != 1 || album.Assets[0].Id != "legacy-1" {
+		t.Fatalf("assets = %#v", album.Assets)
+	}
+	if searchRequests != 0 {
+		t.Fatalf("search must not run when the album already has assets")
+	}
+}
+
+func TestListAlbumAssetsStopsWhenPaginationRepeats(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"assets":{"items":[{"id":"asset-1","originalFileName":"gp_one.jpg","type":"IMAGE"}],"nextPage":"2"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "key", 1)
+	assets, err := client.ListAlbumAssets(context.Background(), "album-1")
+	if err != nil {
+		t.Fatalf("ListAlbumAssets failed: %v", err)
+	}
+	if len(assets) != 1 || assets[0].Id != "asset-1" {
+		t.Fatalf("assets = %#v", assets)
+	}
+	if requests != 2 {
+		t.Fatalf("expected the repeated page to stop after 2 requests, got %d", requests)
 	}
 }
 

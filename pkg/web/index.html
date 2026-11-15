@@ -1335,6 +1335,8 @@
         }
         .wizard-disclosure summary { color: var(--accent); font-weight: 500; cursor: pointer; }
         .wizard-disclosure p { margin: 8px 0 0; color: var(--text-muted); line-height: 1.55; }
+        .wizard-disclosure ol { margin: 8px 0 0; padding-left: 18px; color: var(--text-muted); line-height: 1.55; }
+        .wizard-disclosure li { margin-bottom: 6px; }
 
         .connection-default-head { display: flex; align-items: flex-start; gap: 12px; }
         .connection-default-meta { flex: 1; min-width: 0; }
@@ -1796,6 +1798,7 @@
                             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-user"/></svg>
                             <div>Google credentials and browser cookies are managed per account. The default Google account uploads when the Immich owner has no linked Google account. <a href="#" onclick="goToSection('accounts');return false;">Open Accounts &amp; Users</a>.</div>
                         </div>
+                        <div class="hint" style="margin:-6px 0 16px 2px">Uploads only include photos added in Immich. Photos imported from Google Photos are already in the album and are skipped.</div>
 
                         <div class="card">
                             <div class="card-header">
@@ -2361,7 +2364,7 @@
                         <div class="field" id="accountOAuthField">
                             <label for="accountOAuthToken" id="accountOAuthLabel">Google oauth_token (optional)</label>
                             <input class="input" type="password" id="accountOAuthToken" placeholder="oauth_token value" autocomplete="off">
-                            <div class="hint">Needed to upload this person's photos to Google Photos.</div>
+                            <div class="hint">Optional. Needed to upload this person's photos to Google Photos. Imports and notifications work without it.</div>
                             <button class="btn btn-ghost btn-sm" type="button" id="accountOAuthCancel" onclick="cancelAccountCredential('oauth')">Cancel</button>
                         </div>
                     </div>
@@ -2377,7 +2380,7 @@
                         <div class="field" id="accountCookiesField">
                             <label for="accountCookies" id="accountCookiesLabel">cookies.txt (optional)</label>
                             <textarea class="input" id="accountCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
-                            <div class="hint">Needed for shared albums and private album imports. Stored with mode 0600.</div>
+                            <div class="hint">Optional. Only needed for shared albums someone else owns and private album imports. Stored with mode 0600.</div>
                             <button class="btn btn-ghost btn-sm" type="button" id="accountCookiesCancel" onclick="cancelAccountCredential('cookies')">Cancel</button>
                         </div>
                     </div>
@@ -2389,6 +2392,15 @@
                         <li>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a> and sign in as this person.</li>
                         <li>Click "I agree". The page may keep loading, that is expected. Then open DevTools, Application or Storage, Cookies, <code>accounts.google.com</code>.</li>
                         <li>Copy the <code>oauth_token</code> value and paste it above. The token is stored in a private file and never shown again.</li>
+                    </ol>
+                </details>
+
+                <details class="account-guide">
+                    <summary>How to export cookies.txt</summary>
+                    <ol>
+                        <li>Open <a href="https://photos.google.com/" target="_blank" rel="noopener noreferrer">Google Photos</a> and sign in as this person.</li>
+                        <li>Use a cookies.txt extension to export cookies for <code>photos.google.com</code>.</li>
+                        <li>Paste the contents above. The file is stored with mode 0600 and never shown again.</li>
                     </ol>
                 </details>
 
@@ -2471,28 +2483,20 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.14.0';
+        const APP_VERSION = '1.14.1';
         let setupSignature = '';
         const WHATS_NEW = [
             {
-                title: 'Unified accounts',
-                body: 'One account combines an Immich user, their API key, and optional Google Photos credentials. The first account becomes the default import account and provides the Immich connection.'
+                title: 'Immich v3 album uploads',
+                body: 'The Google upload direction now reads album assets through Immich v3 search, so photos added to an Immich album are found and uploaded instead of reporting 0 items.'
             },
             {
-                title: 'Two clear defaults',
-                body: 'Choose a default import account and a default Google upload account. Add account now sits under the account list, and selecting an account shows its status on the right.'
+                title: 'Clearer Google setup',
+                body: 'The Add account wizard now has separate pages for the Google credential and browser cookies. Each page says whether it is optional, what it is for, and how to get it.'
             },
             {
-                title: 'Automatic Immich album matching',
-                body: 'Paste a shared album link and the app selects an existing Immich album with the same name, suggests close matches, or creates one on the first import when the Google album has photos.'
-            },
-            {
-                title: 'Clearer import owner',
-                body: 'The old per-album Import as field moved to Advanced as Who owns the imported photos, with the default import account preselected.'
-            },
-            {
-                title: 'Reset accounts',
-                body: 'Clear every account, credential, notification target and Immich album ID while keeping album URLs and intervals. Google credentials are now managed only under Accounts & Users.'
+                title: 'Upload diagnostics',
+                body: 'Manual uploads now show how many photos were found in the linked Immich album, and the log warns when the album mapping returns no assets.'
             }
         ];
 
@@ -3080,8 +3084,13 @@
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(data.error || 'Upload failed');
                 const summary = data.summary || {};
-                status.textContent = `Uploaded ${summary.Uploaded || 0}, skipped ${summary.Skipped || 0}, failed ${summary.Failed || 0}.`;
-                status.className = 'test-result success';
+                if ((summary.Total || 0) === 0) {
+                    status.textContent = 'No photos found in the linked Immich album. Check the Immich album mapping.';
+                    status.className = 'test-result danger';
+                } else {
+                    status.textContent = `Found ${summary.Total} photos: uploaded ${summary.Uploaded || 0}, skipped ${summary.Skipped || 0}, failed ${summary.Failed || 0}.`;
+                    status.className = 'test-result success';
+                }
             } catch (err) {
                 status.textContent = err.message;
                 status.className = 'test-result danger';
@@ -3685,16 +3694,18 @@
                 </div>
                 <div class="detail-section">
                     <div class="detail-section-head">
-                        <div><h4>Google Photos</h4><p>Used for uploads and shared albums.</p></div>
+                        <div><h4>Google Photos</h4><p>Optional. Used to upload this person's photos.</p></div>
                         ${googleBadge}
                     </div>
                     <div class="detail-row"><span class="label">Google account</span><span class="value">${escapeHtml(account.googleEmail || 'No Google account linked')}</span></div>
+                    ${googleState !== 'ok' ? '<div class="hint">Without a Google credential, this account can still import photos and receive notifications.</div>' : ''}
                     ${account.googleEmail && account.googleError ? '<div class="hint">Could not check this Google account.</div>' : ''}
                     <div class="nested-credential">
                         <div class="detail-section-head">
-                            <div><h4>Browser cookies</h4><p>Only needed for albums someone else owns.</p></div>
+                            <div><h4>Browser cookies</h4><p>Optional. Shared albums someone else owns and private imports.</p></div>
                             ${cookiesBadge}
                         </div>
+                        ${!account.webSessionOk && !account.cookiesSaved ? '<div class="hint">Albums this person owns upload without cookies.</div>' : ''}
                         ${account.webSessionError ? '<div class="hint">The saved cookies could not be checked.</div>' : ''}
                     </div>
                 </div>
@@ -4438,7 +4449,7 @@
         function renderAccountAddWizard() {
             const wizard = state.accountWizard;
             const values = wizard.values;
-            const steps = ['Who', 'Immich', 'Google', 'Review'];
+            const steps = ['Who', 'Immich', 'Google', 'Cookies', 'Review'];
             $('acctWizardSteps').innerHTML = steps.map((step, index) => {
                 const number = index + 1;
                 const cls = number === wizard.step ? 'active' : (number < wizard.step ? 'done' : '');
@@ -4493,30 +4504,44 @@
             } else if (wizard.step === 3) {
                 panel = `
                     <div class="acct-wizard-panel">
-                        <h3>Connect Google Photos</h3>
-                        <p>Optional. Needed only when this person's photos should upload to Google Photos.</p>
-                        <div class="field-grid">
-                            <div class="field">
-                                <label for="acctWizardGoogleEmail">Google email</label>
-                                <input class="input" type="email" id="acctWizardGoogleEmail" data-wiz-field="googleEmail" value="${escapeHtml(values.googleEmail || '')}" placeholder="name@gmail.com" autocomplete="off">
-                            </div>
-                            <div class="field">
-                                <label for="acctWizardOAuth">Google credential</label>
-                                <input class="input" type="password" id="acctWizardOAuth" data-wiz-field="oauthToken" value="${escapeHtml(values.oauthToken || '')}" placeholder="oauth_token value" autocomplete="off">
-                            </div>
+                        <h3>Google Photos credential</h3>
+                        <p>Optional. Needed to upload this person's photos to Google Photos. Imports and notifications work without it.</p>
+                        <div class="field">
+                            <label for="acctWizardGoogleEmail">Google email</label>
+                            <input class="input" type="email" id="acctWizardGoogleEmail" data-wiz-field="googleEmail" value="${escapeHtml(values.googleEmail || '')}" placeholder="name@gmail.com" autocomplete="off">
                         </div>
-                        <div class="hint">You can add this later. The account can still import and notify without it.</div>
+                        <div class="field">
+                            <label for="acctWizardOAuth">Google credential (oauth_token)</label>
+                            <input class="input" type="password" id="acctWizardOAuth" data-wiz-field="oauthToken" value="${escapeHtml(values.oauthToken || '')}" placeholder="oauth_token value" autocomplete="off">
+                            <div class="hint">Leave both fields empty to skip Google Photos for now. You can add it later.</div>
+                        </div>
                         <details class="wizard-disclosure">
-                            <summary>How to get the Google credential</summary>
-                            <p>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a>, sign in, then copy the oauth_token cookie value. The setup guide in the app walks through it.</p>
+                            <summary>How to get the oauth_token</summary>
+                            <ol>
+                                <li>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a> and sign in as this person.</li>
+                                <li>Click "I agree". The page may keep loading; that is expected.</li>
+                                <li>Open DevTools, then Application or Storage, Cookies, <code>accounts.google.com</code>, and copy the <code>oauth_token</code> value.</li>
+                                <li>Paste it above. It is stored in a private file and never shown again.</li>
+                            </ol>
                         </details>
+                    </div>`;
+            } else if (wizard.step === 4) {
+                panel = `
+                    <div class="acct-wizard-panel">
+                        <h3>Browser cookies</h3>
+                        <p>Optional. Only needed for shared albums that someone else owns and for private album imports. Albums you own upload without cookies.</p>
+                        <div class="field">
+                            <label for="acctWizardCookies">cookies.txt contents</label>
+                            <textarea class="input" id="acctWizardCookies" data-wiz-field="cookies" rows="5" spellcheck="false" placeholder="Paste cookies.txt contents here">${escapeHtml(values.cookies || '')}</textarea>
+                            <div class="hint">Leave this empty if you only upload to albums you own. You can add it later.</div>
+                        </div>
                         <details class="wizard-disclosure">
-                            <summary>Add browser cookies (optional)</summary>
-                            <div class="field" style="margin-top:10px">
-                                <label for="acctWizardCookies">cookies.txt</label>
-                                <textarea class="input" id="acctWizardCookies" data-wiz-field="cookies" rows="3" spellcheck="false" placeholder="Paste cookies.txt contents here">${escapeHtml(values.cookies || '')}</textarea>
-                                <div class="hint">Only needed for shared albums someone else owns.</div>
-                            </div>
+                            <summary>How to export cookies.txt</summary>
+                            <ol>
+                                <li>Open <a href="https://photos.google.com/" target="_blank" rel="noopener noreferrer">Google Photos</a> and sign in as this person.</li>
+                                <li>Use a cookies.txt extension to export cookies for <code>photos.google.com</code>.</li>
+                                <li>Paste the file contents above. It is stored with mode 0600 and never shown again.</li>
+                            </ol>
                         </details>
                     </div>`;
             } else {
@@ -4558,7 +4583,7 @@
             panel += `
                 <div class="wizard-actions-row">
                     <button class="btn btn-ghost" type="button" onclick="addWizardBack()"${wizard.step === 1 ? ' disabled' : ''}>Back</button>
-                    <button class="btn btn-primary" type="button" id="acctWizardNextBtn" onclick="addWizardNext()"${wizard.busy ? ' disabled' : ''}>${wizard.step === 4 ? 'Create account' : 'Continue'}</button>
+                    <button class="btn btn-primary" type="button" id="acctWizardNextBtn" onclick="addWizardNext()"${wizard.busy ? ' disabled' : ''}>${wizard.step === 5 ? 'Create account' : 'Continue'}</button>
                 </div>`;
             $('acctWizardBody').innerHTML = panel;
             updateAddWizardContinue();
@@ -4662,7 +4687,7 @@
                     return;
                 }
             }
-            if (state.accountWizard.step < 4) {
+            if (state.accountWizard.step < 5) {
                 state.accountWizard.step += 1;
                 renderAccountAddWizard();
                 return;

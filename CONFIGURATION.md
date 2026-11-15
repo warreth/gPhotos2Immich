@@ -158,6 +158,10 @@ The upload feature is optional and per album. It uses the pinned [`gotohp`](http
 
 Google credentials and browser cookies are managed per account under **Accounts & Users**. Open the account, choose **Edit account**, and replace the Google credential or browser cookies. The default Google account uploads when the Immich owner has no linked Google account.
 
+- A Google credential is optional. Without it, the account can still import and receive notifications, but cannot upload to Google Photos.
+- Browser cookies are optional. They are only needed for shared albums someone else owns and for private album imports. Albums you own upload without cookies.
+- Immich v3 removed album assets from its album response. The app reads album contents through `POST /search/metadata`, so uploads work on v3.
+
 The fastest route to a Google credential is Google Embedded Setup:
 
 1. Open `https://accounts.google.com/EmbeddedSetup`.
