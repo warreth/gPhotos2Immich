@@ -18,8 +18,9 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
 
 ```json
 {
-  "apiKey": "YOUR_IMMICH_API_KEY",
   "apiURL": "http://your-immich-ip:2283/api",
+  "defaultImportAccount": "lotte",
+  "defaultGoogleAccount": "lotte",
   "debug": false,
   "workers": 4,
   "albumWorkers": 3,
@@ -33,9 +34,9 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
       "id": "lotte",
       "name": "Lotte",
       "immichUserId": "immich-user-uuid",
-      "immichApiKey": "optional-immich-api-key-for-imports",
+      "immichApiKey": "immich-api-key-for-lotte",
       "googleEmail": "lotte@gmail.com",
-      "isDefault": false
+      "webCookiesFile": "./data/lotte-cookies.txt"
     }
   ],
   "googleUpload": {
@@ -64,25 +65,30 @@ Your Immich API key needs these permissions (or use "All" for simplicity):
       "url": "https://photos.app.goo.gl/YourAlbumLink1",
       "albumName": "Vacation 2023",
       "syncInterval": "12h",
-      "immichAccountId": "lotte"
+      "uploadToGoogle": false
     },
     {
       "url": "https://photos.app.goo.gl/ExistingAlbumLink",
       "immichAlbumId": "existing-album-uuid",
-      "syncInterval": "1h"
+      "syncInterval": "1h",
+      "uploadToGoogle": false
     }
   ]
 }
 ```
 
+`apiKey` is a legacy internal mirror kept for older installations. New configurations should define accounts and the two defaults instead.
+
 ## Options
 
-Settings in the Web UI save automatically as you change them. The top bar shows **Saving**, **Saved**, or **Could not save**. Ordinary settings are applied to the running sync immediately. Changing the Immich URL, the primary API key, the data directory, the Google uploader paths, or the parallel upload count restarts the application so the connection is rebuilt.
+Settings in the Web UI save automatically as you change them. The top bar shows **Saving**, **Saved**, or **Could not save**. Ordinary settings are applied to the running sync immediately. Changing the default import account, the Immich URL, the data directory, the Google uploader paths, or the parallel upload count restarts the application so the connection is rebuilt.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `apiKey` | string | none | Immich API key (required). |
 | `apiURL` | string | none | Immich API URL, e.g. `http://localhost:2283/api` (required). |
+| `defaultImportAccount` | string | first account with a key | Account id that owns new imports and provides the Immich connection. |
+| `defaultGoogleAccount` | string | first account with Google | Account id used when a photo's Immich owner has no linked Google account. |
+| `apiKey` | string | none | Legacy internal mirror of the default import account's key. Do not set it by hand. |
 | `debug` | bool | `false` | Enable verbose debug logging. When disabled, displays clean progress bars with speed and ETA. |
 | `workers` | int | `1` | Number of concurrent download/upload workers **per album**. Controls how many photos within a single album are downloaded and uploaded in parallel. Higher values speed up large albums but use more bandwidth and memory. |
 | `albumWorkers` | int | `1` | Number of albums processed **concurrently**. Controls how many albums are synced at the same time. Useful when you have many albums configured and want to process several in parallel. |
@@ -101,11 +107,11 @@ Settings in the Web UI save automatically as you change them. The top bar shows 
 | `googleUpload.skipLivePhotos` | bool | `false` | Upload only the still of a Live Photo instead of the linked still + video pair. |
 | `googleUpload.reuploadDeleted` | bool | `false` | Off by default, so deleting a photo in Google Photos is respected. When on, each run checks the target album and uploads items that are no longer there. Requires a browser session. |
 | `googleUpload.threads` | int | `1` | Concurrent uploads. Keep at 1 unless uploads are slow. |
-| `googleUpload.strictAccountMatching` | bool | `false` | When on, Immich assets whose owner has no linked Google account are skipped. When off, they fall back to the account marked `isDefault`, or to the primary connected account. |
+| `googleUpload.strictAccountMatching` | bool | `false` | When on, Immich assets whose owner has no linked Google account are skipped. When off, they fall back to the default Google account. |
 | `googleUpload.maxRetries` | int | `3` | Reserved. A failed asset is retried on the next scheduled run. |
 | `googleUpload.autoUpdate` | bool | `false` | Reserved. Updating the pinned binary is done through the app image, not at runtime. |
 | `notifications.immich` | bool | `false` | Send notifications through Immich's admin notification API. |
-| `notifications.immichAccountId` | string | empty | Account mapping id or Immich user id whose API key sends the notification. Empty uses the primary profile. |
+| `notifications.immichAccountId` | string | empty | Account mapping id or Immich user id whose API key sends the notification. Empty uses the default import account. |
 | `notifications.onSyncFailed` | bool | `false` | Notify when an album cannot be read or an item fails. |
 | `notifications.onImportComplete` | bool | `false` | Notify when new photos were imported into Immich. |
 | `notifications.onUploadComplete` | bool | `false` | Notify when an Immich album finished uploading to Google Photos. |
@@ -137,10 +143,10 @@ If you compress originals with a tool such as [immich-compressor](https://github
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `googlePhotos[].url` | string | none | Google Photos shared album link (required). |
-| `googlePhotos[].albumName` | string | auto-detected | Override the album name in Immich. If omitted, uses the album title from Google Photos. |
+| `googlePhotos[].albumName` | string | auto-detected | Optional override for the Immich album name. If omitted, the Google album title is used. |
 | `googlePhotos[].syncInterval` | string | `24h` | How often to re-check this album (e.g. `12h`, `60m`, `1h30m`). |
-| `googlePhotos[].immichAlbumId` | string | none | Link to an existing Immich album by UUID instead of creating a new one. Required when `uploadToGoogle` is enabled. |
-| `googlePhotos[].immichAccountId` | string | primary | Import this album into Immich with the API key of one linked account. Use the account `id` or its Immich user UUID. Empty uses the primary `apiKey`. |
+| `googlePhotos[].immichAlbumId` | string | auto-matched | Existing Immich album id. The Web UI selects an exact title match automatically. Leave empty to create the album on the first import when the Google album has photos. |
+| `googlePhotos[].immichAccountId` | string | default import account | Advanced import owner. Use the account `id` or its Immich user UUID. Empty uses the default import account. |
 | `googlePhotos[].uploadToGoogle` | bool | `false` | Upload new assets from the linked Immich album back to this shared Google Photos album. |
 | `googlePhotos[].upload.storageMode` | string | inherited | Per-album override for `quota` or `unlimited`. |
 | `googlePhotos[].upload.quality` | string | inherited | Per-album override for `original` or `saver`. |
@@ -150,21 +156,23 @@ If you compress originals with a tool such as [immich-compressor](https://github
 
 The upload feature is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API.
 
-Connect the account once from the Web UI, **Google upload** section. The fastest route is Google Embedded Setup:
+Google credentials and browser cookies are managed per account under **Accounts & Users**. Open the account, choose **Edit account**, and replace the Google credential or browser cookies. The default Google account uploads when the Immich owner has no linked Google account.
+
+The fastest route to a Google credential is Google Embedded Setup:
 
 1. Open `https://accounts.google.com/EmbeddedSetup`.
 2. Sign in and click **I agree**. The page may keep loading, that is expected.
 3. In DevTools, open Application or Storage, Cookies, `accounts.google.com`, and copy the `oauth_token` value.
-4. Paste it into the Web UI and connect.
+4. Paste it into the account editor and save.
 
-The credential is stored in `googleUpload.gotohpConfig` with mode 0600 and grants full access to that Google account. Prefer a dedicated account, and do not expose the Web UI without authentication.
+The credential is stored by `gotohp-cli` in `googleUpload.gotohpConfig` with mode 0600 and grants full access to that Google account. Prefer a dedicated account, and do not expose the Web UI without authentication.
 
 There are two access routes, because Google's mobile API and its web app do not allow the same things:
 
-- **Albums you own** use the connected Google account. The album key is resolved from the public share URL and the upload is added with the mobile API.
-- **Albums someone else owns and shared with you** use an optional browser session. Open **Google upload**, **Shared album access**, export a Netscape `cookies.txt` for `photos.google.com` from a signed-in browser, and paste it there. The file is stored at `googleUpload.webCookiesFile` with mode 0600. The app uploads the files to your library, then adds them to the shared album through the web session. Without this session, a shared album cannot receive uploads.
+- **Albums you own** use the account's Google credential. The album key is resolved from the public share URL and the upload is added with the mobile API.
+- **Albums someone else owns and shared with you** use the account's browser cookies. Add a Netscape `cookies.txt` for `photos.google.com` under the same account, in **Browser cookies**. The app uploads the files to your library, then adds them to the shared album through the web session. Without this session, a shared album cannot receive uploads.
 
-Browser cookies expire eventually. If **Verify mapping** or an upload reports that the session is expired, export the cookies again and reconnect. The session grants full access to the Google account, so keep the data directory private.
+Browser cookies expire eventually. If **Verify mapping** or an upload reports that the session is expired, export the cookies again for that account. The session grants full access to the Google account, so keep the data directory private.
 
 The upload direction also requires the Google album to be shared with you and **Collaborate** to be enabled. The album key is resolved from the public share URL and shown by **Verify mapping**. When a browser session is connected, verification also labels the album as owned or shared.
 
@@ -180,46 +188,61 @@ The optional `unlimited` storage mode makes the uploader identify as a Pixel pho
 
 The Web UI shows three experience modes, stored in `uiMode`:
 
-- `simple`: Overview, Connection, Albums, and Logs only. Upload settings and account routing are hidden.
-- `standard`: Adds sync behavior, deduplication, Google upload, private albums, and notifications for one Google account.
-- `advanced`: Shows every section, including **Accounts & Users**, the per-album **Import into Immich as** selector, and strict contributor matching.
+- `simple`: Overview, Connection, Albums, Accounts, and Logs. The Accounts page is read-only and shows only the default import account.
+- `standard`: Adds sync behavior, deduplication, Google upload, private albums, notifications, and account management.
+- `advanced`: Adds the per-album import owner and every setting.
 
-The mode only controls which sections the interface shows. Account mappings keep working in the background, and the UI shows a notice when mappings are active outside Advanced.
+The mode only controls which sections the interface shows. Accounts and settings created in another mode keep working in the background.
 
-An account mapping links one Immich user to one Google Photos account.
+An account combines one Immich user with that user's Immich API key and, optionally, a Google Photos credential and browser cookies. The first account becomes the default import account and provides the Immich connection.
+
+The Web UI stores two independent defaults:
+
+- `defaultImportAccount`: owns new photos imported from shared albums and supplies the Immich connection.
+- `defaultGoogleAccount`: uploads photos whose Immich owner has no linked Google account.
+
+Changing the default import account restarts the app because the connection key changes. Changing the default Google account applies live.
+
+### Account fields
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `accounts[].id` | string | Immich user id | Stable mapping id. Used by `googlePhotos[].immichAccountId`. |
-| `accounts[].name` | string | none | Display name, for example `Lotte`. |
+| `accounts[].name` | string | Immich user name | Display name, for example `Lotte`. |
 | `accounts[].immichUserId` | string | none | Immich user UUID. It is matched against each asset's `ownerId` (required). |
-| `accounts[].immichApiKey` | string | none | Optional Immich API key that imports Google to Immich albums as this person. |
+| `accounts[].immichApiKey` | string | none | Immich API key for this person. Required for imports and notifications as this person. |
 | `accounts[].googleEmail` | string | none | Google account in `gotohp-cli` that uploads this person's photos. |
-| `accounts[].webCookiesFile` | string | generated | Optional `cookies.txt` for shared albums that someone else owns. |
-| `accounts[].isDefault` | bool | `false` | Fallback account for Immich users without a mapping. Only one mapping may be the default. |
+| `accounts[].webCookiesFile` | string | generated | Optional `cookies.txt` for shared albums and private imports. |
+| `accounts[].isDefault` | bool | `false` | Legacy fallback flag. The Web UI now uses `defaultGoogleAccount`; the backend keeps this field in sync. |
 
-A pasted `oauth_token` is stored by `gotohp-cli` in `googleUpload.gotohpConfig`, and a pasted `cookies.txt` is stored with mode 0600. The Web UI never shows those two values again. Account Immich API keys live in `config.json`, like the primary `apiKey`, so keep that file private.
+A pasted `oauth_token` is stored by `gotohp-cli` in `googleUpload.gotohpConfig`, and a pasted `cookies.txt` is stored with mode 0600. The Web UI never shows those values again. Account Immich API keys live in `config.json`, so keep that file private.
+
+### Reset accounts
+
+**Reset accounts** clears every account, Immich API key, Google credential, cookie file, notification target, ntfy token, and Immich album ID. Album URLs, names, and sync intervals stay. The app returns to the first-run setup. Photos already imported into Immich are not deleted.
+
+Use it when you want a clean configuration without deleting your album links one by one. The reset also turns off Google upload for every album, because no Google account remains.
 
 ### Why ownership matters
 
-Immich assigns every imported asset to the owner of the API key that calls `POST /assets`. To import a shared album as your sister, use her Immich API key for that mapping, or choose her in `googlePhotos[].immichAccountId` for that album. The importer then uploads with her key and Immich records her as the owner.
+Immich assigns every imported asset to the owner of the API key that calls `POST /assets`. To import a shared album as your sister, use her Immich API key as the account for that album, or choose her under the album's Advanced **Import owner** control. The importer then uploads with her key and Immich records her as the owner.
 
-In the other direction, the uploader reads each asset's `ownerId` and looks up the linked mapping. Photos owned by your sister upload with her Google account, and photos you own upload with yours. Set `googleUpload.strictAccountMatching` to skip owners without a mapping. When it is off, unmapped owners fall back to the account marked `isDefault`, or to the primary connected account when no mapping claims the fallback role.
+In the other direction, the uploader reads each asset's `ownerId` and looks up the linked mapping. Photos owned by your sister upload with her Google account, and photos you own upload with yours. Set `googleUpload.strictAccountMatching` to skip owners without a mapping. When it is off, unmapped owners fall back to the default Google account.
 
 ## Notifications
 
 Notifications are optional. Two independent channels are available:
 
-- **Immich** sends a notification through the admin notification API. Choose the profile that should send it: the primary profile or a linked person with an Immich API key. That profile's key is used, and the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys with all permissions.
+- **Immich** sends a notification through the admin notification API. Choose the default import account or another linked account with an Immich API key. That account's key is used, and the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys with all permissions.
 - **ntfy** posts to `notifications.ntfy.url` and `notifications.ntfy.topic`. Use `https://ntfy.sh` or your own server, and add a bearer token if the topic is protected.
 
 Each channel has its own event switches. If one channel fails, the other still sends, and a failed notification never interrupts a sync. The **Send test notification** button reports the exact error for the chosen channel.
 
-Everything is configured under **Notifications** in the Web UI. The Immich target list only offers profiles with a working Immich API key. ntfy settings and the access token are stored in `config.json`, so keep the data directory private.
+Everything is configured under **Notifications** in the Web UI. The Immich target list only offers accounts with a working Immich API key. ntfy settings and the access token are stored in `config.json`, so keep the data directory private.
 
 ## Private album import (experimental)
 
-Private albums are the albums in your own Google Photos account. They use the same browser session as shared-album uploads: open **Google upload**, **Shared album access**, export a `cookies.txt` for `photos.google.com`, and connect it. The cookies file is stored at `googleUpload.webCookiesFile` with mode 0600.
+Private albums are the albums in your own Google Photos account. They use the browser cookies of the default import account: open **Accounts & Users**, edit that account, and add a `cookies.txt` for `photos.google.com` under **Browser cookies**. The file is stored at the account's `webCookiesFile` with mode 0600.
 
 Open **Private albums**, choose an album, pick an existing Immich album or create a new one, and press **Import**. The importer downloads the original files, skips items it already imported, and shows progress on the same page. It is manual only, has no schedule, and does not propagate deletions.
 
@@ -240,13 +263,15 @@ When the Web UI is enabled, the embedded server provides the following endpoints
 | `/api/live` | `GET` | Server-Sent Events stream with activity snapshots and structured events. |
 | `/api/config` | `GET` / `POST` | Retrieve or update the application configuration. |
 | `/api/immich/users` | `GET` | List Immich users for the account wizard dropdown. |
-| `/api/accounts` | `GET` / `POST` / `DELETE` | Read account mappings, the primary profile status, and the routing preview; save one mapping; or delete one by `?id=<id>` or `{"id":"..."}`. |
-| `/api/primary-profile` | `POST` | Update the Immich URL and primary API key, test the connection, and apply it. Omit `apiKey` to keep the stored key. |
+| `/api/accounts` | `GET` / `POST` / `DELETE` | Read accounts plus the two defaults; save one account; or delete one by `?id=<id>` or `{"id":"..."}`. |
+| `/api/accounts/reset` | `POST` | Remove all accounts, credentials, notification target, ntfy token, and Immich album IDs while keeping album URLs and intervals. |
+| `/api/setup/account` | `POST` | Create the first account when the app is not running yet, for example after a reset. Body `{"apiURL","name","immichApiKey"}`. |
+| `/api/primary-profile` | `POST` | Legacy compatibility endpoint. Prefer `/api/accounts`. |
 | `/api/notifications/test` | `POST` | Send one test notification through `immich` (default) or `ntfy`, using `{"channel":"ntfy"}`. |
-| `/api/google/account` | `GET` / `POST` / `DELETE` | Read, connect, or remove the gotohp Google credential. |
-| `/api/google/web-session` | `GET` / `POST` / `DELETE` | Read, connect, or remove the optional photos.google.com browser session. |
-| `/api/google/albums` | `GET` | List Immich albums for the upload mapping dropdown. |
-| `/api/google/verify` | `POST` | Resolve a share URL and classify the album as owned or shared. |
+| `/api/google/account` | `GET` / `POST` / `DELETE` | Legacy gotohp credential endpoint. The Web UI now manages Google credentials through accounts. |
+| `/api/google/web-session` | `GET` / `POST` / `DELETE` | Legacy browser-session endpoint. The Web UI now manages cookies through accounts. |
+| `/api/google/albums` | `GET` | List Immich albums for automatic target matching and upload mapping. |
+| `/api/google/verify` | `POST` | Resolve a share URL, return its title and item count, and classify the album as owned or shared. |
 | `/api/google/upload` | `POST` | Run the Immich to Google Photos upload for one configured album. |
 | `/api/google/private/albums` | `GET` | List private albums in the connected Google account. |
 | `/api/google/private/import` | `POST` | Start importing one private album into Immich. |

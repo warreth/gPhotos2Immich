@@ -242,6 +242,10 @@
 
         .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
 
+        .cred-summary { font-size: 13.5px; line-height: 1.5; }
+        .cred-summary-name { font-weight: 600; overflow-wrap: anywhere; }
+        .cred-summary-line { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
         .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
         .btn {
@@ -495,8 +499,9 @@
 
         .album-row {
             display: grid;
-            grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr) 84px minmax(0, 1fr) minmax(0, 1fr) auto;
-            gap: 10px;
+            grid-template-columns: minmax(0, 1.32fr) minmax(0, 1.03fr) 76px minmax(0, 1.7fr) auto;
+            column-gap: 8px;
+            row-gap: 10px;
             align-items: end;
             padding: 12px;
             border: 1px solid var(--border);
@@ -504,7 +509,7 @@
             background: var(--surface-2);
         }
 
-        .album-row .field { margin: 0; }
+        .album-row .field { margin: 0; min-width: 0; }
         .album-row .field label {
             font-size: 11.5px;
             white-space: nowrap;
@@ -512,8 +517,25 @@
             text-overflow: ellipsis;
         }
         .album-row .input { background: var(--surface); height: 40px; }
-        .album-remove { align-self: end; margin-bottom: 1px; }
+        .album-row select.input { font-size: 13px; }
+        .album-remove { grid-column: 5; grid-row: 1; align-self: end; margin-bottom: 1px; }
         .album-remove:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+
+        /* Detection result sits directly under the Immich album select, so the
+           row reads top to bottom: link, target, outcome. */
+        .album-detect {
+            grid-column: 4 / 5;
+            grid-row: 2;
+            margin-top: -4px;
+            min-width: 0;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--text-muted);
+            overflow-wrap: anywhere;
+        }
+        .album-detect.success { color: var(--success); }
+        .album-detect.warning { color: var(--warning); }
+        .album-detect.danger { color: var(--danger); }
 
         .album-backup {
             grid-column: 1 / -1;
@@ -521,6 +543,18 @@
             padding-top: 12px;
             border-top: 1px solid var(--border);
         }
+
+        .album-import-owner { width: 100%; margin-top: 12px; }
+        .album-import-owner summary {
+            color: var(--text-secondary);
+            font-size: 12.5px;
+            font-weight: 500;
+            cursor: pointer;
+            overflow-wrap: anywhere;
+        }
+        .album-import-owner summary:hover { color: var(--accent); }
+        .album-import-owner .field { margin: 12px 0 0; max-width: 360px; }
+        .album-import-owner .hint { margin-top: 6px; }
 
         .album-backup-actions {
             display: flex;
@@ -607,6 +641,8 @@
             stroke-linecap: round;
             stroke-linejoin: round;
         }
+
+        .note-info { background: var(--accent-soft); border-color: #c9e5e0; color: #0b5f58; }
 
         .empty-state {
             padding: 28px;
@@ -993,24 +1029,6 @@
         .status-line-value { min-width: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
         .status-line-note { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11.5px; }
 
-        .error-details { margin-top: 6px; font-size: 11.5px; }
-        .error-details summary { width: fit-content; color: var(--text-muted); cursor: pointer; }
-        .error-details pre {
-            margin: 6px 0 0;
-            padding: 8px 10px;
-            max-height: 150px;
-            overflow: auto;
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            font-family: monospace;
-            font-size: 11px;
-            line-height: 1.45;
-        }
-
         .note a { color: inherit; font-weight: 600; }
 
         .account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
@@ -1110,6 +1128,237 @@
         .routing-email { color: var(--text-muted); font-size: 11.5px; overflow-wrap: anywhere; }
         .routing-badge { flex-shrink: 0; max-width: 52%; text-align: right; white-space: normal; }
 
+        /* Accounts & Users, B1 master-detail */
+        .defaults-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 20px;
+            margin-bottom: 16px;
+            padding: 18px 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .default-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .default-group label { font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+        .default-group .hint { margin-top: 0; }
+
+        .master-detail {
+            display: grid;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .account-list-card {
+            min-width: 0;
+            padding: 8px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .account-list-head { padding: 8px 8px 10px; }
+        .account-list-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+        .account-list-card .account-list { gap: 2px; }
+
+        .account-list-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            min-height: 52px;
+            padding: 9px;
+            border: 0;
+            border-radius: 9px;
+            background: transparent;
+            color: var(--text);
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .account-list-row:hover { background: var(--surface-2); }
+        .account-list-row[aria-current="true"] { background: var(--accent-soft); }
+        .account-list-row .account-avatar { width: 32px; height: 32px; font-size: 13px; }
+        .account-list-meta { flex: 1; min-width: 0; }
+        .account-list-name { display: block; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+        .account-list-sub { display: block; font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+        .account-list-row[aria-current="true"] .account-list-sub { color: var(--text-secondary); }
+        .account-list-badge { flex-shrink: 0; }
+
+        .account-add {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 44px;
+        }
+
+        .account-detail {
+            min-width: 0;
+            padding: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .account-detail-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .account-detail-head .account-avatar { width: 48px; height: 48px; font-size: 18px; }
+        .account-detail-title { flex: 1 1 170px; min-width: 0; }
+        .account-detail-title h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+        .account-detail-title p { margin: 2px 0 0; color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+        .account-detail-head .btn { flex-shrink: 0; }
+
+        .detail-section { padding: 16px 0; border-bottom: 1px solid var(--border); }
+        .detail-section:last-of-type { border-bottom: 0; padding-bottom: 0; }
+        .detail-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        .detail-section-head h4 { margin: 0; font-size: 13px; font-weight: 600; }
+        .detail-section-head p { margin: 2px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+
+        .detail-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; font-size: 12.5px; }
+        .detail-row + .detail-row { margin-top: 7px; }
+        .detail-row .label { flex-shrink: 0; color: var(--text-muted); }
+        .detail-row .value { min-width: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+        .status-ok { color: var(--success); }
+        .status-warn { color: var(--warning); }
+
+        #accountEmpty h3 { margin: 0 0 6px; font-size: 16px; color: var(--text); }
+        #accountEmpty p { margin: 0 auto 14px; max-width: 440px; }
+
+        .nested-credential { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-strong); }
+
+        .detail-remove { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+        .danger-text { color: var(--danger); }
+        .danger-text:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+
+        .mobile-back { display: none; margin-bottom: 10px; }
+
+        .danger-zone {
+            margin-top: 16px;
+            padding: 18px 20px;
+            background: var(--surface);
+            border: 1px solid #f5c6c6;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .danger-zone h3 { margin: 0 0 6px; color: var(--danger); font-size: 15px; font-weight: 600; }
+        .danger-zone p { margin: 0; max-width: 680px; color: var(--text-muted); font-size: 12.5px; line-height: 1.55; }
+        .danger-zone .btn { margin-top: 12px; }
+
+        .mode-note,
+        .setup-callout {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 16px;
+            padding: 12px 15px;
+            border-radius: 12px;
+            font-size: 12.5px;
+            line-height: 1.5;
+        }
+        .mode-note { background: var(--accent-soft); border: 1px solid #c9e5e0; color: #0b5f58; }
+        .setup-callout { background: var(--warning-soft); border: 1px solid #f0d9b8; color: #7a4a0a; }
+        .mode-note[hidden], .setup-callout[hidden] { display: none; }
+        .mode-note span, .setup-callout span { min-width: 0; }
+        .mode-note .btn, .setup-callout .btn { flex-shrink: 0; }
+
+        .simple-account-card .account-head { display: flex; align-items: flex-start; gap: 12px; }
+        .simple-account-card .account-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+        .simple-note { margin-top: 14px; }
+
+        .acct-wizard-steps { display: flex; gap: 6px; margin-bottom: 20px; }
+        .acct-wizard-step {
+            flex: 1;
+            min-width: 0;
+            padding-top: 8px;
+            border-top: 3px solid var(--border);
+            color: var(--text-muted);
+            font-size: 11.5px;
+            overflow-wrap: anywhere;
+        }
+        .acct-wizard-step.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+        .acct-wizard-step.done { border-color: var(--success); color: var(--success); }
+
+        .acct-wizard-panel h3 { margin: 0 0 4px; font-size: 17px; letter-spacing: -.01em; }
+        .acct-wizard-panel > p { margin: 0 0 16px; color: var(--text-muted); font-size: 12.5px; line-height: 1.55; }
+
+        .review-list { display: flex; flex-direction: column; gap: 8px; }
+        .review-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 9px 11px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12.5px;
+        }
+        .review-row span:first-child { flex-shrink: 0; color: var(--text-muted); }
+        .review-row span:last-child { min-width: 0; text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+
+        .review-defaults { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 16px; }
+        .review-default { display: flex; align-items: flex-start; gap: 8px; min-width: 0; font-size: 12.5px; }
+        .review-default input { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
+        .review-default strong { display: block; font-size: 12.5px; font-weight: 500; }
+        .review-default .hint { margin-top: 0; }
+
+        .wizard-actions-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .wizard-disclosure {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px dashed var(--border-strong);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        .wizard-disclosure summary { color: var(--accent); font-weight: 500; cursor: pointer; }
+        .wizard-disclosure p { margin: 8px 0 0; color: var(--text-muted); line-height: 1.55; }
+
+        .connection-default-head { display: flex; align-items: flex-start; gap: 12px; }
+        .connection-default-meta { flex: 1; min-width: 0; }
+        .connection-default-meta h4 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+        .connection-default-meta p { margin: 2px 0 0; color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+        .connection-default-status { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+        .account-list-row:focus-visible,
+        .account-add:focus-visible,
+        .account-detail .btn:focus-visible,
+        .danger-zone .btn:focus-visible,
+        .mode-note .btn:focus-visible,
+        .setup-callout .btn:focus-visible,
+        .acct-wizard-panel .btn:focus-visible,
+        .acct-wizard-panel .input:focus-visible,
+        .review-default input:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        body[data-ui-mode="simple"] #accountsDefaultsCard,
+        body[data-ui-mode="simple"] #accountsMasterDetail,
+        body[data-ui-mode="simple"] #accountsDangerZone { display: none !important; }
+
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -1146,6 +1395,8 @@
 
         @media (max-width: 1000px) {
             .accounts-layout { grid-template-columns: 1fr; }
+            .master-detail { grid-template-columns: 1fr; }
+            .mobile-back { display: inline-flex; }
         }
 
         @media (max-width: 760px) {
@@ -1156,6 +1407,23 @@
             .credential-head .btn { min-height: 44px; }
             .modal-overlay { padding: 10px; }
             .modal-card { padding: 18px; max-height: 94vh; }
+            .defaults-card,
+            .review-defaults { grid-template-columns: 1fr; }
+            .account-list-row,
+            .mobile-back,
+            .danger-zone .btn,
+            .wizard-actions-row .btn { min-height: 44px; }
+            .danger-zone .btn { width: 100%; }
+            .mode-note,
+            .setup-callout { flex-direction: column; align-items: stretch; }
+            .mode-note .btn,
+            .setup-callout .btn { width: 100%; }
+            .account-detail { padding: 16px; }
+            .account-detail-head .btn { margin-left: auto; }
+            .wizard-actions-row { flex-direction: column-reverse; }
+            .wizard-actions-row .btn { width: 100%; }
+            .acct-wizard-steps { gap: 4px; }
+            .acct-wizard-step { font-size: 10.5px; }
         }
 
         .wizard {
@@ -1185,14 +1453,20 @@
             margin-top: 32px;
         }
 
+        /* The five fields need about 860px of row width. Below that the card
+           cannot hold them side by side without clipping the labels. */
+        @media (max-width: 1200px) {
+            .album-row { grid-template-columns: 1fr 1fr; }
+            .album-detect { grid-column: 1; grid-row: auto; }
+            .album-row .album-remove { grid-column: 2; grid-row: auto; justify-self: end; }
+        }
+
         @media (max-width: 1000px) {
             .shell { grid-template-columns: 200px minmax(0, 1fr); }
             .status-card { grid-template-columns: 1fr; }
             .status-side { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); padding-top: 18px; }
             .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .mode-grid { grid-template-columns: 1fr; }
-            .album-row { grid-template-columns: 1fr 1fr; }
-            .album-row .album-remove { grid-column: 1 / -1; justify-self: end; }
         }
 
         @media (max-width: 760px) {
@@ -1393,32 +1667,16 @@
                             </div>
                         </div>
 
-                        <div class="card">
+                        <div class="card" id="connectionDefaultCard">
                             <div class="card-header">
-                                <div><h3>Primary profile</h3><p>The Immich account gPhotos2Immich connects as.</p></div>
-                                <span class="pill pill-muted" id="primaryProfilePill"><span class="status-dot"></span>Not configured</span>
+                                <div><h3>Default account</h3><p>The account that provides the Immich connection.</p></div>
+                                <span class="pill pill-muted" id="connectionDefaultPill"><span class="status-dot"></span>Checking</span>
                             </div>
-                            <div class="primary-card">
-                                <div class="primary-card-head">
-                                    <div class="account-avatar" id="primaryProfileAvatar" aria-hidden="true">?</div>
-                                    <div class="account-person">
-                                        <div class="account-name" id="primaryProfileName">Primary profile</div>
-                                        <div class="account-sub" id="primaryProfileMeta">No Immich API key configured</div>
-                                    </div>
-                                </div>
-                                <div class="primary-card-actions">
-                                    <button class="btn btn-secondary" type="button" onclick="openPrimaryProfileModal()">Edit primary profile</button>
-                                </div>
+                            <div id="connectionDefaultBody"></div>
+                            <div class="hint">The default import account provides the Immich connection. Credentials are managed under Accounts &amp; Users.</div>
+                            <div class="button-row" style="margin-top:14px">
+                                <button class="btn btn-secondary" type="button" onclick="goToSection('accounts')">Manage accounts</button>
                             </div>
-                            <div class="hint">The primary profile is the account gPhotos2Immich uses to connect to Immich, read users, import albums, and send notifications unless another profile is chosen.</div>
-                            <details class="credential-guide">
-                                <summary>What each credential is for</summary>
-                                <div class="credential-table">
-                                    <div class="credential-row"><strong>Immich API key</strong><span>Connect, import albums, send notifications.</span></div>
-                                    <div class="credential-row"><strong>Google oauth_token</strong><span>Upload photos to Google Photos.</span></div>
-                                    <div class="credential-row"><strong>Google cookies.txt</strong><span>Add photos to shared albums and import private albums.</span></div>
-                                </div>
-                            </details>
                         </div>
                     </section>
 
@@ -1534,155 +1792,33 @@
                             <p>Send new additions from an Immich album back to its Google Photos album.</p>
                         </div>
 
-                        <div class="note" style="margin-bottom:16px">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                            <div><strong>This is the primary Google account.</strong> It uploads photos when no other person is linked. To give someone else their own Google account, use <a href="#" onclick="goToSection('accounts');return false;">Accounts &amp; Users</a>.</div>
+                        <div class="note note-info" style="margin-bottom:16px">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-user"/></svg>
+                            <div>Google credentials and browser cookies are managed per account. The default Google account uploads when the Immich owner has no linked Google account. <a href="#" onclick="goToSection('accounts');return false;">Open Accounts &amp; Users</a>.</div>
                         </div>
 
                         <div class="card">
                             <div class="card-header">
-                                <div><h3>Google account</h3><p>The account that uploads files to your Google Photos library.</p></div>
-                                <span class="pill pill-muted" id="googleAccountPill"><span class="status-dot"></span>Not connected</span>
+                                <div><h3>Default Google account</h3></div>
+                                <span class="pill pill-muted" id="googleAccountPill"><span class="status-dot"></span>None</span>
                             </div>
-                            <div id="googleAccountConnected" style="display:none">
-                                <div class="field-grid">
-                                    <div class="field">
-                                        <label>Connected account</label>
-                                        <div class="input" id="googleAccountEmail" style="background:var(--surface-2)">-</div>
-                                    </div>
-                                    <div class="field">
-                                        <label>Uploader version</label>
-                                        <div class="input" id="googleAccountVersion" style="background:var(--surface-2)">-</div>
-                                    </div>
-                                </div>
-                                <div class="button-row" style="margin-top:12px">
-                                    <button class="btn btn-secondary" type="button" onclick="refreshGoogleAccount()">Test connection</button>
-                                    <button class="btn btn-ghost" type="button" onclick="showGoogleWizard()">Replace credential</button>
-                                    <button class="btn btn-danger" type="button" onclick="disconnectGoogle()">Disconnect</button>
-                                </div>
+                            <div class="cred-summary" id="googleAccountSummary">No Google account linked. Add one under Accounts &amp; Users.</div>
+                            <div class="button-row" style="margin-top:12px">
+                                <button class="btn btn-secondary" type="button" onclick="goToSection('accounts')">Manage accounts</button>
                             </div>
-                            <div id="googleAccountDisconnected">
-                                <p class="hint" style="margin-top:0">Paste an <code>oauth_token</code> cookie from Google Embedded Setup. No Android device needed.</p>
-                                <div class="button-row">
-                                    <button class="btn btn-primary" type="button" onclick="showGoogleWizard()">Connect Google Photos</button>
-                                </div>
-                            </div>
-                            <div class="test-result" id="googleAccountError" style="margin-top:10px"></div>
-                        </div>
-
-                        <div class="card" id="googleWizard" style="display:none">
-                            <div class="card-header">
-                                <div><h3>Connect a Google account</h3><p>One-time setup, about two minutes.</p></div>
-                                <button class="btn btn-ghost btn-sm" type="button" onclick="hideGoogleWizard()">Close</button>
-                            </div>
-                            <div class="steps">
-                                <div class="step">
-                                    <div class="num">1</div>
-                                    <div>
-                                        <h4>Open the Google sign-in page</h4>
-                                        <p>Sign in with the account that should upload to your shared albums.</p>
-                                        <div class="button-row">
-                                            <a class="btn btn-secondary" href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Open sign-in</a>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="step">
-                                    <div class="num">2</div>
-                                    <div>
-                                        <h4>Approve and copy the cookie</h4>
-                                        <p>Click "I agree". The page may keep loading, that is expected. Then open DevTools, go to Application or Storage, Cookies, <code>accounts.google.com</code>, and copy the value of <code>oauth_token</code>.</p>
-                                    </div>
-                                </div>
-                                <div class="step">
-                                    <div class="num">3</div>
-                                    <div>
-                                        <h4>Paste and connect</h4>
-                                        <div class="field" style="margin-top:4px">
-                                            <label for="googleOAuthToken">oauth_token</label>
-                                            <div class="input-group">
-                                                <input class="input" type="password" id="googleOAuthToken" placeholder="oauth_token value" autocomplete="off">
-                                                <button class="btn btn-secondary" type="button" id="toggleOAuthBtn" onclick="toggleOAuthToken()" aria-label="Show token"><svg class="icon"><use href="#icon-eye"/></svg></button>
-                                            </div>
-                                            <div class="hint">The token is sent to the local server and stored in a private file. It is never shown again.</div>
-                                        </div>
-                                        <div class="button-row">
-                                            <button class="btn btn-primary" type="button" id="googleConnectBtn" onclick="connectGoogle()">Connect</button>
-                                            <span class="test-result" id="googleConnectResult"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="note" style="margin-top:16px">
-                                <svg viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                                <div><strong>This credential has full access to the Google account.</strong> Consider a dedicated account and keep the data directory private.</div>
-                            </div>
+                            <div class="hint">Used when a photo's Immich owner has no linked Google account.</div>
                         </div>
 
                         <div class="card">
                             <div class="card-header">
-                                <div><h3>Shared album access</h3><p>Only needed for albums someone else owns. Your own albums upload with the account above.</p></div>
-                                <span class="pill pill-muted" id="googleWebPill"><span class="status-dot"></span>Not connected</span>
+                                <div><h3>Browser session</h3></div>
+                                <span class="pill pill-muted" id="googleWebPill"><span class="status-dot"></span>None</span>
                             </div>
-                            <div id="googleWebConnected" style="display:none">
-                                <p class="hint" style="margin-top:0">The browser session is active. Shared albums can receive uploads.</p>
-                                <div class="button-row">
-                                    <button class="btn btn-secondary" type="button" onclick="refreshWebSession(true)">Test session</button>
-                                    <button class="btn btn-ghost" type="button" onclick="showWebWizard()">Replace cookies</button>
-                                    <button class="btn btn-danger" type="button" onclick="disconnectWebSession()">Disconnect</button>
-                                </div>
+                            <div class="cred-summary" id="googleWebSessionSummary">No browser session. Add cookies under Accounts &amp; Users.</div>
+                            <div class="button-row" style="margin-top:12px">
+                                <button class="btn btn-secondary" type="button" onclick="goToSection('accounts')">Manage accounts</button>
                             </div>
-                            <div id="googleWebDisconnected">
-                                <p class="hint" style="margin-top:0">Google's mobile API cannot add photos to an album you do not own. A signed-in photos.google.com session can.</p>
-                                <div class="button-row">
-                                    <button class="btn btn-secondary" type="button" onclick="showWebWizard()">Connect browser session</button>
-                                </div>
-                            </div>
-                            <div class="test-result" id="googleWebError" style="margin-top:10px" role="status" aria-live="polite"></div>
-                        </div>
-
-                        <div class="card" id="googleWebWizard" style="display:none">
-                            <div class="card-header">
-                                <div><h3>Connect a browser session</h3><p>One-time setup, about a minute.</p></div>
-                                <button class="btn btn-ghost btn-sm" type="button" onclick="hideWebWizard()">Close</button>
-                            </div>
-                            <div class="steps">
-                                <div class="step">
-                                    <div class="num">1</div>
-                                    <div>
-                                        <h4>Open Google Photos</h4>
-                                        <p>Sign in with the same account you connected above.</p>
-                                        <div class="button-row">
-                                            <a class="btn btn-secondary" href="https://photos.google.com/" target="_blank" rel="noopener noreferrer">Open Google Photos</a>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="step">
-                                    <div class="num">2</div>
-                                    <div>
-                                        <h4>Export the cookies</h4>
-                                        <p>Use a cookies.txt extension for this site. Export the cookies for <code>photos.google.com</code> and keep the file private.</p>
-                                    </div>
-                                </div>
-                                <div class="step">
-                                    <div class="num">3</div>
-                                    <div>
-                                        <h4>Paste and connect</h4>
-                                        <div class="field" style="margin-top:4px">
-                                            <label for="googleWebCookies">cookies.txt contents</label>
-                                            <textarea class="input" id="googleWebCookies" spellcheck="false" placeholder="# Netscape HTTP Cookie File"></textarea>
-                                            <div class="hint">Stored in the data directory with mode 0600. The value is never shown again.</div>
-                                        </div>
-                                        <div class="button-row">
-                                            <button class="btn btn-primary" type="button" id="googleWebConnectBtn" onclick="connectWebSession()">Connect session</button>
-                                            <span class="test-result" id="googleWebConnectResult" role="status" aria-live="polite"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="note" style="margin-top:16px">
-                                <svg viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                                <div><strong>This session can read and change your Google Photos library.</strong> Use it only on a machine you trust, and disconnect when you no longer need shared-album uploads.</div>
-                            </div>
+                            <div class="hint">Needed for shared albums and private album imports.</div>
                         </div>
 
                         <div class="card">
@@ -1744,9 +1880,9 @@
 
                         <div class="card" id="privateSessionCard" style="display:none">
                             <div class="card-header">
-                                <div><h3>Browser session required</h3><p>Private albums are not public. Connect the Google Photos browser session first.</p></div>
+                                <div><h3>Browser session required</h3><p>Private albums are not public. Add browser cookies for the default import account under Accounts &amp; Users.</p></div>
                             </div>
-                            <button class="btn btn-secondary" type="button" onclick="goToSection('google')">Open Google upload</button>
+                            <button class="btn btn-secondary" type="button" onclick="goToSection('accounts')">Open Accounts &amp; Users</button>
                         </div>
 
                         <div id="privateWorkspace" style="display:none">
@@ -1798,62 +1934,54 @@
 
                     <section id="section-accounts" class="section">
                         <div class="section-header">
-                            <h2>Accounts &amp; Users</h2>
-                            <p>Link each Immich user to their own Google Photos account, then route uploads and imports per person.</p>
+                            <div>
+                                <h2>Accounts &amp; Users</h2>
+                                <p>One account links an Immich user to a Google Photos account. Defaults decide where new photos go.</p>
+                            </div>
                         </div>
 
                         <div class="test-result" id="accountError" role="status" aria-live="polite"></div>
 
-                        <div class="card">
-                            <div class="card-header">
-                                <div><h3>Primary connection</h3><p>The profile gPhotos2Immich uses when no other account is chosen.</p></div>
-                                <span class="pill pill-muted" id="primaryConnectionPill"><span class="status-dot"></span>Checking</span>
+                        <div id="accountsSimpleCallout"></div>
+
+                        <div class="defaults-card" id="accountsDefaultsCard">
+                            <div class="default-group">
+                                <label for="defaultImportAccount">Default import account</label>
+                                <select class="input" id="defaultImportAccount"></select>
+                                <div class="hint">Owns new photos from shared albums and provides the Immich server connection.</div>
                             </div>
-                            <div class="primary-card">
-                                <div class="primary-card-head">
-                                    <div class="account-avatar" id="primaryConnectionAvatar" aria-hidden="true">?</div>
-                                    <div class="account-person">
-                                        <div class="account-name" id="primaryConnectionName">Primary profile</div>
-                                        <div class="account-sub" id="primaryConnectionMeta">Loading the primary connection...</div>
-                                    </div>
-                                </div>
-                                <div class="account-status" id="primaryConnectionStatus"></div>
-                                <div class="primary-card-actions">
-                                    <button class="btn btn-secondary" type="button" onclick="openPrimaryProfileModal()">Edit primary profile</button>
-                                </div>
+                            <div class="default-group">
+                                <label for="defaultGoogleAccount">Default Google upload account</label>
+                                <select class="input" id="defaultGoogleAccount"></select>
+                                <div class="hint">Used when a photo's Immich owner has no linked Google account.</div>
                             </div>
                         </div>
 
-                        <div class="accounts-layout">
-                            <div class="card">
-                                <div class="card-header">
-                                    <div><h3>People linked to Google Photos</h3><p>Each person's photos use their own Google credential and browser session.</p></div>
-                                    <button class="btn btn-secondary btn-sm" type="button" onclick="openAccountWizard()">Link person</button>
-                                </div>
-                                <div id="accountList" class="account-list"></div>
-                                <div id="accountEmpty" class="empty-state">No people are linked yet. Link an Immich user to their Google account to route uploads per person.</div>
-                                <button class="account-add" type="button" onclick="openAccountWizard()"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Link a person</button>
-                            </div>
+                        <div class="card simple-account-card" id="accountsSimpleCard" hidden></div>
 
-                            <div class="card">
-                                <div class="card-header">
-                                    <div><h3>Live routing preview</h3><p>Where each Immich user's photos go when they appear in a shared Immich album.</p></div>
-                                    <button class="btn btn-ghost btn-sm" type="button" onclick="loadAccounts()">Refresh</button>
-                                </div>
-                                <label class="toggle" style="padding-top:0;border:0">
-                                    <div class="toggle-text">
-                                        <div class="toggle-title">Strict contributor matching</div>
-                                        <div class="toggle-desc">Skip photos from Immich users without a linked Google account instead of falling back to the default account.</div>
-                                    </div>
-                                    <span class="switch"><input type="checkbox" id="googleStrictMatching"><span class="switch-track"></span></span>
-                                </label>
-                                <div class="hint">When off, unmapped users fall back to the primary account or the person marked as fallback.</div>
-                                <div class="routing-summary" id="routingSummary">Routing preview has not loaded yet.</div>
-                                <div class="routing-list" id="routingList"></div>
-                                <div class="empty-state" id="routingEmpty" style="display:none">No Immich users were returned. Check the Connection page, or link a person manually.</div>
-                                <div class="test-result danger" id="routingError" role="status" aria-live="polite"></div>
-                                <div class="hint">Immich assigns every imported asset to the owner of the API key that uploaded it. To import a shared album as another person, use that person's Immich API key. Uploads from Immich to Google Photos read each asset's ownerId and use the Google account linked to that person.</div>
-                            </div>
+                        <div class="master-detail" id="accountsMasterDetail">
+                            <aside class="account-list-card" aria-label="Accounts">
+                                <div class="account-list-head"><h3>Accounts</h3></div>
+                                <div id="accountList" class="account-list"></div>
+                                <button class="account-add" type="button" data-action="add-account" onclick="openAccountAddWizard()">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Add account
+                                </button>
+                            </aside>
+                            <section class="account-detail" id="accountDetail" aria-label="Selected account"></section>
+                        </div>
+
+                        <div class="empty-state" id="accountEmpty" hidden>
+                            <h3>No accounts yet</h3>
+                            <p>Create an account with an Immich API key and, optionally, a Google Photos credential. The first account becomes the default for imports.</p>
+                            <button class="btn btn-primary" type="button" onclick="openAccountAddWizard()">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Create your first account
+                            </button>
+                        </div>
+
+                        <div class="danger-zone" id="accountsDangerZone">
+                            <h3>Reset accounts</h3>
+                            <p>Remove every account, API key, Google credential, cookie file and Immich album ID. Album URLs stay. Photos already imported into Immich are not deleted.</p>
+                            <button class="btn btn-danger" type="button" onclick="resetAccounts()">Reset accounts</button>
                         </div>
                     </section>
 
@@ -1878,7 +2006,6 @@
                             <div class="field" style="margin-top:16px">
                                 <label for="notificationsImmichAccount">Notify as</label>
                                 <select class="input" id="notificationsImmichAccount">
-                                    <option value="">Primary profile</option>
                                 </select>
                                 <div class="hint">Only Immich accounts with an API key can receive notifications.</div>
                                 <div class="hint" id="notificationsImmichHint" hidden>Add an Immich API key under Accounts &amp; Users to notify as that person.</div>
@@ -1911,7 +2038,7 @@
                                 <button class="btn btn-secondary" type="button" id="notificationTestBtn" onclick="sendTestNotification('immich')">Send test notification</button>
                                 <span class="test-result" id="notificationTestResult" role="status" aria-live="polite"></span>
                             </div>
-                            <div class="hint">If the test fails with a permission error, create an Immich API key with <code>notification.create</code> and update the primary profile.</div>
+                            <div class="hint">If the test fails with a permission error, create an Immich API key with <code>notification.create</code> and update it under Accounts &amp; Users.</div>
                         </div>
 
                         <div class="card">
@@ -2111,37 +2238,44 @@
         <div class="wizard-progress"><div class="wizard-dot active"></div><div class="wizard-dot"></div><div class="wizard-dot"></div></div>
 
         <div id="wizard-1" class="wizard-step active">
-            <h2>Welcome to gPhotos2Immich</h2>
-            <p>This quick setup connects your Immich server and adds your first shared album. You can change everything later.</p>
+            <h2>Connect your Immich server</h2>
+            <p>Enter the address of your Immich server. It must include <code>/api</code>. You can change it later.</p>
+            <div class="field">
+                <label for="wizApiURL">Immich server URL</label>
+                <input class="input" type="text" id="wizApiURL" placeholder="http://immich-server:2283/api">
+            </div>
             <div class="wizard-actions right">
-                <button class="btn btn-primary" type="button" onclick="goWizardStep(2)">Get started</button>
+                <button class="btn btn-primary" type="button" onclick="wizardNextFromUrl()">Continue</button>
             </div>
         </div>
 
         <div id="wizard-2" class="wizard-step">
-            <h2>Create the primary profile</h2>
-            <p>These credentials become the primary Immich profile. gPhotos2Immich uses it to connect, read users, import albums, and send notifications. Use the API URL including <code>/api</code> and an API key with the required permissions.</p>
+            <h2>Create your account</h2>
+            <p>One account links an Immich user to Google Photos. This first account becomes the default for imports and provides the Immich connection. Google Photos can be added later under Accounts &amp; Users.</p>
             <div class="field">
-                <label for="wizApiURL">API URL</label>
-                <input class="input" type="text" id="wizApiURL" placeholder="http://immich-server:2283/api">
+                <label for="wizAccountName">Your name</label>
+                <input class="input" type="text" id="wizAccountName" placeholder="Your name" autocomplete="name">
             </div>
             <div class="field">
-                <label for="wizApiKey">API key</label>
+                <label for="wizApiKey">Immich API key</label>
                 <input class="input" type="password" id="wizApiKey" placeholder="Your Immich API key" autocomplete="off">
+                <div class="hint">In Immich, open Account Settings &gt; API Keys.</div>
             </div>
             <div class="button-row">
                 <button class="btn btn-secondary" type="button" onclick="testWizardConnection()">Test connection</button>
-                <span class="test-result" id="wizTestResult"></span>
+                <span class="test-result" id="wizTestResult" role="status" aria-live="polite"></span>
             </div>
+            <div class="test-result" id="wizAccountResult" role="status" aria-live="polite" style="margin-top:10px"></div>
             <div class="wizard-actions">
                 <button class="btn btn-ghost" type="button" onclick="goWizardStep(1)">Back</button>
-                <button class="btn btn-primary" type="button" onclick="goWizardStep(3)">Next: add album</button>
+                <button class="btn btn-primary" type="button" id="wizConnectBtn" onclick="connectFirstAccount()">Connect</button>
             </div>
         </div>
 
         <div id="wizard-3" class="wizard-step">
             <h2>Add your first album</h2>
-            <p>Paste a public Google Photos shared album link. You can add more later.</p>
+            <p>Optional. Paste a public Google Photos shared album link. You can add more later.</p>
+            <div class="test-result success" id="wizAccountStatus" role="status" aria-live="polite" style="margin-bottom:14px"></div>
             <div class="field">
                 <label for="wizAlbumUrl">Shared album URL</label>
                 <input class="input" type="text" id="wizAlbumUrl" placeholder="https://photos.app.goo.gl/...">
@@ -2150,9 +2284,10 @@
                 <label for="wizAlbumName">Album name (optional)</label>
                 <input class="input" type="text" id="wizAlbumName" placeholder="Summer 2026">
             </div>
+            <div class="test-result" id="wizFinishResult" role="status" aria-live="polite"></div>
             <div class="wizard-actions">
                 <button class="btn btn-ghost" type="button" onclick="goWizardStep(2)">Back</button>
-                <button class="btn btn-primary" type="button" onclick="finishWizard()">Finish setup</button>
+                <button class="btn btn-primary" type="button" id="wizFinishBtn" onclick="finishWizard()">Finish setup</button>
             </div>
         </div>
     </div>
@@ -2161,8 +2296,8 @@
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountWizardTitle">
             <div class="modal-header">
                 <div>
-                    <h2 id="accountWizardTitle">Link a person</h2>
-                    <p id="accountWizardSubtitle">Connect one Immich user to one Google Photos account.</p>
+                    <h2 id="accountWizardTitle">Edit account</h2>
+                    <p id="accountWizardSubtitle">Change what you need. Stored credentials stay unless you replace them.</p>
                 </div>
                 <button class="btn btn-ghost btn-sm" type="button" onclick="closeAccountWizard()">Close</button>
             </div>
@@ -2257,56 +2392,26 @@
                     </ol>
                 </details>
 
-                <label class="inline-check" style="margin-bottom:14px">
-                    <input type="checkbox" id="accountIsDefault">
-                    Use this person as the fallback for unmapped Immich users
-                </label>
-
                 <div class="test-result" id="accountSaveResult" role="status" aria-live="polite"></div>
                 <div class="button-row" style="margin-top:16px">
-                    <button class="btn btn-primary" type="button" id="accountSaveBtn" onclick="saveAccount()">Save person</button>
+                    <button class="btn btn-primary" type="button" id="accountSaveBtn" onclick="saveAccount()">Save account</button>
                     <button class="btn btn-ghost" type="button" onclick="closeAccountWizard()">Cancel</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal-overlay" id="primaryProfileModal" hidden>
-        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="primaryProfileModalTitle">
+    <div class="modal-overlay" id="accountAddWizard" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountAddWizardTitle">
             <div class="modal-header">
                 <div>
-                    <h2 id="primaryProfileModalTitle">Edit primary profile</h2>
-                    <p>The account gPhotos2Immich uses to connect to Immich.</p>
+                    <h2 id="accountAddWizardTitle">Add an account</h2>
+                    <p>One Immich user and one Google Photos account. Google is optional.</p>
                 </div>
-                <button class="btn btn-ghost btn-sm" type="button" onclick="closePrimaryProfileModal()">Close</button>
+                <button class="btn btn-ghost btn-sm" type="button" onclick="closeAccountAddWizard()">Close</button>
             </div>
-
-            <div class="field">
-                <label for="primaryApiURL">Immich API URL</label>
-                <input class="input" type="text" id="primaryApiURL" placeholder="http://immich-server:2283/api">
-            </div>
-
-            <div class="field">
-                <div id="primaryKeyConfigured" hidden>
-                    <label>API key</label>
-                    <div class="button-row">
-                        <span class="badge badge-ok">API key configured</span>
-                        <button class="btn btn-secondary btn-sm" type="button" onclick="revealPrimaryKey()">Replace API key</button>
-                    </div>
-                </div>
-                <div id="primaryKeyField">
-                    <label for="primaryApiKey" id="primaryApiKeyLabel">New API key</label>
-                    <input class="input" type="password" id="primaryApiKey" placeholder="New API key" autocomplete="off">
-                    <div class="hint">The key needs the upload, album, user and notification permissions.</div>
-                    <button class="btn btn-ghost btn-sm" type="button" id="primaryKeyCancel" onclick="cancelPrimaryKey()" hidden>Cancel</button>
-                </div>
-            </div>
-
-            <div class="test-result" id="primaryProfileResult" role="status" aria-live="polite"></div>
-            <div class="button-row" style="margin-top:16px">
-                <button class="btn btn-primary" type="button" id="primarySaveBtn" onclick="savePrimaryProfile()">Save and reconnect</button>
-                <button class="btn btn-ghost" type="button" onclick="closePrimaryProfileModal()">Cancel</button>
-            </div>
+            <div class="acct-wizard-steps" id="acctWizardSteps"></div>
+            <div id="acctWizardBody"></div>
         </div>
     </div>
 
@@ -2318,7 +2423,10 @@
             activeSection: 'overview',
             uiMode: 'standard',
             accounts: [],
-            primary: null,
+            accountDefaults: { importAccount: '', googleAccount: '' },
+            accountSelected: '',
+            resetInProgress: false,
+            accountWizard: { step: 1, values: {}, busy: false, focus: null },
             routing: null,
             immichUsers: [],
             accountUsersLoaded: false,
@@ -2326,15 +2434,14 @@
             toastTimer: null,
             immichAlbums: [],
             webSession: { connected: false },
-            googleAccount: { connected: false },
+            googleAccount: { connected: false, email: '' },
             privateAlbums: [],
             privateStatus: null,
             privatePoll: null,
             privateLoaded: false,
             privateRunning: false,
             ntfyToken: '',
-            ntfyReplace: false,
-            primaryModal: { replaceKey: false, hasKey: false, focus: null, closeTimer: null }
+            ntfyReplace: false
         };
 
         const accountCreds = { immichKey: false, oauth: false, cookies: false };
@@ -2342,8 +2449,8 @@
         const autosave = { timer: null, inFlight: false, pending: false };
 
         const MODE_SECTIONS = {
-            simple: ['overview', 'connection', 'albums', 'logs'],
-            standard: ['overview', 'connection', 'sync', 'dedup', 'albums', 'google', 'private', 'notifications', 'logs'],
+            simple: ['overview', 'connection', 'albums', 'accounts', 'logs'],
+            standard: ['overview', 'connection', 'sync', 'dedup', 'albums', 'google', 'private', 'accounts', 'notifications', 'logs'],
             advanced: ['overview', 'connection', 'sync', 'dedup', 'albums', 'google', 'private', 'accounts', 'notifications', 'advanced', 'logs']
         };
 
@@ -2364,28 +2471,28 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.13.1';
+        const APP_VERSION = '1.14.0';
         let setupSignature = '';
         const WHATS_NEW = [
             {
-                title: 'Save fix for Docker',
-                body: 'Saving config.json works again when the file is bind-mounted into the container.'
+                title: 'Unified accounts',
+                body: 'One account combines an Immich user, their API key, and optional Google Photos credentials. The first account becomes the default import account and provides the Immich connection.'
             },
             {
-                title: 'Settings save automatically',
-                body: 'Changes save as you type. The top bar shows Saving, Saved, or Could not save, and ordinary settings apply without restarting a running sync.'
+                title: 'Two clear defaults',
+                body: 'Choose a default import account and a default Google upload account. Add account now sits under the account list, and selecting an account shows its status on the right.'
             },
             {
-                title: 'Profile-based credentials',
-                body: 'The Connection page no longer asks for a raw API key. Edit the primary profile there, and manage every other person under Accounts & Users.'
+                title: 'Automatic Immich album matching',
+                body: 'Paste a shared album link and the app selects an existing Immich album with the same name, suggests close matches, or creates one on the first import when the Google album has photos.'
             },
             {
-                title: 'Choose who sends notifications',
-                body: 'Send Immich notifications as the primary profile or another linked person, using that person\'s own Immich API key.'
+                title: 'Clearer import owner',
+                body: 'The old per-album Import as field moved to Advanced as Who owns the imported photos, with the default import account preselected.'
             },
             {
-                title: 'ntfy notifications',
-                body: 'Add ntfy.sh or your own ntfy server as a second, independent channel with its own events and priority.'
+                title: 'Reset accounts',
+                body: 'Clear every account, credential, notification target and Immich album ID while keeping album URLs and intervals. Google credentials are now managed only under Accounts & Users.'
             }
         ];
 
@@ -2424,17 +2531,22 @@
 
         function goToSection(name, options = {}) {
             if (!options.skipModeCheck && !sectionVisible(name)) {
-                setUIMode(['accounts', 'advanced'].includes(name) ? 'advanced' : 'standard', { persist: false });
+                setUIMode(['advanced'].includes(name) ? 'advanced' : 'standard', { persist: false });
             }
             qsa('.section').forEach(section => section.classList.toggle('active', section.id === 'section-' + name));
             qsa('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.section === name));
             state.activeSection = name;
+            updateBackgroundBanner();
             if (name === 'logs') {
                 refreshActivity();
                 refreshLogs();
             }
             if (name === 'private') applyPrivateSession();
             if (name === 'accounts') loadAccounts();
+            if (name === 'google') renderGoogleUploadAccounts();
+            if (name === 'albums') {
+                qsa('#albumList .album-row').forEach(row => detectAlbumRow(row));
+            }
             if (!options.skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -2463,6 +2575,7 @@
             if (!sectionVisible(state.activeSection)) {
                 goToSection('overview', { skipModeCheck: true, skipScroll: true });
             }
+            if (state.config) renderAccountsPage(true);
             updateBackgroundBanner();
             if (options.persist === false) return;
             scheduleAutosave();
@@ -2477,21 +2590,23 @@
             const banner = $('modeBanner');
             if (!banner) return;
             const accounts = state.accounts || [];
+            const defaultId = defaultImportId();
+            const extraAccounts = accounts.filter(account => account.id !== defaultId);
             const uploadsInSimple = state.uiMode === 'simple'
                 && qsa('#albumList [data-field="uploadToGoogle"]:checked').length > 0;
-            if (state.uiMode === 'advanced' || (!accounts.length && !uploadsInSimple)) {
+            if (state.uiMode !== 'simple' || state.activeSection === 'accounts' || (!extraAccounts.length && !uploadsInSimple)) {
                 banner.hidden = true;
                 return;
             }
             const title = $('modeBannerTitle');
             const text = $('modeBannerText');
             const button = $('modeBannerBtn');
-            if (accounts.length) {
-                const count = accounts.length;
-                title.textContent = `${count} extra account ${count === 1 ? 'mapping remains' : 'mappings remain'} active in the background.`;
-                text.textContent = `Switch to Advanced to edit ${count === 1 ? 'it' : 'them'}.`;
-                button.textContent = 'Switch to Advanced';
-                button.dataset.mode = 'advanced';
+            if (extraAccounts.length) {
+                const count = extraAccounts.length;
+                title.textContent = `${count} more ${count === 1 ? 'account is' : 'accounts are'} active in the background.`;
+                text.textContent = `Switch to Standard to manage ${count === 1 ? 'it' : 'them'}.`;
+                button.textContent = 'Switch to Standard';
+                button.dataset.mode = 'standard';
             } else {
                 title.textContent = 'Google Photos upload is active in the background.';
                 text.textContent = 'Switch to Standard to manage the Google account and browser session.';
@@ -2544,6 +2659,40 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Typing a new link or album name should not fire a request per key.
+        const albumDetectTimers = new WeakMap();
+        const albumNameTimers = new WeakMap();
+
+        function scheduleAlbumDetection(row) {
+            clearTimeout(albumDetectTimers.get(row));
+            albumDetectTimers.set(row, setTimeout(() => {
+                albumDetectTimers.delete(row);
+                const select = row.querySelector('[data-field="immichAlbumId"]');
+                if (select) delete select.dataset.manual;
+                detectAlbumRow(row, { force: true });
+            }, 500));
+        }
+
+        function scheduleAlbumNameDetection(row) {
+            clearTimeout(albumNameTimers.get(row));
+            albumNameTimers.set(row, setTimeout(() => {
+                albumNameTimers.delete(row);
+                if (row.dataset.googleTitle === undefined) return;
+                refreshAlbumTarget(row);
+            }, 350));
+        }
+
+        // The summary repeats the option text, so it stays correct after the
+        // account list is reloaded without extra bookkeeping.
+        function updateAlbumImportOwner(row) {
+            if (!row) return;
+            const select = row.querySelector('[data-field="immichAccountId"]');
+            const label = row.querySelector('[data-role="ownerLabel"]');
+            if (!select || !label) return;
+            const option = select.selectedOptions && select.selectedOptions[0];
+            label.textContent = (option && option.textContent) || 'Default import account';
+        }
+
         function addAlbumRow(gp = {}) {
             const row = document.createElement('div');
             row.className = 'album-row';
@@ -2553,8 +2702,8 @@
                     <input class="input" data-field="url" type="text" placeholder="https://photos.app.goo.gl/..." value="${escapeHtml(gp.url || '')}">
                 </div>
                 <div class="field">
-                    <label>Album name</label>
-                    <input class="input" data-field="albumName" type="text" placeholder="Optional name" value="${escapeHtml(gp.albumName || '')}">
+                    <label title="Defaults to the Google Photos album title.">Immich album name (optional)</label>
+                    <input class="input" data-field="albumName" type="text" placeholder="Same as the Google Photos title" value="${escapeHtml(gp.albumName || '')}">
                 </div>
                 <div class="field">
                     <label>Sync interval</label>
@@ -2566,12 +2715,7 @@
                         <option value="">Not linked</option>
                     </select>
                 </div>
-                <div class="field mode-advanced-only">
-                    <label title="Uses this person's Immich API key.">Import as (API key)</label>
-                    <select class="input" data-field="immichAccountId">
-                        <option value="">Primary account</option>
-                    </select>
-                </div>
+                <div class="album-detect" data-role="detect" role="status" aria-live="polite"></div>
                 <button class="btn btn-ghost btn-sm album-remove" type="button" title="Remove album" aria-label="Remove album"><svg class="icon"><use href="#icon-trash"/></svg></button>
                 <div class="album-backup mode-standard-only">
                     <label class="toggle" style="padding:0;border:0">
@@ -2582,6 +2726,16 @@
                         <span class="switch"><input type="checkbox" data-field="uploadToGoogle"><span class="switch-track"></span></span>
                     </label>
                     <div class="hint" style="margin:8px 0 0">Uploads each photo using the Google account linked to its Immich ownerId.</div>
+                    <details class="album-import-owner mode-advanced-only">
+                        <summary>Import owner: <span data-role="ownerLabel">Default import account</span></summary>
+                        <div class="field">
+                            <label>Who owns the imported photos?</label>
+                            <select class="input" data-field="immichAccountId">
+                                <option value="">Default import account</option>
+                            </select>
+                            <div class="hint">Immich assigns imported photos to the owner of this API key. Keep the default unless this album belongs to someone else.</div>
+                        </div>
+                    </details>
                     <div class="album-backup-actions">
                         <button class="btn btn-secondary btn-sm" type="button" data-action="verify">Verify mapping</button>
                         <button class="btn btn-secondary btn-sm" type="button" data-action="upload">Upload now</button>
@@ -2591,11 +2745,13 @@
                 </div>
             `;
             const select = row.querySelector('[data-field="immichAlbumId"]');
-            populateImmichAlbums(select, gp.immichAlbumId || '');
+            seedImmichAlbumSelect(select, gp.immichAlbumId || '');
             const accountSelect = row.querySelector('[data-field="immichAccountId"]');
             populateAlbumAccountSelect(accountSelect, gp.immichAccountId || '');
             const toggle = row.querySelector('[data-field="uploadToGoogle"]');
             toggle.checked = !!gp.uploadToGoogle;
+            const urlInput = row.querySelector('[data-field="url"]');
+            const nameInput = row.querySelector('[data-field="albumName"]');
 
             row.querySelector('.album-remove').addEventListener('click', () => {
                 row.remove();
@@ -2609,13 +2765,30 @@
                 updateBackgroundBanner();
                 scheduleAutosave();
             });
+            select.addEventListener('change', () => {
+                if (select.value) {
+                    select.dataset.manual = 'true';
+                    updateAlbumDetectStatus(row);
+                } else {
+                    delete select.dataset.manual;
+                    setAlbumDetectStatus(row, 'Will create a new album');
+                }
+                updateAlbumBackupState(row);
+            });
+            accountSelect.addEventListener('change', () => updateAlbumImportOwner(row));
+            urlInput.addEventListener('input', () => scheduleAlbumDetection(row));
+            urlInput.addEventListener('change', () => scheduleAlbumDetection(row));
+            nameInput.addEventListener('input', () => scheduleAlbumNameDetection(row));
+            nameInput.addEventListener('change', () => scheduleAlbumNameDetection(row));
             row.querySelector('[data-action="verify"]').addEventListener('click', () => verifyAlbumRow(row));
             row.querySelector('[data-action="upload"]').addEventListener('click', () => uploadAlbumRow(row));
 
             $('albumList').appendChild(row);
+            refreshAlbumTarget(row, { silent: true });
             updateAlbumBackupState(row);
             updateAlbumCount();
             updateOverviewStats();
+            populatePrivateTargets();
         }
 
         function addAlbumRowAndSave() {
@@ -2644,24 +2817,224 @@
                 return;
             }
             if (missingImmich) {
-                status.textContent = 'Link an Immich album first.';
+                status.textContent = 'Choose an existing Immich album to upload to Google Photos.';
                 status.className = 'test-result danger';
                 return;
             }
             if (!state.googleAccount.connected) {
                 uploadButton.disabled = true;
-                status.textContent = 'Connect the Google account first.';
+                status.textContent = 'Add a Google account under Accounts & Users first.';
                 status.className = 'test-result danger';
                 return;
             }
             if (shared && !webReady) {
                 uploadButton.disabled = true;
-                status.textContent = 'Shared album. Connect the browser session below, then verify again.';
+                status.textContent = 'Shared album. Add browser cookies under Accounts & Users, then verify again.';
                 status.className = 'test-result danger';
                 return;
             }
             status.textContent = shared ? 'Ready to upload through the browser session.' : 'Ready to upload.';
             status.className = 'test-result';
+        }
+
+        function normalizeAlbumTitle(value) {
+            return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        }
+
+        // The user's name override wins; otherwise the resolved Google title is
+        // what the backend would use to find or create the Immich album.
+        function albumRowTitle(row) {
+            const override = row.querySelector('[data-field="albumName"]').value.trim();
+            return override || row.dataset.googleTitle || '';
+        }
+
+        function findExactImmichAlbum(title) {
+            const wanted = normalizeAlbumTitle(title);
+            if (!wanted) return null;
+            return (state.immichAlbums || []).find(album => normalizeAlbumTitle(album.name) === wanted) || null;
+        }
+
+        // Rank the other albums by shared words, with a bonus when one name
+        // contains the other. Suggestions are never selected automatically.
+        function suggestImmichAlbums(title, limit = 3) {
+            const wanted = normalizeAlbumTitle(title);
+            if (!wanted) return [];
+            const wantedWords = new Set(wanted.split(' ').filter(Boolean));
+            const scored = [];
+            for (const album of (state.immichAlbums || [])) {
+                const name = normalizeAlbumTitle(album.name);
+                if (!name || name === wanted) continue;
+                const words = new Set(name.split(' ').filter(Boolean));
+                let shared = 0;
+                wantedWords.forEach(word => { if (words.has(word)) shared += 1; });
+                const union = new Set([...wantedWords, ...words]).size || 1;
+                let score = shared / union;
+                const substring = wanted.length >= 3 && name.length >= 3
+                    && (name.includes(wanted) || wanted.includes(name));
+                if (substring) score += 0.4;
+                if (!shared && !substring) continue;
+                if (score < 0.3) continue;
+                scored.push({ album, score });
+            }
+            scored.sort((a, b) => b.score - a.score || (b.album.items || 0) - (a.album.items || 0));
+            return scored.slice(0, limit).map(item => item.album);
+        }
+
+        function setAlbumDetectStatus(row, text, tone = '') {
+            const node = row.querySelector('[data-role="detect"]');
+            if (!node) return;
+            node.textContent = text;
+            node.className = 'album-detect' + (tone ? ' ' + tone : '');
+        }
+
+        function updateAlbumDetectStatus(row) {
+            const select = row.querySelector('[data-field="immichAlbumId"]');
+            if (!select) return;
+            const title = albumRowTitle(row);
+            const exact = findExactImmichAlbum(title);
+            if (select.dataset.manual === 'true') {
+                if (!select.value) {
+                    setAlbumDetectStatus(row, 'Will create a new album');
+                    return;
+                }
+                if (exact && exact.id === select.value) {
+                    setAlbumDetectStatus(row, `Matched ${exact.name} (${exact.items || 0} items)`, 'success');
+                    return;
+                }
+                const album = (state.immichAlbums || []).find(item => item.id === select.value);
+                setAlbumDetectStatus(row, `Selected manually: ${album ? album.name : select.value}`, 'success');
+                return;
+            }
+            if (row.dataset.detectFailed === 'true') {
+                setAlbumDetectStatus(row, 'Could not read this album. Check the shared link.', 'danger');
+                return;
+            }
+            if (!title) {
+                setAlbumDetectStatus(row, '');
+                return;
+            }
+            if (exact) {
+                setAlbumDetectStatus(row, `Matched ${exact.name} (${exact.items || 0} items)`, 'success');
+            } else if (Number(row.dataset.googleItems || 0) === 0) {
+                setAlbumDetectStatus(row, 'This album has no photos yet. The Immich album will be created on the first import.');
+            } else {
+                setAlbumDetectStatus(row, 'No exact match. Create a new album or pick a suggested one.', 'warning');
+            }
+        }
+
+        // Rebuild the Immich target select from the loaded albums and explain
+        // the result underneath. Local only; the Google album is resolved
+        // separately by detectAlbumRow.
+        function refreshAlbumTarget(row, options = {}) {
+            const select = row.querySelector('[data-field="immichAlbumId"]');
+            if (!select) return;
+            const albums = state.immichAlbums || [];
+            const title = albumRowTitle(row);
+            const manual = select.dataset.manual === 'true';
+            const previous = select.value;
+            if (!manual && !previous && !title) {
+                select.innerHTML = '<option value="">Not linked</option>';
+                updateAlbumDetectStatus(row);
+                return;
+            }
+            const exact = findExactImmichAlbum(title);
+            const suggestions = exact ? [] : suggestImmichAlbums(title);
+            const suggestedIds = new Set(suggestions.map(album => album.id));
+            const rest = albums.filter(album => !suggestedIds.has(album.id));
+            const optionHtml = album => `<option value="${escapeHtml(album.id)}">${escapeHtml(album.name)} (${album.items || 0})</option>`;
+            let html = `<option value="">${title ? 'Create new album: ' + escapeHtml(title) : 'Create new album'}</option>`;
+            if (suggestions.length) {
+                html += `<optgroup label="Suggested matches">${suggestions.map(optionHtml).join('')}</optgroup>`;
+            }
+            if (rest.length) {
+                html += `<optgroup label="All Immich albums">${rest.map(optionHtml).join('')}</optgroup>`;
+            }
+            select.innerHTML = html;
+            const listed = id => !!id && albums.some(album => album.id === id);
+            if (manual && previous) {
+                // Keep a saved or hand-picked album, even before it is listed.
+                if (!listed(previous)) {
+                    const option = document.createElement('option');
+                    option.value = previous;
+                    option.textContent = previous;
+                    select.appendChild(option);
+                }
+                select.value = previous;
+            } else if (exact) {
+                select.value = exact.id;
+            } else {
+                select.value = '';
+            }
+            updateAlbumDetectStatus(row);
+            if (select.value !== previous && !options.silent) scheduleAutosave();
+        }
+
+        // A saved album ID is a stored choice, so detection must not drop it.
+        function seedImmichAlbumSelect(select, albumId) {
+            if (!select || !albumId) return;
+            const option = document.createElement('option');
+            option.value = albumId;
+            option.textContent = albumId;
+            select.innerHTML = '';
+            select.appendChild(option);
+            select.value = albumId;
+            select.dataset.manual = 'true';
+        }
+
+        async function detectAlbumRow(row, options = {}) {
+            const input = row.querySelector('[data-field="url"]');
+            if (!input || !row.isConnected) return;
+            const url = input.value.trim();
+            if (!url) {
+                delete row.dataset.detectedUrl;
+                delete row.dataset.detectFailed;
+                delete row.dataset.googleTitle;
+                delete row.dataset.googleItems;
+                delete row.dataset.googleKey;
+                delete row.dataset.albumShared;
+                delete row.dataset.webVerified;
+                refreshAlbumTarget(row);
+                return;
+            }
+            if (!options.force && row.dataset.detectedUrl === url) {
+                refreshAlbumTarget(row);
+                return;
+            }
+            const token = String(Number(row.dataset.detectToken || 0) + 1);
+            row.dataset.detectToken = token;
+            setAlbumDetectStatus(row, 'Checking album...');
+            try {
+                const res = await fetch('/api/google/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not read this album');
+                if (!row.isConnected || row.dataset.detectToken !== token) return;
+                delete row.dataset.detectFailed;
+                row.dataset.googleTitle = data.title || '';
+                row.dataset.googleItems = String(Number(data.items) || 0);
+                row.dataset.googleKey = data.mediaKey || '';
+                row.dataset.albumShared = data.shared ? 'true' : 'false';
+                row.dataset.webVerified = data.webVerified ? 'true' : 'false';
+                row.dataset.detectedUrl = url;
+                refreshAlbumTarget(row);
+                updateAlbumBackupState(row);
+            } catch (err) {
+                if (!row.isConnected || row.dataset.detectToken !== token) return;
+                // Cache the failed URL too, so revisiting the page does not
+                // hammer a dead link. Verify mapping and URL edits retry.
+                row.dataset.detectedUrl = url;
+                delete row.dataset.googleTitle;
+                delete row.dataset.googleItems;
+                delete row.dataset.webVerified;
+                row.dataset.googleKey = '';
+                delete row.dataset.albumShared;
+                row.dataset.detectFailed = 'true';
+                refreshAlbumTarget(row);
+                updateAlbumBackupState(row);
+            }
         }
 
         async function verifyAlbumRow(row) {
@@ -2676,31 +3049,19 @@
             status.textContent = 'Checking album...';
             status.className = 'test-result';
             mapping.textContent = '';
-            try {
-                const res = await fetch('/api/google/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not resolve the album');
-                row.dataset.googleKey = data.mediaKey || '';
-                row.dataset.albumShared = data.shared ? 'true' : 'false';
-                let label = `Found "${data.title}" with ${data.items} items.`;
-                if (data.webVerified) {
-                    label += data.shared ? ' Shared album.' : ' Album you own.';
-                }
-                mapping.textContent = label;
-                status.textContent = '';
-                status.className = 'test-result';
-                updateAlbumBackupState(row);
-            } catch (err) {
-                row.dataset.googleKey = '';
-                delete row.dataset.albumShared;
-                mapping.textContent = '';
-                status.textContent = err.message;
+            await detectAlbumRow(row, { force: true });
+            if (row.dataset.detectFailed === 'true') {
+                status.textContent = 'Could not read this album. Check the shared link.';
                 status.className = 'test-result danger';
+                return;
             }
+            const shared = row.dataset.albumShared === 'true';
+            let label = `Found "${row.dataset.googleTitle || ''}" with ${Number(row.dataset.googleItems || 0)} items.`;
+            if (row.dataset.webVerified === 'true') {
+                label += shared ? ' Shared album.' : ' Album you own.';
+            }
+            mapping.textContent = label;
+            updateAlbumBackupState(row);
         }
 
         async function uploadAlbumRow(row) {
@@ -2733,41 +3094,23 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 state.immichAlbums = data.albums || [];
-                qsa('#albumList select[data-field="immichAlbumId"]').forEach(select => {
-                    populateImmichAlbums(select, select.value);
-                });
             } catch (err) {
-                state.immichAlbums = [];
+                return;
             }
-        }
-
-        function populateImmichAlbums(select, selected) {
-            const albums = state.immichAlbums || [];
-            const current = selected || select.value || '';
-            select.innerHTML = '<option value="">Not linked</option>' +
-                albums.map(album => `<option value="${escapeHtml(album.id)}">${escapeHtml(album.name)} (${album.items})</option>`).join('');
-            if (current && albums.some(album => album.id === current)) {
-                select.value = current;
-            } else if (current) {
-                // Keep an ID that is not in the list yet so a save does not lose it.
-                const option = document.createElement('option');
-                option.value = current;
-                option.textContent = current;
-                select.appendChild(option);
-                select.value = current;
-            }
-            select.addEventListener('change', () => updateAlbumBackupState(select.closest('.album-row')));
+            qsa('#albumList .album-row').forEach(row => refreshAlbumTarget(row));
             populatePrivateTargets();
+            qsa('#albumList .album-row').forEach(row => detectAlbumRow(row));
         }
 
         function populateAlbumAccountSelect(select, selected) {
             if (!select) return;
             const current = selected || select.value || '';
             const accounts = (state.accounts || []).filter(account => account.immichApiKey || account.immichKeyOk);
-            let html = '<option value="">Primary account</option>';
+            const fallback = defaultImportAccount();
+            const fallbackName = fallback ? accountDisplayName(fallback) : '';
+            let html = `<option value="">Default import account${fallbackName ? ' (' + escapeHtml(fallbackName) + ')' : ''}</option>`;
             for (const account of accounts) {
-                const label = account.name || account.immichUserName || account.googleEmail || immichUserLabel(account.immichUserId) || account.id;
-                html += `<option value="${escapeHtml(account.id)}">${escapeHtml(label)}</option>`;
+                html += `<option value="${escapeHtml(account.id)}">${escapeHtml(accountDisplayName(account))}</option>`;
             }
             select.innerHTML = html;
             if (current && accounts.some(account => account.id === current)) {
@@ -2775,13 +3118,14 @@
             } else if (current) {
                 // Keep an ID that is not currently usable so a save does not lose it.
                 const known = (state.accounts || []).find(account => account.id === current);
-                const label = (known && (known.name || known.immichUserName)) || immichUserLabel(current) || current;
+                const label = (known && accountDisplayName(known)) || immichUserLabel(current) || current;
                 const option = document.createElement('option');
                 option.value = current;
                 option.textContent = label + ' (no API key)';
                 select.appendChild(option);
                 select.value = current;
             }
+            updateAlbumImportOwner(select.closest('.album-row'));
         }
 
         function populateAlbumAccountSelects() {
@@ -3008,207 +3352,6 @@
             }
         }
 
-        async function refreshGoogleAccount() {
-            const pill = $('googleAccountPill');
-            const error = $('googleAccountError');
-            try {
-                const res = await fetch('/api/google/account');
-                if (!res.ok) throw new Error('Google upload is not enabled');
-                const data = await res.json();
-                applyGoogleAccount(data);
-            } catch (err) {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Unavailable';
-                setCompactError(error, 'Google upload is unavailable.', err.message);
-            }
-        }
-
-        function applyGoogleAccount(data) {
-            const pill = $('googleAccountPill');
-            const error = $('googleAccountError');
-            state.googleAccount = { connected: !!data.connected };
-            clearCompactError(error);
-            if (data.connected) {
-                pill.className = 'pill pill-success';
-                pill.innerHTML = '<span class="status-dot"></span>Connected';
-                $('googleAccountConnected').style.display = 'block';
-                $('googleAccountDisconnected').style.display = 'none';
-                $('googleAccountEmail').textContent = data.email || '-';
-                $('googleAccountVersion').textContent = data.version ? 'gotohp ' + data.version : '-';
-            } else {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Not connected';
-                $('googleAccountConnected').style.display = 'none';
-                $('googleAccountDisconnected').style.display = 'block';
-                if (data.lastError) {
-                    setCompactError(error, 'The Google uploader could not be checked.', data.lastError);
-                }
-            }
-            qsa('#albumList .album-row').forEach(updateAlbumBackupState);
-            updateGettingStarted();
-        }
-
-        function showGoogleWizard() {
-            $('googleWizard').style.display = 'block';
-            $('googleOAuthToken').focus();
-        }
-
-        function hideGoogleWizard() {
-            $('googleWizard').style.display = 'none';
-            $('googleOAuthToken').value = '';
-            $('googleConnectResult').textContent = '';
-        }
-
-        function toggleOAuthToken() {
-            const input = $('googleOAuthToken');
-            const button = $('toggleOAuthBtn');
-            const show = input.type === 'password';
-            input.type = show ? 'text' : 'password';
-            button.innerHTML = `<svg class="icon"><use href="#icon-${show ? 'eye-off' : 'eye'}"/></svg>`;
-            button.setAttribute('aria-label', show ? 'Hide token' : 'Show token');
-        }
-
-        async function connectGoogle() {
-            const input = $('googleOAuthToken');
-            const result = $('googleConnectResult');
-            const button = $('googleConnectBtn');
-            const token = input.value.trim();
-            if (!token) {
-                result.textContent = 'Paste the oauth_token value first.';
-                result.className = 'test-result danger';
-                return;
-            }
-            button.disabled = true;
-            result.textContent = 'Connecting...';
-            result.className = 'test-result';
-            try {
-                const res = await fetch('/api/google/account', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ oauthToken: token })
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Connection failed');
-                input.value = '';
-                result.textContent = `Connected as ${data.email}`;
-                result.className = 'test-result success';
-                applyGoogleAccount(data);
-                setTimeout(hideGoogleWizard, 1500);
-            } catch (err) {
-                result.textContent = err.message;
-                result.className = 'test-result danger';
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        async function disconnectGoogle() {
-            if (!confirm('Remove the stored Google credential?')) return;
-            try {
-                const res = await fetch('/api/google/account', { method: 'DELETE' });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not disconnect');
-                applyGoogleAccount(data);
-                showToast('Google account disconnected');
-            } catch (err) {
-                showToast(err.message, true);
-            }
-        }
-
-        async function refreshWebSession(force) {
-            const pill = $('googleWebPill');
-            const error = $('googleWebError');
-            if (force || !state.webSession.connected) {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Checking';
-            }
-            try {
-                const res = await fetch('/api/google/web-session' + (force ? '?refresh=1' : ''));
-                if (!res.ok) throw new Error('Google upload is not enabled');
-                applyWebSession(await res.json());
-            } catch (err) {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Unavailable';
-                setCompactError(error, 'The browser session could not be checked.', err.message);
-            }
-        }
-
-        function applyWebSession(data) {
-            const connected = !!data.connected;
-            state.webSession = { connected };
-            const pill = $('googleWebPill');
-            const error = $('googleWebError');
-            pill.className = connected ? 'pill pill-success' : 'pill pill-muted';
-            pill.innerHTML = connected ? '<span class="status-dot"></span>Connected' : '<span class="status-dot"></span>Not connected';
-            $('googleWebConnected').style.display = connected ? 'block' : 'none';
-            $('googleWebDisconnected').style.display = connected ? 'none' : 'block';
-            if (!connected && data.lastError) {
-                setCompactError(error, 'The browser session could not be used.', data.lastError);
-            } else {
-                clearCompactError(error);
-            }
-            qsa('#albumList .album-row').forEach(updateAlbumBackupState);
-            applyPrivateSession();
-        }
-
-        function showWebWizard() {
-            $('googleWebWizard').style.display = 'block';
-            $('googleWebCookies').focus();
-        }
-
-        function hideWebWizard() {
-            $('googleWebWizard').style.display = 'none';
-            $('googleWebCookies').value = '';
-            $('googleWebConnectResult').textContent = '';
-        }
-
-        async function connectWebSession() {
-            const input = $('googleWebCookies');
-            const result = $('googleWebConnectResult');
-            const button = $('googleWebConnectBtn');
-            const cookies = input.value.trim();
-            if (!cookies) {
-                result.textContent = 'Paste the cookies.txt contents first.';
-                result.className = 'test-result danger';
-                return;
-            }
-            button.disabled = true;
-            result.textContent = 'Checking the session...';
-            result.className = 'test-result';
-            try {
-                const res = await fetch('/api/google/web-session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cookies })
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not connect the browser session');
-                input.value = '';
-                result.textContent = 'Connected. Shared albums can receive uploads.';
-                result.className = 'test-result success';
-                applyWebSession(data);
-                setTimeout(hideWebWizard, 1500);
-            } catch (err) {
-                result.textContent = err.message;
-                result.className = 'test-result danger';
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        async function disconnectWebSession() {
-            if (!confirm('Remove the stored browser session?')) return;
-            try {
-                const res = await fetch('/api/google/web-session', { method: 'DELETE' });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not disconnect');
-                applyWebSession(data);
-                showToast('Browser session removed');
-            } catch (err) {
-                showToast(err.message, true);
-            }
-        }
-
         function updateNotificationPill() {
             const pill = $('notificationPill');
             if (!pill) return;
@@ -3267,38 +3410,36 @@
             const select = $('notificationsImmichAccount');
             if (!select) return;
             const accounts = state.accounts || [];
+            const usable = accounts.filter(account => !!account.immichApiKey);
+            const defaultId = defaultImportId();
             const current = selected !== undefined ? selected : (select.value || '');
             const currentAccount = accounts.find(account => account.id === current || account.immichUserId === current);
-            const currentValue = currentAccount ? currentAccount.id : current;
-            const usable = accounts.filter(account => (account.immichApiKey || account.immichKeyOk) && (account.immichUserName || account.name));
-            const primaryName = (state.primary && state.primary.name) || '';
-            let html = `<option value="">Primary profile${primaryName ? ` (${escapeHtml(primaryName)})` : ''}</option>`;
+            let currentValue = currentAccount ? currentAccount.id : current;
+            if (!currentValue || !usable.some(account => account.id === currentValue)) {
+                currentValue = usable.some(account => account.id === defaultId) ? defaultId : (usable[0] ? usable[0].id : '');
+            }
+            let html = '';
             for (const account of usable) {
-                const name = account.name || account.immichUserName;
-                const label = account.googleEmail ? `${name} (${account.googleEmail})` : name;
+                const name = accountDisplayName(account);
+                const label = account.id === defaultId
+                    ? `Default import account (${name})`
+                    : (account.googleEmail ? `${name} (${account.googleEmail})` : name);
                 html += `<option value="${escapeHtml(account.id)}">${escapeHtml(label)}</option>`;
             }
-            if (currentValue && !usable.some(account => account.id === currentValue)) {
-                const known = accounts.find(account => account.id === currentValue);
-                const label = known
-                    ? `${known.name || known.immichUserName || currentValue} (no API key)`
-                    : `Saved target (${currentValue})`;
-                html += `<option value="${escapeHtml(currentValue)}">${escapeHtml(label)}</option>`;
-            }
             select.innerHTML = html;
-            select.value = currentValue;
+            if (currentValue) select.value = currentValue;
             const hint = $('notificationsImmichHint');
             if (hint) {
-                const selectedAccount = accounts.find(account => account.id === currentValue);
-                if (currentValue && !selectedAccount) {
-                    hint.textContent = 'The saved notification profile is not in the loaded account list. Refresh Accounts & Users to check it.';
+                const missingKey = accounts.some(account => !account.immichApiKey);
+                if (!usable.length) {
+                    hint.textContent = 'Add an Immich API key under Accounts & Users to receive notifications.';
                     hint.hidden = false;
-                } else if (selectedAccount && !(selectedAccount.immichApiKey || selectedAccount.immichKeyOk)) {
-                    hint.textContent = 'The selected profile has no Immich API key. Add one under Accounts & Users.';
+                } else if (missingKey) {
+                    hint.textContent = 'Only Immich accounts with an API key can receive notifications. Add the missing key under Accounts & Users.';
                     hint.hidden = false;
                 } else {
                     hint.textContent = 'Only Immich accounts with an API key can receive notifications.';
-                    hint.hidden = !accounts.some(account => !(account.immichApiKey || account.immichKeyOk));
+                    hint.hidden = true;
                 }
             }
         }
@@ -3330,202 +3471,6 @@
             }
         }
 
-        function renderPrimaryProfileCard() {
-            const config = state.config || {};
-            const primary = state.primary || {};
-            const hasKey = !!(primary.apiKeyConfigured || config.apiKey);
-            const name = primary.name || 'Primary profile';
-            const userId = primary.userId || '';
-
-            const avatar = $('primaryProfileAvatar');
-            if (avatar) avatar.textContent = accountInitial(primary.name || 'Primary');
-            $('primaryProfileName').textContent = name;
-            $('primaryProfileMeta').textContent = userId
-                ? `Immich user ${userId}`
-                : (config.apiURL || 'No Immich URL set');
-
-            const pill = $('primaryProfilePill');
-            if (primary.error) {
-                pill.className = 'pill pill-danger';
-                pill.innerHTML = '<span class="status-dot"></span>Not connected';
-            } else if (primary.name) {
-                pill.className = 'pill pill-success';
-                pill.innerHTML = '<span class="status-dot"></span>Connected';
-            } else if (hasKey) {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Key configured';
-            } else {
-                pill.className = 'pill pill-muted';
-                pill.innerHTML = '<span class="status-dot"></span>Not configured';
-            }
-
-            const serverPill = $('connectionPill');
-            if (serverPill) {
-                if (primary.error) {
-                    serverPill.className = 'pill pill-danger';
-                    serverPill.innerHTML = '<span class="status-dot"></span>Not connected';
-                } else if (primary.name) {
-                    serverPill.className = 'pill pill-success';
-                    serverPill.innerHTML = '<span class="status-dot"></span>Connected';
-                } else if (hasKey) {
-                    serverPill.className = 'pill pill-muted';
-                    serverPill.innerHTML = '<span class="status-dot"></span>Not tested';
-                } else {
-                    serverPill.className = 'pill pill-muted';
-                    serverPill.innerHTML = '<span class="status-dot"></span>Not configured';
-                }
-            }
-
-            const connectionPill = $('primaryConnectionPill');
-            if (!connectionPill) return;
-            const connectionStatus = $('primaryConnectionStatus');
-            $('primaryConnectionAvatar').textContent = accountInitial(primary.name || 'Primary');
-            $('primaryConnectionName').textContent = name;
-            $('primaryConnectionMeta').textContent = userId
-                ? `Immich user ${userId}`
-                : (config.apiURL || 'No Immich URL set');
-            connectionStatus.innerHTML = '';
-            connectionStatus.appendChild(statusLine(
-                'Immich API key',
-                primary.apiKeyConfigured ? 'Configured' : 'Not set',
-                primary.error ? 'The server did not accept this connection.' : ''
-            ));
-            connectionStatus.appendChild(statusLine(
-                'Google Photos',
-                primary.googleEmail || 'Not connected',
-                primary.googleConnected ? '' : 'Add an oauth_token under Google upload.'
-            ));
-            connectionStatus.appendChild(statusLine(
-                'Browser session',
-                primary.webSessionOk ? 'Connected' : 'Not set',
-                primary.webSessionOk ? '' : 'Only needed for shared albums and private imports.'
-            ));
-            appendErrorDetails(connectionStatus, primary.error);
-            if (primary.error) {
-                connectionPill.className = 'pill pill-danger';
-                connectionPill.innerHTML = '<span class="status-dot"></span>Not connected';
-            } else if (primary.name) {
-                connectionPill.className = 'pill pill-success';
-                connectionPill.innerHTML = '<span class="status-dot"></span>Connected';
-            } else {
-                connectionPill.className = 'pill pill-muted';
-                connectionPill.innerHTML = '<span class="status-dot"></span>Incomplete';
-            }
-        }
-
-        function openPrimaryProfileModal() {
-            const config = state.config || {};
-            const primary = state.primary || {};
-            const hasKey = !!(primary.apiKeyConfigured || config.apiKey);
-            clearTimeout(state.primaryModal.closeTimer);
-            state.primaryModal.focus = document.activeElement;
-            state.primaryModal.hasKey = hasKey;
-            state.primaryModal.replaceKey = !hasKey;
-            $('primaryApiURL').value = config.apiURL || '';
-            $('primaryApiKey').value = '';
-            $('primaryKeyConfigured').hidden = !hasKey;
-            $('primaryKeyField').hidden = hasKey;
-            $('primaryKeyCancel').hidden = !hasKey;
-            $('primaryApiKeyLabel').textContent = hasKey ? 'New API key' : 'API key';
-            $('primaryApiKey').placeholder = hasKey ? 'New API key' : 'Immich API key';
-            $('primaryProfileResult').textContent = '';
-            $('primaryProfileResult').className = 'test-result';
-            $('primarySaveBtn').disabled = false;
-            $('primaryProfileModal').hidden = false;
-            $('primaryApiURL').focus();
-        }
-
-        function revealPrimaryKey() {
-            state.primaryModal.replaceKey = true;
-            $('primaryKeyConfigured').hidden = true;
-            $('primaryKeyField').hidden = false;
-            $('primaryKeyCancel').hidden = false;
-            $('primaryApiKeyLabel').textContent = 'New API key';
-            $('primaryApiKey').placeholder = 'New API key';
-            $('primaryApiKey').focus();
-        }
-
-        function cancelPrimaryKey() {
-            state.primaryModal.replaceKey = false;
-            $('primaryApiKey').value = '';
-            $('primaryKeyConfigured').hidden = !state.primaryModal.hasKey;
-            $('primaryKeyField').hidden = state.primaryModal.hasKey;
-            $('primaryKeyCancel').hidden = true;
-        }
-
-        function closePrimaryProfileModal() {
-            clearTimeout(state.primaryModal.closeTimer);
-            $('primaryProfileModal').hidden = true;
-            $('primaryApiKey').value = '';
-            $('primaryProfileResult').textContent = '';
-            if (state.primaryModal.focus && typeof state.primaryModal.focus.focus === 'function') {
-                state.primaryModal.focus.focus();
-            }
-        }
-
-        async function savePrimaryProfile() {
-            const button = $('primarySaveBtn');
-            const result = $('primaryProfileResult');
-            const apiURL = $('primaryApiURL').value.trim();
-            const replacing = state.primaryModal.replaceKey;
-            const apiKey = $('primaryApiKey').value.trim();
-
-            if (!apiURL) {
-                result.textContent = 'Enter the Immich API URL.';
-                result.className = 'test-result danger';
-                $('primaryApiURL').focus();
-                return;
-            }
-            if (replacing && !apiKey) {
-                result.textContent = 'Enter the new API key.';
-                result.className = 'test-result danger';
-                $('primaryApiKey').focus();
-                return;
-            }
-
-            const payload = { apiURL };
-            if (replacing) payload.apiKey = apiKey;
-
-            button.disabled = true;
-            result.textContent = 'Connecting...';
-            result.className = 'test-result';
-            let connected = false;
-            try {
-                const res = await fetch('/api/primary-profile', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const text = await res.text();
-                let data = {};
-                try { data = JSON.parse(text); } catch (err) { data = {}; }
-                if (!res.ok) throw new Error(data.error || text || 'Could not connect to Immich');
-                connected = true;
-                result.textContent = `Connected as ${data.user || data.userId || 'Immich user'}`;
-                result.className = 'test-result success';
-                if (state.config) {
-                    state.config.apiURL = apiURL;
-                    if (replacing) state.config.apiKey = apiKey;
-                }
-                state.primary = {
-                    ...(state.primary || {}),
-                    name: data.user || (state.primary && state.primary.name) || 'Primary profile',
-                    userId: data.userId || (state.primary && state.primary.userId) || '',
-                    apiKeyConfigured: true,
-                    error: ''
-                };
-                renderPrimaryProfileCard();
-                state.primaryModal.closeTimer = setTimeout(() => {
-                    closePrimaryProfileModal();
-                    loadConfig();
-                }, 1200);
-            } catch (err) {
-                result.textContent = err.message;
-                result.className = 'test-result danger';
-            } finally {
-                if (!connected) button.disabled = false;
-            }
-        }
 
         function makeBadge(label, tone) {
             const badge = document.createElement('span');
@@ -3553,35 +3498,6 @@
             return line;
         }
 
-        function appendErrorDetails(parent, message) {
-            const text = String(message || '').trim();
-            if (!text) return;
-            const details = document.createElement('details');
-            details.className = 'error-details';
-            const summary = document.createElement('summary');
-            summary.textContent = 'Show details';
-            const pre = document.createElement('pre');
-            pre.textContent = text;
-            details.append(summary, pre);
-            parent.appendChild(details);
-        }
-
-        function setCompactError(container, message, detail) {
-            if (!container) return;
-            container.textContent = '';
-            container.className = 'test-result danger';
-            const text = document.createElement('div');
-            text.textContent = message;
-            container.appendChild(text);
-            appendErrorDetails(container, detail);
-        }
-
-        function clearCompactError(container) {
-            if (!container) return;
-            container.textContent = '';
-            container.className = 'test-result';
-        }
-
         function accountDisplayName(account) {
             return account.name || account.immichUserName || account.googleEmail || account.immichUserId || 'Immich user';
         }
@@ -3602,85 +3518,482 @@
             return (trimmed.charAt(0) || '?').toUpperCase();
         }
 
-        function renderAccounts() {
+        function accountImmichKeyState(account) {
+            if (account.immichError) return 'error';
+            if (!account.immichApiKey) return 'missing';
+            return 'ok';
+        }
+
+        function accountGoogleState(account) {
+            if (account.googleConnected) return 'ok';
+            if (account.googleError) return 'error';
+            if (account.googleEmail) return 'pending';
+            return 'missing';
+        }
+
+        function accountNeedsSetup(account) {
+            if (accountImmichKeyState(account) !== 'ok') return true;
+            return !account.googleEmail && !account.googleConnected;
+        }
+
+        function accountCanImport(account) {
+            return !!account.immichApiKey;
+        }
+
+        function accountCanUpload(account) {
+            return !!account.googleEmail;
+        }
+
+        function defaultImportAccount() {
+            const accounts = state.accounts || [];
+            const id = state.accountDefaults.importAccount;
+            return accounts.find(account => account.id === id && accountCanImport(account))
+                || accounts.find(account => account.isDefault && accountCanImport(account))
+                || accounts.find(accountCanImport)
+                || null;
+        }
+
+        function defaultGoogleAccount() {
+            const accounts = state.accounts || [];
+            const id = state.accountDefaults.googleAccount;
+            return accounts.find(account => account.id === id && accountCanUpload(account))
+                || accounts.find(account => account.isDefault && accountCanUpload(account))
+                || accounts.find(accountCanUpload)
+                || null;
+        }
+
+        function defaultImportId() {
+            const account = defaultImportAccount();
+            return (account && account.id) || '';
+        }
+
+        function defaultGoogleId() {
+            const account = defaultGoogleAccount();
+            return (account && account.id) || '';
+        }
+
+        function renderGoogleUploadAccounts() {
+            const google = defaultGoogleAccount();
+            const importer = defaultImportAccount();
+            const googleConnected = !!(google && google.googleConnected);
+            const webConnected = !!(importer && importer.webSessionOk);
+            state.googleAccount = { connected: googleConnected, email: (google && google.googleEmail) || '' };
+            state.webSession = { connected: webConnected };
+
+            const googlePill = $('googleAccountPill');
+            const googleSummary = $('googleAccountSummary');
+            if (googlePill) {
+                googlePill.className = googleConnected ? 'pill pill-success' : 'pill pill-muted';
+                googlePill.innerHTML = googleConnected
+                    ? '<span class="status-dot"></span>Connected'
+                    : '<span class="status-dot"></span>None';
+            }
+            if (googleSummary) {
+                if (google) {
+                    googleSummary.innerHTML = `
+                        <div class="cred-summary-name">${escapeHtml(google.googleEmail || accountDisplayName(google))}</div>
+                        <div class="cred-summary-line ${googleConnected ? 'status-ok' : 'status-warn'}">${googleConnected ? 'Connected and ready to upload' : 'Saved, but the credential could not be checked'}</div>`;
+                } else {
+                    googleSummary.textContent = 'No Google account linked. Add one under Accounts & Users.';
+                }
+            }
+
+            const webPill = $('googleWebPill');
+            const webSummary = $('googleWebSessionSummary');
+            if (webPill) {
+                webPill.className = webConnected ? 'pill pill-success' : 'pill pill-muted';
+                webPill.innerHTML = webConnected
+                    ? '<span class="status-dot"></span>Connected'
+                    : '<span class="status-dot"></span>None';
+            }
+            if (webSummary) {
+                if (webConnected) {
+                    webSummary.innerHTML = `
+                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(importer))}</div>
+                        <div class="cred-summary-line status-ok">Cookies found and the session is active</div>`;
+                } else if (importer && importer.cookiesSaved) {
+                    webSummary.innerHTML = `
+                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(importer))}</div>
+                        <div class="cred-summary-line status-warn">Cookies saved, but the session could not be checked</div>`;
+                } else {
+                    webSummary.textContent = 'No browser session. Add cookies under Accounts & Users.';
+                }
+            }
+            qsa('#albumList .album-row').forEach(updateAlbumBackupState);
+            applyPrivateSession();
+        }
+
+        function accountImmichUser(account) {
+            const id = String(account.immichUserId || '').trim();
+            const name = account.immichUserName || account.name || immichUserLabel(id) || '';
+            if (!id) return name || 'Not set';
+            if (!name || name === id || name.includes(id)) return name || id;
+            return name + ' (' + id + ')';
+        }
+
+        function accountSubLine(account) {
+            return account.googleEmail || account.immichUserName || immichUserLabel(account.immichUserId) || 'No Google account linked';
+        }
+
+        function accountBadgeMarkup(account) {
+            if (accountNeedsSetup(account)) {
+                return '<span class="badge badge-warn account-list-badge">Needs setup</span>';
+            }
+            if (account.id === defaultImportId() || account.id === defaultGoogleId()) {
+                return '<span class="badge badge-accent account-list-badge">Default</span>';
+            }
+            return '';
+        }
+
+        function renderAccountDetail(account, simple) {
+            const detail = $('accountDetail');
+            if (!detail) return;
+            const immichState = accountImmichKeyState(account);
+            const googleState = accountGoogleState(account);
+            const immichBadge = immichState === 'ok'
+                ? '<span class="badge badge-ok">Configured</span>'
+                : '<span class="badge badge-warn">Needs API key</span>';
+            const googleBadge = googleState === 'ok'
+                ? '<span class="badge badge-ok">Connected</span>'
+                : '<span class="badge badge-warn">Not connected</span>';
+            const cookiesBadge = account.webSessionOk
+                ? '<span class="badge badge-ok">Connected</span>'
+                : (account.cookiesSaved
+                    ? '<span class="badge badge-warn">Saved</span>'
+                    : '<span class="badge badge-warn">Not set</span>');
+            const defaultBadges = [];
+            if (account.id === defaultImportId()) defaultBadges.push('<span class="badge badge-accent">Default import</span>');
+            if (account.id === defaultGoogleId()) defaultBadges.push('<span class="badge badge-accent">Default Google</span>');
+            detail.innerHTML = `
+                ${simple ? '' : '<button class="btn btn-ghost btn-sm mobile-back" type="button" onclick="scrollToAccountsList()">Back to accounts</button>'}
+                <div class="account-detail-head">
+                    <div class="account-avatar" aria-hidden="true">${escapeHtml(accountInitial(accountDisplayName(account)))}</div>
+                    <div class="account-detail-title">
+                        <h3>${escapeHtml(accountDisplayName(account))}</h3>
+                        <p>${escapeHtml(accountSubLine(account))}</p>
+                        <div class="account-badges">${defaultBadges.join('')}</div>
+                    </div>
+                    ${simple ? '' : `<button class="btn btn-secondary btn-sm" type="button" data-detail-action="edit">Edit account</button>`}
+                </div>
+                <div class="detail-section">
+                    <div class="detail-section-head">
+                        <div><h4>Immich API key</h4><p>Used for imports and notifications.</p></div>
+                        ${immichBadge}
+                    </div>
+                    <div class="detail-row"><span class="label">Immich user</span><span class="value">${escapeHtml(accountImmichUser(account))}</span></div>
+                    ${account.immichError ? '<div class="hint">Immich could not verify this API key. Check the server or replace the key with Edit account.</div>' : ''}
+                </div>
+                <div class="detail-section">
+                    <div class="detail-section-head">
+                        <div><h4>Google Photos</h4><p>Used for uploads and shared albums.</p></div>
+                        ${googleBadge}
+                    </div>
+                    <div class="detail-row"><span class="label">Google account</span><span class="value">${escapeHtml(account.googleEmail || 'No Google account linked')}</span></div>
+                    ${account.googleEmail && account.googleError ? '<div class="hint">Could not check this Google account.</div>' : ''}
+                    <div class="nested-credential">
+                        <div class="detail-section-head">
+                            <div><h4>Browser cookies</h4><p>Only needed for albums someone else owns.</p></div>
+                            ${cookiesBadge}
+                        </div>
+                        ${account.webSessionError ? '<div class="hint">The saved cookies could not be checked.</div>' : ''}
+                    </div>
+                </div>
+                ${simple ? '' : `<div class="detail-remove"><button class="btn btn-ghost btn-sm danger-text" type="button" data-detail-action="remove"><svg class="icon" aria-hidden="true"><use href="#icon-trash"/></svg>Remove account</button></div>`}
+            `;
+            const editButton = detail.querySelector('[data-detail-action="edit"]');
+            if (editButton) editButton.addEventListener('click', () => openAccountWizard(account.id));
+            const removeButton = detail.querySelector('[data-detail-action="remove"]');
+            if (removeButton) removeButton.addEventListener('click', () => removeAccount(account.id, accountDisplayName(account)));
+        }
+
+        function renderAccountsList(selected) {
             const list = $('accountList');
             if (!list) return;
             list.innerHTML = '';
+            for (const account of (state.accounts || [])) {
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'account-list-row';
+                row.setAttribute('aria-current', String(account.id === selected));
+                row.dataset.accountId = account.id;
+                row.innerHTML = `
+                    <span class="account-avatar" aria-hidden="true">${escapeHtml(accountInitial(accountDisplayName(account)))}</span>
+                    <span class="account-list-meta">
+                        <span class="account-list-name">${escapeHtml(accountDisplayName(account))}</span>
+                        <span class="account-list-sub">${escapeHtml(accountSubLine(account))}</span>
+                    </span>
+                    ${accountBadgeMarkup(account)}
+                `;
+                row.addEventListener('click', () => selectAccount(account.id));
+                list.appendChild(row);
+            }
+        }
+
+        function renderSimpleAccountsPage(accounts) {
+            const card = $('accountsSimpleCard');
+            if (!card) return;
+            const simple = state.uiMode === 'simple';
+            if (!simple || !accounts.length) {
+                card.hidden = true;
+                card.innerHTML = '';
+                return;
+            }
+            const account = defaultImportAccount() || accounts[0];
+            const immichOk = accountImmichKeyState(account) === 'ok';
+            const googleOk = accountGoogleState(account) === 'ok';
+            card.hidden = false;
+            card.innerHTML = `
+                <div class="account-head">
+                    <div class="account-avatar" aria-hidden="true">${escapeHtml(accountInitial(accountDisplayName(account)))}</div>
+                    <div class="account-person">
+                        <div class="account-name">${escapeHtml(accountDisplayName(account))}</div>
+                        <div class="account-sub">${escapeHtml(accountImmichUser(account))}${account.googleEmail ? ' · ' + escapeHtml(account.googleEmail) : ''}</div>
+                        <div class="account-badges"><span class="badge badge-accent">Default account</span></div>
+                    </div>
+                </div>
+                <div class="account-status">
+                    <div class="detail-row"><span class="label">Immich API key</span><span class="value ${immichOk ? 'status-ok' : 'status-warn'}">${immichOk ? 'Configured' : 'Needs API key'}</span></div>
+                    <div class="detail-row"><span class="label">Google Photos</span><span class="value ${googleOk ? 'status-ok' : 'status-warn'}">${googleOk ? 'Connected' : 'Not connected'}</span></div>
+                    ${account.webSessionOk || account.cookiesSaved ? `<div class="detail-row"><span class="label">Browser cookies</span><span class="value ${account.webSessionOk ? 'status-ok' : 'status-warn'}">${account.webSessionOk ? 'Connected' : 'Saved'}</span></div>` : ''}
+                </div>
+                <p class="hint simple-note">Simple mode uses this account for imports and Google uploads. Switch to Standard to add people or change credentials.</p>
+            `;
+        }
+
+        function renderSimpleCallout(accounts) {
+            const container = $('accountsSimpleCallout');
+            if (!container) return;
+            if (state.uiMode !== 'simple' || !accounts.length) {
+                container.innerHTML = '';
+                return;
+            }
+            const defaultId = defaultImportId();
+            const hiddenIncomplete = accounts.filter(account => account.id !== defaultId && accountNeedsSetup(account));
+            if (hiddenIncomplete.length) {
+                const count = hiddenIncomplete.length;
+                container.innerHTML = `
+                    <div class="setup-callout">
+                        <span>${count} ${count === 1 ? 'account needs' : 'accounts need'} attention. Switch to Standard to fix ${count === 1 ? 'it' : 'them'}.</span>
+                        <button class="btn btn-secondary btn-sm" type="button" onclick="setUIMode('standard')">Switch to Standard</button>
+                    </div>`;
+                return;
+            }
+            const extras = accounts.filter(account => account.id !== defaultId);
+            if (extras.length) {
+                const count = extras.length;
+                container.innerHTML = `
+                    <div class="mode-note">
+                        <span>${count} more ${count === 1 ? 'account is' : 'accounts are'} active in the background. Simple mode hides the account list.</span>
+                        <button class="btn btn-secondary btn-sm" type="button" onclick="setUIMode('standard')">Switch to Standard</button>
+                    </div>`;
+                return;
+            }
+            container.innerHTML = '';
+        }
+
+        function populateDefaultsSelects() {
             const accounts = state.accounts || [];
-            $('accountEmpty').style.display = accounts.length ? 'none' : 'block';
-            for (const account of accounts) {
-                const card = document.createElement('div');
-                card.className = 'account-card';
-                card.dataset.accountId = account.id || account.immichUserId || '';
+            const importSelect = $('defaultImportAccount');
+            const googleSelect = $('defaultGoogleAccount');
+            if (!importSelect || !googleSelect) return;
+            if (!accounts.length) {
+                importSelect.innerHTML = '<option value="">No account with an Immich key</option>';
+                googleSelect.innerHTML = '<option value="">No account with Google access</option>';
+                importSelect.dataset.loaded = '0';
+                googleSelect.dataset.loaded = '0';
+                return;
+            }
+            const importAccounts = accounts.filter(accountCanImport);
+            const googleAccounts = accounts.filter(accountCanUpload);
+            const build = (select, list, current, emptyLabel) => {
+                let html = list.length ? '' : `<option value="">${emptyLabel}</option>`;
+                for (const account of list) {
+                    html += `<option value="${escapeHtml(account.id)}">${escapeHtml(accountDisplayName(account))}</option>`;
+                }
+                select.innerHTML = html;
+                if (list.some(account => account.id === current)) {
+                    select.value = current;
+                } else if (list.length) {
+                    select.value = list[0].id;
+                }
+                select.dataset.loaded = '1';
+            };
+            build(importSelect, importAccounts, defaultImportId(), 'No account with an Immich key');
+            build(googleSelect, googleAccounts, defaultGoogleId(), 'No account with Google access');
+        }
 
-                const head = document.createElement('div');
-                head.className = 'account-card-head';
-                const avatar = document.createElement('div');
-                avatar.className = 'account-avatar';
-                avatar.setAttribute('aria-hidden', 'true');
-                avatar.textContent = accountInitial(accountDisplayName(account));
+        function renderConnectionDefault() {
+            const body = $('connectionDefaultBody');
+            const pill = $('connectionDefaultPill');
+            if (!body || !pill) return;
+            const account = defaultImportAccount();
+            const serverPill = $('connectionPill');
+            if (!account) {
+                pill.className = 'pill pill-muted';
+                pill.innerHTML = '<span class="status-dot"></span>Not configured';
+                if (serverPill) {
+                    serverPill.className = 'pill pill-muted';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Not configured';
+                }
+                body.innerHTML = `
+                    <div class="empty-state" style="padding:20px">
+                        <p style="margin:0 0 12px">No account connected yet</p>
+                        <button class="btn btn-primary btn-sm" type="button" onclick="openAccountAddWizard()">Create your first account</button>
+                    </div>`;
+                return;
+            }
+            const keyState = accountImmichKeyState(account);
+            if (keyState === 'error') {
+                pill.className = 'pill pill-danger';
+                pill.innerHTML = '<span class="status-dot"></span>Not connected';
+                if (serverPill) {
+                    serverPill.className = 'pill pill-danger';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Not connected';
+                }
+            } else if (keyState === 'ok') {
+                pill.className = 'pill pill-success';
+                pill.innerHTML = '<span class="status-dot"></span>Connected';
+                if (serverPill) {
+                    serverPill.className = 'pill pill-success';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Connected';
+                }
+            } else {
+                pill.className = 'pill pill-warning';
+                pill.innerHTML = '<span class="status-dot"></span>Needs API key';
+                if (serverPill) {
+                    serverPill.className = 'pill pill-warning';
+                    serverPill.innerHTML = '<span class="status-dot"></span>Needs API key';
+                }
+            }
+            body.innerHTML = `
+                <div class="connection-default-head">
+                    <div class="account-avatar" aria-hidden="true">${escapeHtml(accountInitial(accountDisplayName(account)))}</div>
+                    <div class="connection-default-meta">
+                        <h4>${escapeHtml(accountDisplayName(account))}</h4>
+                        <p>${escapeHtml(accountImmichUser(account))}</p>
+                    </div>
+                </div>
+                <div class="connection-default-status">
+                    <div class="detail-row"><span class="label">Immich API key</span><span class="value ${keyState === 'ok' ? 'status-ok' : 'status-warn'}">${keyState === 'ok' ? 'Configured' : (keyState === 'error' ? 'Rejected' : 'Needs API key')}</span></div>
+                    <div class="detail-row"><span class="label">Google Photos</span><span class="value ${accountGoogleState(account) === 'ok' ? 'status-ok' : 'status-warn'}">${account.googleEmail ? escapeHtml(account.googleEmail) : 'Not connected'}</span></div>
+                </div>`;
+        }
 
-                const person = document.createElement('div');
-                person.className = 'account-person';
-                const name = document.createElement('div');
-                name.className = 'account-name';
-                name.textContent = accountDisplayName(account);
-                const sub = document.createElement('div');
-                sub.className = 'account-sub';
-                sub.textContent = account.googleEmail || 'No Google account linked';
-                const badges = document.createElement('div');
-                badges.className = 'account-badges';
-                if (account.isDefault) badges.appendChild(makeBadge('Fallback', 'badge-warn'));
-                if (account.immichKeyOk) badges.appendChild(makeBadge('Immich key ready', 'badge-ok'));
-                else if (account.immichApiKey) badges.appendChild(makeBadge('Immich key failed', 'badge-danger'));
-                else badges.appendChild(makeBadge('No Immich key', 'badge-muted'));
-                if (account.googleConnected) badges.appendChild(makeBadge('Google ready', 'badge-ok'));
-                else if (account.googleEmail) badges.appendChild(makeBadge('Google not connected', 'badge-warn'));
-                person.append(name, sub, badges);
-                head.append(avatar, person);
-                card.appendChild(head);
+        function updateTestConnectionAvailability() {
+            const button = $('testConnectionBtn');
+            const result = $('testConnectionResult');
+            if (!button) return;
+            const account = defaultImportAccount();
+            const ready = !!(account && account.immichApiKey);
+            button.disabled = !ready;
+            button.title = ready ? '' : 'Add an Immich account first.';
+            if (!result) return;
+            if (!ready) {
+                result.textContent = 'Add an Immich account first.';
+                result.className = 'test-result';
+                result.dataset.placeholder = '1';
+            } else if (result.dataset.placeholder === '1') {
+                result.textContent = '';
+                result.className = 'test-result';
+                delete result.dataset.placeholder;
+            }
+        }
 
-                const status = document.createElement('div');
-                status.className = 'account-status';
-                status.appendChild(statusLine(
-                    'Immich user',
-                    account.immichUserName || immichUserLabel(account.immichUserId) || 'Not set',
-                    account.immichError ? 'Immich did not accept the API key.' : ''
-                ));
-                status.appendChild(statusLine(
-                    'Google Photos',
-                    account.googleEmail || 'Not linked',
-                    account.googleError
-                        ? 'Could not check this Google account.'
-                        : (account.googleEmail ? '' : "Add an oauth_token to upload this person's photos.")
-                ));
-                status.appendChild(statusLine(
-                    'Browser session',
-                    account.webSessionOk ? 'Session ready' : (account.cookiesSaved ? 'Cookies saved, not verified' : 'No session'),
-                    account.webSessionError
-                        ? 'The saved cookies could not be checked.'
-                        : (account.cookiesSaved ? '' : 'Only needed for albums someone else owns.')
-                ));
-                appendErrorDetails(status, account.immichError);
-                appendErrorDetails(status, account.googleError);
-                appendErrorDetails(status, account.webSessionError);
-                card.appendChild(status);
+        function renderAccountsPage(keepDefaults) {
+            const accounts = state.accounts || [];
+            renderGoogleUploadAccounts();
+            const list = $('accountList');
+            const empty = $('accountEmpty');
+            const master = $('accountsMasterDetail');
+            const defaults = $('accountsDefaultsCard');
+            const danger = $('accountsDangerZone');
+            const detail = $('accountDetail');
+            if (!list || !empty || !detail) return;
+            const hasAccounts = accounts.length > 0;
+            empty.hidden = hasAccounts;
+            if (master) master.hidden = !hasAccounts;
+            if (defaults) defaults.hidden = !hasAccounts;
+            if (danger) danger.hidden = !hasAccounts;
+            if (!hasAccounts) {
+                list.innerHTML = '';
+                detail.innerHTML = '';
+                if (!keepDefaults) populateDefaultsSelects();
+                renderSimpleAccountsPage(accounts);
+                renderSimpleCallout(accounts);
+                renderConnectionDefault();
+                updateTestConnectionAvailability();
+                return;
+            }
+            if (!accounts.some(account => account.id === state.accountSelected)) {
+                state.accountSelected = (defaultImportAccount() || accounts[0]).id;
+            }
+            renderAccountsList(state.accountSelected);
+            renderAccountDetail(accounts.find(account => account.id === state.accountSelected) || accounts[0], false);
+            if (!keepDefaults) populateDefaultsSelects();
+            renderSimpleAccountsPage(accounts);
+            renderSimpleCallout(accounts);
+            renderConnectionDefault();
+            updateTestConnectionAvailability();
+        }
 
-                const actions = document.createElement('div');
-                actions.className = 'account-actions';
-                const edit = document.createElement('button');
-                edit.type = 'button';
-                edit.className = 'btn btn-secondary btn-sm';
-                edit.textContent = 'Edit';
-                edit.addEventListener('click', () => openAccountWizard(account.id));
-                const remove = document.createElement('button');
-                remove.type = 'button';
-                remove.className = 'btn btn-ghost btn-sm';
-                remove.textContent = 'Remove';
-                remove.addEventListener('click', () => removeAccount(account.id, accountDisplayName(account)));
-                actions.append(edit, remove);
-                card.appendChild(actions);
-                list.appendChild(card);
+        function selectAccount(id) {
+            state.accountSelected = id;
+            renderAccountsPage(true);
+            if (window.matchMedia('(max-width: 1000px)').matches) {
+                const detail = $('accountDetail');
+                if (detail) detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        function scrollToAccountsList() {
+            const list = qs('.account-list-card');
+            if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function onDefaultAccountChange() {
+            state.accountDefaults = {
+                importAccount: $('defaultImportAccount') ? $('defaultImportAccount').value : '',
+                googleAccount: $('defaultGoogleAccount') ? $('defaultGoogleAccount').value : ''
+            };
+            if (state.config) {
+                state.config.defaultImportAccount = state.accountDefaults.importAccount;
+                state.config.defaultGoogleAccount = state.accountDefaults.googleAccount;
+            }
+            renderAccountsPage(true);
+            renderGoogleUploadAccounts();
+            populateNotificationAccountSelect();
+            updateTestConnectionAvailability();
+            scheduleAutosave();
+        }
+
+        async function resetAccounts() {
+            const confirmed = confirm('Reset all accounts? Every account, API key, Google credential, cookie file and Immich album ID is removed. Album URLs stay. The app returns to setup.');
+            if (!confirmed) return;
+            clearTimeout(autosave.timer);
+            autosave.timer = null;
+            autosave.pending = false;
+            const waitStart = Date.now();
+            while (autosave.inFlight && Date.now() - waitStart < 5000) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            state.resetInProgress = true;
+            state.config = null;
+            try {
+                const res = await fetch('/api/accounts/reset', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not reset accounts');
+                state.accounts = [];
+                state.accountDefaults = { importAccount: '', googleAccount: '' };
+                state.accountSelected = '';
+                $('mainUI').style.display = 'none';
+                $('wizardUI').style.display = 'block';
+                $('wizApiURL').value = ($('apiURL') && $('apiURL').value) || '';
+                goWizardStep(1);
+                showToast('Accounts reset. Album URLs stay.');
+                await loadConfig();
+            } catch (err) {
+                state.resetInProgress = false;
+                showToast(err.message, true);
             }
         }
 
@@ -3713,7 +4026,7 @@
             } else if (fallback) {
                 summary.textContent = `Unmapped Immich users fall back to ${fallback.googleEmail || fallback.name || 'the fallback account'}.`;
             } else {
-                summary.textContent = 'Unmapped Immich users fall back to the primary Google account.';
+                summary.textContent = 'Unmapped Immich users fall back to the default Google account.';
             }
             const routingError = $('routingError');
             routingError.textContent = routing.immichError || '';
@@ -3746,7 +4059,7 @@
                     label = `Fallback to ${fallback.googleEmail || fallback.name || 'default'}`;
                     tone = 'badge-warn';
                 } else {
-                    label = 'Fallback to primary';
+                    label = 'Fallback to default account';
                     tone = 'badge-warn';
                 }
                 const badge = makeBadge(label, tone);
@@ -3758,8 +4071,12 @@
 
         function applyAccountsPayload(data) {
             state.accounts = data.accounts || [];
-            state.primary = data.primary || null;
             state.routing = data.routing || null;
+            const defaults = data.defaults || {};
+            state.accountDefaults = {
+                importAccount: defaults.importAccount !== undefined ? defaults.importAccount : state.accountDefaults.importAccount,
+                googleAccount: defaults.googleAccount !== undefined ? defaults.googleAccount : state.accountDefaults.googleAccount
+            };
             if (state.config) {
                 state.config.accounts = state.accounts.map(account => ({
                     id: account.id,
@@ -3770,12 +4087,15 @@
                     webCookiesFile: account.webCookiesFile || '',
                     isDefault: !!account.isDefault
                 }));
+                state.config.defaultImportAccount = state.accountDefaults.importAccount;
+                state.config.defaultGoogleAccount = state.accountDefaults.googleAccount;
             }
+            renderGoogleUploadAccounts();
         }
 
         async function loadAccounts() {
             const error = $('accountError');
-            await loadImmichUsers(false);
+            loadImmichUsers(false);
             try {
                 const res = await fetch('/api/accounts', { cache: 'no-store' });
                 const data = await res.json().catch(() => ({}));
@@ -3786,14 +4106,12 @@
             } catch (err) {
                 const fallback = (state.config && state.config.accounts) || [];
                 if (fallback.length) state.accounts = fallback;
-                state.primary = null;
                 state.routing = null;
                 error.textContent = err.message;
                 error.className = 'test-result danger';
             }
-            renderAccounts();
+            renderAccountsPage();
             renderRoutingPreview();
-            renderPrimaryProfileCard();
             populateAlbumAccountSelects();
             populateNotificationAccountSelect((state.config && state.config.notifications && state.config.notifications.immichAccountId) || '');
             updateBackgroundBanner();
@@ -3819,24 +4137,22 @@
             return state.immichUsers;
         }
 
-        function populateImmichUserSelect(selectedId) {
+        function populateImmichUserSelect(selectedId, editingAccountId) {
             const select = $('accountImmichUser');
             if (!select) return;
-            const primaryId = (state.primary && state.primary.userId) || '';
+            const linked = new Set((state.accounts || [])
+                .filter(account => account.id !== editingAccountId)
+                .map(account => String(account.immichUserId || '').trim())
+                .filter(Boolean));
             let html = '<option value="">Choose a user</option>';
             for (const user of (state.immichUsers || [])) {
                 const base = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
-                if (primaryId && user.id === primaryId) {
-                    html += `<option value="${escapeHtml(user.id)}" disabled>${escapeHtml(base)} (Primary profile)</option>`;
-                    continue;
-                }
-                html += `<option value="${escapeHtml(user.id)}">${escapeHtml(base)}</option>`;
+                const isLinked = linked.has(String(user.id));
+                html += `<option value="${escapeHtml(user.id)}"${isLinked ? ' disabled' : ''}>${escapeHtml(base)}${isLinked ? ' (already linked)' : ''}</option>`;
             }
             html += '<option value="__manual__">Enter name and UUID manually</option>';
             select.innerHTML = html;
-            if (selectedId && selectedId === primaryId) {
-                select.value = selectedId;
-            } else if (selectedId && (state.immichUsers || []).some(user => user.id === selectedId)) {
+            if (selectedId && (state.immichUsers || []).some(user => user.id === selectedId)) {
                 select.value = selectedId;
             } else if (selectedId) {
                 select.value = '__manual__';
@@ -3852,11 +4168,11 @@
         function accountCredentialElements(key) {
             switch (key) {
                 case 'immichKey':
-                    return { field: 'accountImmichKeyField', input: 'accountImmichAPIKey', cancel: 'accountImmichKeyCancel' };
+                    return { head: 'accountImmichKeyHead', field: 'accountImmichKeyField', input: 'accountImmichAPIKey', cancel: 'accountImmichKeyCancel' };
                 case 'oauth':
-                    return { field: 'accountOAuthField', input: 'accountOAuthToken', cancel: 'accountOAuthCancel' };
+                    return { head: 'accountOAuthHead', field: 'accountOAuthField', input: 'accountOAuthToken', cancel: 'accountOAuthCancel' };
                 default:
-                    return { field: 'accountCookiesField', input: 'accountCookies', cancel: 'accountCookiesCancel' };
+                    return { head: 'accountCookiesHead', field: 'accountCookiesField', input: 'accountCookies', cancel: 'accountCookiesCancel' };
             }
         }
 
@@ -3864,6 +4180,7 @@
             for (const key of ['immichKey', 'oauth', 'cookies']) {
                 const ids = accountCredentialElements(key);
                 accountCreds[key] = !editing;
+                $(ids.head).hidden = !editing;
                 $(ids.field).hidden = !!editing;
                 $(ids.cancel).hidden = true;
             }
@@ -3917,35 +4234,32 @@
 
         async function openAccountWizard(accountId) {
             const editing = (state.accounts || []).find(account => String(account.id) === String(accountId));
+            if (!editing) return;
             state.accountFocus = document.activeElement;
-            $('accountEditId').value = editing ? editing.id : '';
-            $('accountWizardTitle').textContent = editing ? 'Edit linked person' : 'Link a person';
-            $('accountWizardSubtitle').textContent = editing
-                ? 'Change the details you need. Stored credentials stay unless you replace them.'
-                : 'Connect one Immich user to one Google Photos account.';
-            $('accountName').value = editing ? (editing.name || '') : '';
-            $('accountImmichUserId').value = editing ? (editing.immichUserId || '') : '';
-            $('accountGoogleEmail').value = editing ? (editing.googleEmail || '') : '';
+            $('accountEditId').value = editing.id;
+            $('accountWizardTitle').textContent = 'Edit account';
+            $('accountWizardSubtitle').textContent = 'Change the details you need. Stored credentials stay unless you replace them.';
+            $('accountName').value = editing.name || '';
+            $('accountImmichUserId').value = editing.immichUserId || '';
+            $('accountGoogleEmail').value = editing.googleEmail || '';
             $('accountImmichAPIKey').value = '';
             $('accountOAuthToken').value = '';
             $('accountCookies').value = '';
-            $('accountIsDefault').checked = !!(editing && editing.isDefault);
             $('accountSaveResult').textContent = '';
             $('accountSaveResult').className = 'test-result';
             $('accountSaveBtn').disabled = false;
 
-            $('accountImmichKeyLabel').textContent = editing ? 'New Immich API key' : 'Immich API key (optional)';
-            $('accountOAuthLabel').textContent = editing ? 'New Google oauth_token' : 'Google oauth_token (optional)';
-            $('accountCookiesLabel').textContent = editing ? 'New cookies.txt' : 'cookies.txt (optional)';
-            $('accountImmichAPIKey').placeholder = editing ? 'New API key' : 'Immich API key';
-            $('accountOAuthToken').placeholder = editing ? 'New oauth_token value' : 'oauth_token value';
+            $('accountImmichKeyLabel').textContent = 'New Immich API key';
+            $('accountOAuthLabel').textContent = 'New Google oauth_token';
+            $('accountCookiesLabel').textContent = 'New cookies.txt';
+            $('accountImmichAPIKey').placeholder = 'New API key';
+            $('accountOAuthToken').placeholder = 'New oauth_token value';
             $('accountCookies').placeholder = '# Netscape HTTP Cookie File';
-            resetAccountCredentials(!!editing);
-            if (editing) setAccountCredentialStatus(editing);
+            resetAccountCredentials(true);
+            setAccountCredentialStatus(editing);
 
             $('accountWizard').hidden = false;
-            await loadImmichUsers(false);
-            populateImmichUserSelect(editing ? editing.immichUserId : '');
+            populateImmichUserSelect(editing.immichUserId, editing.id);
             updateAccountManualFields();
             if ($('accountImmichUser').value === '' && !(state.immichUsers || []).length) {
                 $('accountImmichUser').value = '__manual__';
@@ -3953,6 +4267,11 @@
             }
             const focusTarget = $('accountImmichUser').value === '__manual__' ? $('accountName') : $('accountImmichUser');
             focusTarget.focus();
+            loadImmichUsers(false).then(() => {
+                if ($('accountWizard').hidden) return;
+                populateImmichUserSelect(editing.immichUserId, editing.id);
+                updateAccountManualFields();
+            });
         }
 
         function closeAccountWizard() {
@@ -4003,8 +4322,7 @@
             const payload = {
                 immichUserId: userId,
                 name,
-                googleEmail: $('accountGoogleEmail').value.trim(),
-                isDefault: $('accountIsDefault').checked
+                googleEmail: $('accountGoogleEmail').value.trim()
             };
             if (editId) payload.id = editId;
             if (values.immichKey) payload.immichApiKey = values.immichKey;
@@ -4021,17 +4339,13 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not save this person');
+                if (!res.ok) throw new Error(data.error || 'Could not save this account');
                 applyAccountsPayload(data);
-                renderAccounts();
-                renderRoutingPreview();
-                renderPrimaryProfileCard();
-                populateAlbumAccountSelects();
-                populateNotificationAccountSelect();
-                updateBackgroundBanner();
+                if (editId) state.accountSelected = editId;
+                renderAccountsPage();
                 closeAccountWizard();
-                showToast(editId ? 'Person updated' : 'Person linked');
-                loadAccounts();
+                showToast('Account updated');
+                await loadAccounts();
             } catch (err) {
                 result.textContent = err.message;
                 result.className = 'test-result danger';
@@ -4042,21 +4356,445 @@
 
         async function removeAccount(id, name) {
             if (!id) return;
-            if (!confirm(`Remove ${name || 'this person'}? Their Google credential and cookies are left in place.`)) return;
+            if (!confirm(`Remove ${name || 'this account'}? This removes the account and its stored credentials. Photos already imported into Immich are not deleted.`)) return;
             try {
                 const res = await fetch('/api/accounts?id=' + encodeURIComponent(id), { method: 'DELETE' });
                 const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data.error || 'Could not remove this person');
+                if (!res.ok) throw new Error(data.error || 'Could not remove this account');
                 applyAccountsPayload(data);
-                renderAccounts();
-                renderRoutingPreview();
-                renderPrimaryProfileCard();
-                populateAlbumAccountSelects();
-                populateNotificationAccountSelect();
-                updateBackgroundBanner();
-                showToast('Person removed');
+                renderAccountsPage();
+                await loadAccounts();
+                showToast('Account removed');
             } catch (err) {
                 showToast(err.message, true);
+            }
+        }
+
+        async function openAccountAddWizard() {
+            state.accountWizard = {
+                step: 1,
+                busy: false,
+                focus: document.activeElement,
+                values: {
+                    immichUserId: '',
+                    manualUserId: '',
+                    name: '',
+                    immichApiKey: '',
+                    googleEmail: '',
+                    oauthToken: '',
+                    cookies: ''
+                }
+            };
+            $('accountAddWizard').hidden = false;
+            if (!(state.immichUsers || []).length) {
+                state.accountWizard.values.immichUserId = '__manual__';
+            }
+            renderAccountAddWizard();
+            const focusTarget = $('acctWizardUser') || $('acctWizardUserId');
+            if (focusTarget) focusTarget.focus();
+            loadImmichUsers(false).then(() => {
+                if ($('accountAddWizard').hidden) return;
+                refreshAddWizardUserOptions();
+            });
+        }
+
+        function refreshAddWizardUserOptions() {
+            const select = $('acctWizardUser');
+            if (!select) return;
+            const values = state.accountWizard.values;
+            const current = values.immichUserId || '';
+            const linked = new Set((state.accounts || [])
+                .map(account => String(account.immichUserId || '').trim())
+                .filter(Boolean));
+            let options = '';
+            for (const user of (state.immichUsers || [])) {
+                const label = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
+                const isLinked = linked.has(String(user.id));
+                options += `<option value="${escapeHtml(user.id)}"${isLinked ? ' disabled' : ''}>${escapeHtml(label)}${isLinked ? ' (already linked)' : ''}</option>`;
+            }
+            select.innerHTML = '<option value="">Choose a user</option>' + options + '<option value="__manual__">Enter the UUID manually</option>';
+            if (current && Array.from(select.options).some(option => option.value === current && !option.disabled)) {
+                select.value = current;
+            } else if (current === '__manual__') {
+                select.value = '__manual__';
+            }
+            const hint = $('acctWizardUserHint');
+            if (hint) {
+                hint.textContent = (state.immichUsers || []).length
+                    ? 'Users already linked to an account cannot be chosen.'
+                    : 'The Immich user list could not be loaded. Enter the user UUID and name manually.';
+            }
+        }
+
+        function closeAccountAddWizard() {
+            $('accountAddWizard').hidden = true;
+            $('acctWizardBody').innerHTML = '';
+            $('acctWizardSteps').innerHTML = '';
+            if (state.accountWizard.focus && typeof state.accountWizard.focus.focus === 'function') {
+                state.accountWizard.focus.focus();
+            }
+        }
+
+        function renderAccountAddWizard() {
+            const wizard = state.accountWizard;
+            const values = wizard.values;
+            const steps = ['Who', 'Immich', 'Google', 'Review'];
+            $('acctWizardSteps').innerHTML = steps.map((step, index) => {
+                const number = index + 1;
+                const cls = number === wizard.step ? 'active' : (number < wizard.step ? 'done' : '');
+                return `<div class="acct-wizard-step ${cls}">${number < wizard.step ? '✓ ' : number + '. '}${step}</div>`;
+            }).join('');
+
+            let panel = '';
+            if (wizard.step === 1) {
+                const linked = new Set((state.accounts || []).map(account => String(account.immichUserId || '').trim()).filter(Boolean));
+                const options = (state.immichUsers || []).map(user => {
+                    const label = user.email ? `${user.name || user.id} (${user.email})` : (user.name || user.id);
+                    const isLinked = linked.has(String(user.id));
+                    return `<option value="${escapeHtml(user.id)}"${isLinked ? ' disabled' : ''}>${escapeHtml(label)}${isLinked ? ' (already linked)' : ''}</option>`;
+                }).join('');
+                const manual = values.immichUserId === '__manual__' || !(state.immichUsers || []).length;
+                panel = `
+                    <div class="acct-wizard-panel">
+                        <h3>Who is this account for?</h3>
+                        <p>Choose the Immich user. Each Immich user can have one account.</p>
+                        <div class="field">
+                            <label for="acctWizardUser">Immich user</label>
+                            <select class="input" id="acctWizardUser" data-wiz-field="immichUserId">
+                                <option value=""${values.immichUserId ? '' : ' selected'}>Choose a user</option>
+                                ${options}
+                                <option value="__manual__"${values.immichUserId === '__manual__' ? ' selected' : ''}>Enter the UUID manually</option>
+                            </select>
+                            <div class="hint" id="acctWizardUserHint">${(state.immichUsers || []).length
+                                ? 'Users already linked to an account cannot be chosen.'
+                                : 'The Immich user list could not be loaded. Enter the user UUID and name manually.'}</div>
+                        </div>
+                        <div class="field" id="acctWizardManualField"${manual ? '' : ' hidden'}>
+                            <label for="acctWizardUserId">Immich user UUID</label>
+                            <input class="input" type="text" id="acctWizardUserId" data-wiz-field="manualUserId" value="${escapeHtml(values.manualUserId || '')}" placeholder="Immich user id" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <label for="acctWizardName">Account name</label>
+                            <input class="input" type="text" id="acctWizardName" data-wiz-field="name" value="${escapeHtml(values.name || '')}" placeholder="Lotte" autocomplete="off">
+                            <div class="hint">Shown in this app. Leave it empty to use the Immich name.</div>
+                        </div>
+                    </div>`;
+            } else if (wizard.step === 2) {
+                panel = `
+                    <div class="acct-wizard-panel">
+                        <h3>Connect Immich</h3>
+                        <p>This key lets the app import photos and send notifications as this person.</p>
+                        <div class="field">
+                            <label for="acctWizardKey">Immich API key</label>
+                            <input class="input" type="password" id="acctWizardKey" data-wiz-field="immichApiKey" value="${escapeHtml(values.immichApiKey || '')}" placeholder="Paste the API key" autocomplete="off">
+                            <div class="hint">In Immich, open Account Settings &gt; API Keys.</div>
+                        </div>
+                    </div>`;
+            } else if (wizard.step === 3) {
+                panel = `
+                    <div class="acct-wizard-panel">
+                        <h3>Connect Google Photos</h3>
+                        <p>Optional. Needed only when this person's photos should upload to Google Photos.</p>
+                        <div class="field-grid">
+                            <div class="field">
+                                <label for="acctWizardGoogleEmail">Google email</label>
+                                <input class="input" type="email" id="acctWizardGoogleEmail" data-wiz-field="googleEmail" value="${escapeHtml(values.googleEmail || '')}" placeholder="name@gmail.com" autocomplete="off">
+                            </div>
+                            <div class="field">
+                                <label for="acctWizardOAuth">Google credential</label>
+                                <input class="input" type="password" id="acctWizardOAuth" data-wiz-field="oauthToken" value="${escapeHtml(values.oauthToken || '')}" placeholder="oauth_token value" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="hint">You can add this later. The account can still import and notify without it.</div>
+                        <details class="wizard-disclosure">
+                            <summary>How to get the Google credential</summary>
+                            <p>Open <a href="https://accounts.google.com/EmbeddedSetup" target="_blank" rel="noopener noreferrer">Google Embedded Setup</a>, sign in, then copy the oauth_token cookie value. The setup guide in the app walks through it.</p>
+                        </details>
+                        <details class="wizard-disclosure">
+                            <summary>Add browser cookies (optional)</summary>
+                            <div class="field" style="margin-top:10px">
+                                <label for="acctWizardCookies">cookies.txt</label>
+                                <textarea class="input" id="acctWizardCookies" data-wiz-field="cookies" rows="3" spellcheck="false" placeholder="Paste cookies.txt contents here">${escapeHtml(values.cookies || '')}</textarea>
+                                <div class="hint">Only needed for shared albums someone else owns.</div>
+                            </div>
+                        </details>
+                    </div>`;
+            } else {
+                const userId = values.immichUserId === '__manual__' ? values.manualUserId : values.immichUserId;
+                const user = (state.immichUsers || []).find(item => item.id === userId);
+                const userName = values.name || (user && (user.name || user.email)) || userId || 'Not chosen';
+                const userLabel = userId && userName !== userId && !String(userName).includes(userId)
+                    ? `${userName} (${userId})`
+                    : userName;
+                const hasGoogle = !!(values.googleEmail && values.oauthToken);
+                const firstAccount = !(state.accounts || []).length;
+                const noDefaultImport = !defaultImportId();
+                const noDefaultGoogle = !defaultGoogleId();
+                const importChecked = firstAccount || noDefaultImport;
+                const googleChecked = hasGoogle && noDefaultGoogle;
+                panel = `
+                    <div class="acct-wizard-panel">
+                        <h3>Review</h3>
+                        <p>Check the account before creating it.</p>
+                        <div class="review-list">
+                            <div class="review-row"><span>Immich user</span><span>${escapeHtml(userLabel)}</span></div>
+                            <div class="review-row"><span>Immich API key</span><span>${values.immichApiKey ? 'Configured' : 'Not set'}</span></div>
+                            <div class="review-row"><span>Google Photos</span><span>${values.googleEmail ? escapeHtml(values.googleEmail) : 'Not connected'}</span></div>
+                            ${values.cookies ? '<div class="review-row"><span>Browser cookies</span><span>Configured</span></div>' : ''}
+                        </div>
+                        ${firstAccount ? '<p class="hint" style="margin-top:10px">This is the first account, so it becomes the default import account and provides the Immich connection.</p>' : ''}
+                        <div class="review-defaults">
+                            <label class="review-default">
+                                <input type="checkbox" id="acctWizardDefaultImport" data-wiz-default="import"${importChecked ? ' checked' : ''}${firstAccount ? ' disabled' : ''}>
+                                <span><strong>Default import account</strong><span class="hint">${firstAccount ? 'Required for the Immich connection.' : 'Owns new photos and provides the Immich connection.'}</span></span>
+                            </label>
+                            <label class="review-default">
+                                <input type="checkbox" id="acctWizardDefaultGoogle" data-wiz-default="google"${googleChecked ? ' checked' : ''}${hasGoogle ? '' : ' disabled'}>
+                                <span><strong>Default Google upload account</strong><span class="hint">${hasGoogle ? 'Used when an owner has no linked Google account.' : 'Connect Google Photos to use this as the default uploader.'}</span></span>
+                            </label>
+                        </div>
+                    </div>`;
+            }
+            panel += `
+                <div class="wizard-actions-row">
+                    <button class="btn btn-ghost" type="button" onclick="addWizardBack()"${wizard.step === 1 ? ' disabled' : ''}>Back</button>
+                    <button class="btn btn-primary" type="button" id="acctWizardNextBtn" onclick="addWizardNext()"${wizard.busy ? ' disabled' : ''}>${wizard.step === 4 ? 'Create account' : 'Continue'}</button>
+                </div>`;
+            $('acctWizardBody').innerHTML = panel;
+            updateAddWizardContinue();
+        }
+
+        function addWizardCapture() {
+            const values = state.accountWizard.values;
+            const read = (id, key, fallback) => {
+                const el = $(id);
+                if (el) values[key] = el.value;
+                else if (fallback !== undefined && values[key] === undefined) values[key] = fallback;
+            };
+            read('acctWizardUser', 'immichUserId');
+            read('acctWizardUserId', 'manualUserId');
+            read('acctWizardName', 'name');
+            read('acctWizardKey', 'immichApiKey');
+            read('acctWizardGoogleEmail', 'googleEmail');
+            read('acctWizardOAuth', 'oauthToken');
+            read('acctWizardCookies', 'cookies');
+        }
+
+        function addWizardResolvedUserId() {
+            const values = state.accountWizard.values;
+            return values.immichUserId === '__manual__'
+                ? String(values.manualUserId || '').trim()
+                : String(values.immichUserId || '').trim();
+        }
+
+        function updateAddWizardContinue() {
+            const button = $('acctWizardNextBtn');
+            if (!button) return;
+            const step = state.accountWizard.step;
+            const values = state.accountWizard.values;
+            let ready = true;
+            if (step === 1) {
+                const userId = values.immichUserId === '__manual__' ? values.manualUserId : values.immichUserId;
+                ready = !!String(userId || '').trim();
+            } else if (step === 2) {
+                ready = !!String(values.immichApiKey || '').trim();
+            }
+            button.disabled = !!state.accountWizard.busy || !ready;
+        }
+
+        function onAddWizardFieldChange(event) {
+            const field = event.target.dataset ? event.target.dataset.wizField : '';
+            if (!field) return;
+            const values = state.accountWizard.values;
+            values[field] = event.target.value;
+            if (field === 'immichUserId') {
+                const manual = event.target.value === '__manual__';
+                const manualField = $('acctWizardManualField');
+                if (manualField) manualField.hidden = !manual;
+                if (!manual) {
+                    const user = (state.immichUsers || []).find(item => item.id === event.target.value);
+                    const nameInput = $('acctWizardName');
+                    if (user && nameInput && !String(values.name || '').trim()) {
+                        values.name = user.name || user.email || '';
+                        nameInput.value = values.name;
+                    }
+                }
+            }
+            updateAddWizardContinue();
+        }
+
+        function addWizardBack() {
+            if (state.accountWizard.step <= 1 || state.accountWizard.busy) return;
+            addWizardCapture();
+            state.accountWizard.step -= 1;
+            renderAccountAddWizard();
+        }
+
+        async function addWizardNext() {
+            if (state.accountWizard.busy) return;
+            addWizardCapture();
+            const values = state.accountWizard.values;
+            if (state.accountWizard.step === 1) {
+                const userId = addWizardResolvedUserId();
+                if (!userId) {
+                    showToast(values.immichUserId === '__manual__' ? 'Enter the Immich user UUID.' : 'Choose an Immich user to continue.', true);
+                    const target = values.immichUserId === '__manual__' ? $('acctWizardUserId') : $('acctWizardUser');
+                    if (target) target.focus();
+                    return;
+                }
+                if ((state.accounts || []).some(account => String(account.immichUserId || '').toLowerCase() === userId.toLowerCase())) {
+                    showToast('This Immich user already has an account. Edit that account instead.', true);
+                    return;
+                }
+            } else if (state.accountWizard.step === 2) {
+                if (!String(values.immichApiKey || '').trim()) {
+                    showToast('Paste an Immich API key to continue.', true);
+                    if ($('acctWizardKey')) $('acctWizardKey').focus();
+                    return;
+                }
+            } else if (state.accountWizard.step === 3) {
+                const hasEmail = !!values.googleEmail.trim();
+                const hasToken = !!values.oauthToken.trim();
+                if (hasEmail !== hasToken) {
+                    showToast('Add both the Google email and the Google credential, or leave both empty.', true);
+                    const target = hasEmail ? $('acctWizardOAuth') : $('acctWizardGoogleEmail');
+                    if (target) target.focus();
+                    return;
+                }
+            }
+            if (state.accountWizard.step < 4) {
+                state.accountWizard.step += 1;
+                renderAccountAddWizard();
+                return;
+            }
+            await createAccountFromWizard();
+        }
+
+        async function createAccountFromWizard() {
+            const wizard = state.accountWizard;
+            const values = wizard.values;
+            const userId = addWizardResolvedUserId();
+            const makeImportDefault = $('acctWizardDefaultImport') ? $('acctWizardDefaultImport').checked : false;
+            const makeGoogleDefault = $('acctWizardDefaultGoogle') ? $('acctWizardDefaultGoogle').checked : false;
+            const name = values.name.trim();
+            const button = $('acctWizardNextBtn');
+            wizard.busy = true;
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Creating...';
+            }
+            try {
+                const res = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        immichUserId: userId,
+                        name,
+                        immichApiKey: values.immichApiKey.trim(),
+                        googleEmail: values.googleEmail.trim(),
+                        oauthToken: values.oauthToken.trim(),
+                        cookies: values.cookies.trim()
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not create this account');
+                applyAccountsPayload(data);
+                const created = data.account
+                    || (state.accounts || []).find(account => String(account.immichUserId).toLowerCase() === userId.toLowerCase());
+                const createdId = created ? created.id : '';
+                if (createdId) state.accountSelected = createdId;
+                renderAccountsPage();
+                populateDefaultsSelects();
+                if (makeImportDefault && createdId && $('defaultImportAccount')) {
+                    const importSelect = $('defaultImportAccount');
+                    if (Array.from(importSelect.options).some(option => option.value === createdId)) {
+                        importSelect.value = createdId;
+                    }
+                }
+                if (makeGoogleDefault && createdId && $('defaultGoogleAccount')) {
+                    const googleSelect = $('defaultGoogleAccount');
+                    if (Array.from(googleSelect.options).some(option => option.value === createdId)) {
+                        googleSelect.value = createdId;
+                    }
+                }
+                state.accountDefaults = {
+                    importAccount: $('defaultImportAccount') ? $('defaultImportAccount').value : '',
+                    googleAccount: $('defaultGoogleAccount') ? $('defaultGoogleAccount').value : ''
+                };
+                if (state.config) {
+                    state.config.defaultImportAccount = state.accountDefaults.importAccount;
+                    state.config.defaultGoogleAccount = state.accountDefaults.googleAccount;
+                }
+                wizard.busy = false;
+                closeAccountAddWizard();
+                showToast('Account created');
+                if (makeImportDefault || makeGoogleDefault) {
+                    await saveConfig({ quiet: true });
+                }
+                await loadConfig();
+            } catch (err) {
+                wizard.busy = false;
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Create account';
+                }
+                showToast(err.message, true);
+            }
+        }
+
+        function wizardNextFromUrl() {
+            const apiURL = $('wizApiURL').value.trim();
+            if (!apiURL) {
+                showToast('Enter the Immich server URL first.', true);
+                $('wizApiURL').focus();
+                return;
+            }
+            goWizardStep(2);
+        }
+
+        async function connectFirstAccount() {
+            const button = $('wizConnectBtn');
+            const result = $('wizAccountResult');
+            const apiURL = $('wizApiURL').value.trim();
+            const name = $('wizAccountName').value.trim();
+            const apiKey = $('wizApiKey').value.trim();
+            if (!apiURL) {
+                result.textContent = 'Enter the Immich server URL first.';
+                result.className = 'test-result danger';
+                goWizardStep(1);
+                return;
+            }
+            if (!apiKey) {
+                result.textContent = 'Enter the Immich API key.';
+                result.className = 'test-result danger';
+                $('wizApiKey').focus();
+                return;
+            }
+            button.disabled = true;
+            result.textContent = 'Connecting...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/setup/account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiURL, name, immichApiKey: apiKey })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not connect to Immich');
+                const account = data.account || {};
+                if (!name && account.name) $('wizAccountName').value = account.name;
+                const label = account.name || account.immichUserName || name || 'Immich user';
+                const userId = account.immichUserId || account.id || '';
+                $('wizAccountStatus').textContent = 'Connected as ' + label + (userId ? ' (' + userId + ')' : '') + '.';
+                result.textContent = '';
+                result.className = 'test-result';
+                state.resetInProgress = false;
+                goWizardStep(3);
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+            } finally {
+                button.disabled = false;
             }
         }
 
@@ -4068,6 +4806,7 @@
                 state.config = config;
 
                 $('apiURL').value = config.apiURL || '';
+                $('wizApiURL').value = config.apiURL || '';
                 $('workers').value = config.workers || 1;
                 $('albumWorkers').value = config.albumWorkers || 1;
                 $('debug').checked = !!config.debug;
@@ -4084,7 +4823,8 @@
                 $('googleSkipLivePhotos').checked = !!googleUpload.skipLivePhotos;
                 $('googleReuploadDeleted').checked = !!googleUpload.reuploadDeleted;
                 $('googleThreads').value = googleUpload.threads || 1;
-                $('googleStrictMatching').checked = !!googleUpload.strictAccountMatching;
+                const strictMatching = $('googleStrictMatching');
+                if (strictMatching) strictMatching.checked = !!googleUpload.strictAccountMatching;
 
                 const notifications = config.notifications || {};
                 const ntfy = notifications.ntfy || {};
@@ -4116,15 +4856,23 @@
                 updateAlbumCount();
                 updateOverviewStats();
                 state.accounts = config.accounts || [];
-                state.primary = null;
+                state.accountDefaults = {
+                    importAccount: config.defaultImportAccount || '',
+                    googleAccount: config.defaultGoogleAccount || ''
+                };
+                state.accountSelected = '';
                 const mode = config.uiMode || (state.accounts.length ? 'advanced' : 'standard');
                 setUIMode(mode, { persist: false });
-                renderPrimaryProfileCard();
+                populateNotificationAccountSelect(notifications.immichAccountId || '');
+                renderAccountsPage();
+                renderConnectionDefault();
+                updateTestConnectionAvailability();
                 setupSignature = '';
                 renderWhatsNew();
                 updateGettingStarted();
 
-                if (!config.apiURL || !config.apiKey) {
+                const hasAccounts = state.accounts.length > 0;
+                if (!config.apiURL || (!hasAccounts && !config.apiKey)) {
                     $('mainUI').style.display = 'none';
                     $('wizardUI').style.display = 'block';
                     goWizardStep(1);
@@ -4133,8 +4881,6 @@
                     $('wizardUI').style.display = 'none';
                     loadImmichAlbums();
                     loadAccounts();
-                    refreshGoogleAccount();
-                    refreshWebSession(false);
                 }
                 setAutosaveState('Saved', 'success');
             } catch (err) {
@@ -4149,9 +4895,19 @@
             const ntfyTokenValue = typedToken && (state.ntfyReplace || !state.ntfyToken)
                 ? typedToken
                 : (state.ntfyToken || '');
+            const importSelect = $('defaultImportAccount');
+            const googleSelect = $('defaultGoogleAccount');
+            const defaultImportValue = importSelect && importSelect.dataset.loaded === '1'
+                ? importSelect.value
+                : ((state.config && state.config.defaultImportAccount) || '');
+            const defaultGoogleValue = googleSelect && googleSelect.dataset.loaded === '1'
+                ? googleSelect.value
+                : ((state.config && state.config.defaultGoogleAccount) || '');
             return {
                 apiURL: $('apiURL').value.trim(),
                 apiKey: (state.config && state.config.apiKey) || '',
+                defaultImportAccount: defaultImportValue,
+                defaultGoogleAccount: defaultGoogleValue,
                 debug: $('debug').checked,
                 workers: parseInt($('workers').value, 10) || 1,
                 albumWorkers: parseInt($('albumWorkers').value, 10) || 1,
@@ -4176,7 +4932,9 @@
                     skipLivePhotos: $('googleSkipLivePhotos').checked,
                     reuploadDeleted: $('googleReuploadDeleted').checked,
                     threads: parseInt($('googleThreads').value, 10) || 1,
-                    strictAccountMatching: $('googleStrictMatching').checked
+                    strictAccountMatching: $('googleStrictMatching')
+                        ? $('googleStrictMatching').checked
+                        : !!(state.config && state.config.googleUpload && state.config.googleUpload.strictAccountMatching)
                 },
                 notifications: {
                     immich: $('notificationsImmich').checked,
@@ -4199,6 +4957,7 @@
         }
 
         async function saveConfig(options = {}) {
+            if (state.resetInProgress) return false;
             const form = $('configForm');
             if (!options.quiet && form && !form.reportValidity()) return false;
 
@@ -4234,6 +4993,10 @@
                 const previousAccounts = state.config && state.config.accounts;
                 state.config = config;
                 if (previousAccounts) state.config.accounts = previousAccounts;
+                state.accountDefaults = {
+                    importAccount: config.defaultImportAccount || '',
+                    googleAccount: config.defaultGoogleAccount || ''
+                };
                 if (state.ntfyReplace || !state.ntfyToken) {
                     const replacement = $('ntfyToken').value.trim();
                     if (replacement) state.ntfyToken = replacement;
@@ -4242,7 +5005,6 @@
                 if (!autosave.pending) setAutosaveState('Saved', 'success');
                 updateOverviewStats();
                 updateBackgroundBanner();
-                renderPrimaryProfileCard();
                 if (!options.quiet) showToast('Configuration saved');
                 setTimeout(refreshActivity, 800);
             } catch (err) {
@@ -4267,20 +5029,22 @@
             const btn = $('testConnectionBtn');
             const result = $('testConnectionResult');
             const apiURL = $('apiURL').value.trim();
-            const apiKey = (state.config && state.config.apiKey) || '';
+            const account = defaultImportAccount();
+            const apiKey = (account && account.immichApiKey) || '';
             if (!apiURL) {
                 result.textContent = 'Enter the Immich API URL first.';
                 result.className = 'test-result danger';
                 return;
             }
             if (!apiKey) {
-                result.textContent = 'Add an API key in the primary profile first.';
+                result.textContent = 'Add an Immich account first.';
                 result.className = 'test-result danger';
                 return;
             }
             btn.disabled = true;
             result.textContent = 'Testing...';
             result.className = 'test-result';
+            delete result.dataset.placeholder;
             try {
                 const res = await fetch('/api/test-connection', {
                     method: 'POST',
@@ -4405,10 +5169,10 @@
                 },
                 {
                     done: hasGoogle,
-                    title: 'Connect Google upload (optional)',
-                    description: 'Enable photos from Immich to go back to Google Photos, including albums shared with you.',
-                    action: 'google',
-                    label: 'Open Google upload'
+                    title: 'Link a Google account (optional)',
+                    description: 'Add an account with a Google credential under Accounts & Users so photos can upload back to Google Photos.',
+                    action: 'accounts',
+                    label: 'Open Accounts & Users'
                 },
                 {
                     done: hasRun,
@@ -4761,25 +5525,56 @@
             }
         }
 
-        function finishWizard() {
+        async function finishWizard() {
+            const button = $('wizFinishBtn');
+            const result = $('wizFinishResult');
             const apiURL = $('wizApiURL').value.trim();
+            const name = $('wizAccountName').value.trim();
             const apiKey = $('wizApiKey').value.trim();
-            if (!apiURL || !apiKey) {
-                showToast('Fill in the Immich URL and API key', true);
+            if (!apiURL) {
+                showToast('Enter the Immich server URL first.', true);
+                goWizardStep(1);
+                return;
+            }
+            if (!apiKey) {
+                showToast('Enter the Immich API key.', true);
                 goWizardStep(2);
                 return;
             }
-            $('apiURL').value = apiURL;
-            if (!state.config) state.config = { googlePhotos: [] };
-            state.config.apiURL = apiURL;
-            state.config.apiKey = apiKey;
-            const url = $('wizAlbumUrl').value.trim();
-            const name = $('wizAlbumName').value.trim();
-            $('albumList').innerHTML = '';
-            if (url) addAlbumRow({ url, albumName: name, syncInterval: '12h' });
-            $('wizardUI').style.display = 'none';
-            $('mainUI').style.display = 'block';
-            saveConfig().then(() => setTimeout(loadConfig, 600));
+            button.disabled = true;
+            result.textContent = 'Connecting...';
+            result.className = 'test-result';
+            try {
+                const res = await fetch('/api/setup/account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiURL, name, immichApiKey: apiKey })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Could not connect to Immich');
+                const account = data.account || {};
+                const label = account.name || account.immichUserName || name || 'Immich user';
+                const userId = account.immichUserId || account.id || '';
+                $('wizAccountStatus').textContent = 'Connected as ' + label + (userId ? ' (' + userId + ')' : '') + '.';
+
+                $('apiURL').value = apiURL;
+                if (!state.config) state.config = { googlePhotos: [] };
+                state.config.apiURL = apiURL;
+                const url = $('wizAlbumUrl').value.trim();
+                const albumName = $('wizAlbumName').value.trim();
+                $('albumList').innerHTML = '';
+                if (url) addAlbumRow({ url, albumName, syncInterval: '12h' });
+
+                result.textContent = 'Saving...';
+                const saved = await saveConfig();
+                if (!saved) throw new Error('Could not save the first album');
+                await loadConfig();
+                showToast('Setup complete');
+            } catch (err) {
+                result.textContent = err.message;
+                result.className = 'test-result danger';
+                button.disabled = false;
+            }
         }
 
         qsa('.nav-item').forEach(item => {
@@ -4800,13 +5595,19 @@
             updateAccountManualFields();
         });
 
-        $('googleStrictMatching').addEventListener('change', renderRoutingPreview);
+        const strictMatchingToggle = $('googleStrictMatching');
+        if (strictMatchingToggle) strictMatchingToggle.addEventListener('change', renderRoutingPreview);
+
+        $('defaultImportAccount').addEventListener('change', onDefaultAccountChange);
+        $('defaultGoogleAccount').addEventListener('change', onDefaultAccountChange);
+        $('acctWizardBody').addEventListener('input', onAddWizardFieldChange);
+        $('acctWizardBody').addEventListener('change', onAddWizardFieldChange);
 
         document.addEventListener('keydown', event => {
             if (event.key !== 'Escape') return;
-            if (!$('primaryProfileModal').hidden) {
+            if (!$('accountAddWizard').hidden) {
                 event.preventDefault();
-                closePrimaryProfileModal();
+                closeAccountAddWizard();
                 return;
             }
             if (!$('accountWizard').hidden) {

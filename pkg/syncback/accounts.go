@@ -277,13 +277,13 @@ func (s *Service) PrimaryStatus(ctx context.Context, cfg *config.Config) Primary
 		status.Error = "configuration is unavailable"
 		return status
 	}
-	status.APIKeyConfigured = strings.TrimSpace(cfg.ApiKey) != ""
+	status.APIKeyConfigured = strings.TrimSpace(cfg.EffectiveApiKey()) != ""
 
 	if strings.TrimSpace(cfg.ApiURL) == "" {
 		status.Error = "Immich URL is not configured"
 	} else if !status.APIKeyConfigured {
 		status.Error = "Immich API key is not configured"
-	} else if id, name, err := immich.NewClient(cfg.ApiURL, cfg.ApiKey, 1).GetUser(ctx); err != nil {
+	} else if id, name, err := immich.NewClient(cfg.ApiURL, cfg.EffectiveApiKey(), 1).GetUser(ctx); err != nil {
 		status.Error = err.Error()
 	} else {
 		status.UserID = id
@@ -598,7 +598,7 @@ func (s *Service) knownImmichUsers(ctx context.Context, cfg *config.Config) ([]i
 	apiURL, apiKey := "", ""
 	if cfg != nil {
 		apiURL = strings.TrimSpace(cfg.ApiURL)
-		apiKey = strings.TrimSpace(cfg.ApiKey)
+		apiKey = strings.TrimSpace(cfg.EffectiveApiKey())
 	}
 	if apiURL == "" {
 		apiURL = s.immichURL

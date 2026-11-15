@@ -461,6 +461,30 @@ func TestResolveAlbumIDCreatesWithGivenClient(t *testing.T) {
 	}
 }
 
+func TestResolveAlbumIDMatchesCaseInsensitively(t *testing.T) {
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.Error(w, "must not create a second album", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	app := newTestApp(t, server.URL)
+	albumClient := immich.NewClient(server.URL, "album-key", 1)
+	cache := []immich.Album{
+		{Id: "album-1", AlbumName: " Summer 2024 "},
+		{Id: "album-2", AlbumName: "Winter"},
+	}
+
+	id := app.resolveAlbumID(context.Background(), config.GooglePhotosConfig{}, "summer 2024", cache, app.Logger, albumClient)
+	if id != "album-1" {
+		t.Fatalf("album id = %q, want the cached album", id)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want no create call", requests)
+	}
+}
+
 func TestNeedsRestart(t *testing.T) {
 	base := func() *config.Config {
 		return &config.Config{

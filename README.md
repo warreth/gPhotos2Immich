@@ -101,11 +101,15 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Photographer Metadata:** The person who added each photo to the shared album is written to the Immich description as `Photographer: <name>`, next to the source album. Enable `updateExistingMetadata` to backfill photos that were imported before this feature.
 - **Speed & Deduping:** Concurrent workers speed through downloads, while a persistent local cache skips over photos that Immich already has, saving you bandwidth.
 - **Deletion-aware Dedup:** The default `safe` mode respects photos you delete in Immich and automatically adopts compressed replacements created by tools such as `immich-compressor`. Use `repair` mode to re-upload anything that is missing.
-- **Optional Immich to Google Photos upload:** Link an Immich album to a Google Photos album and upload new additions back on a schedule. Albums you own use the connected Google account; albums shared with you use an optional browser session. Live Photos are uploaded as a linked still and video pair, and deletions never sync in either direction.
-- **Three experience modes:** Switch between Simple, Standard, and Advanced at the top of the sidebar. Simple keeps the basics, Standard adds two-way sync with one Google account, and Advanced exposes multi-account routing and every setting. The mode is stored in `uiMode`.
-- **Multi-account routing:** Link each Immich person to their own Google account in **Accounts & Users**. Uploads from Immich use the Google account of each photo owner, and shared album imports can use that person's Immich API key.
+- **Optional Immich to Google Photos upload:** Link an Immich album to a Google Photos album and upload new additions back on a schedule. Photos upload through the Google account linked to their Immich owner. Live Photos are uploaded as a linked still and video pair, and deletions never sync in either direction.
+- **Three experience modes:** Switch between Simple, Standard, and Advanced at the top of the sidebar. Simple keeps the basics and shows a read-only default account. Standard adds two-way sync, Google upload, private albums, and notifications. Advanced exposes the per-album import owner and every setting. The mode is stored in `uiMode`.
+- **Unified accounts:** One account combines an Immich user, that user's Immich API key, and an optional Google Photos credential with browser cookies. Add accounts under **Accounts & Users**, with the Add button under the account list.
+- **Two independent defaults:** Choose a default import account for new photos and the Immich connection, and a default Google upload account for photos whose Immich owner has no linked Google account.
+- **Automatic Immich album matching:** When you paste a shared album link, the app resolves the Google title, selects an existing Immich album with the same name, or suggests close matches. If none fits, it creates the album on the first import only when the Google album contains photos.
+- **Clear import owner:** The per-album import owner is now an Advanced control labelled "Who owns the imported photos?", with the default import account preselected.
+- **Reset accounts:** Clear every account, API key, Google credential, cookie file, and Immich album ID while keeping album URLs and intervals.
 - **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging.
-- **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification, and choose which linked Immich profile sends it.
+- **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification, and choose the default import account or another linked account to send it.
 - **ntfy notifications:** Send the same events to ntfy.sh or your own ntfy server as an independent second channel.
 - **Private album import (experimental):** Import albums from your own Google Photos account into Immich from a separate tab. Originals are downloaded, items are deduplicated, and progress is shown live.
 - **Guided setup:** The Overview page shows a first-run checklist and a short What's new card when a release adds features.
@@ -115,19 +119,27 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 
 The Web UI has three modes, stored in `uiMode`:
 
-- `simple` shows Overview, Connection, Albums, and Logs. It hides upload settings and account routing.
-- `standard` adds sync behavior, deduplication, Google upload, private albums, and notifications for one Google account.
-- `advanced` shows every section, including **Accounts & Users**, per-album import accounts, and strict contributor matching.
+- `simple` shows Overview, Connection, Albums, Accounts, and Logs. Accounts is read-only and shows only the default import account.
+- `standard` adds sync behavior, deduplication, Google upload, private albums, notifications, and account management.
+- `advanced` adds the per-album import owner and every setting.
 
-Existing installations default to `standard`. A configuration with `accounts` opens in `advanced` unless `uiMode` says otherwise. The mode only changes what the interface shows. Mappings created in Advanced keep working in the background, and the UI shows a notice when that happens.
+The mode only changes what the interface shows. Accounts and settings created in another mode keep working in the background.
 
-In **Accounts & Users**, link one Immich user to one Google Photos account. Each mapping can hold the Immich user UUID and name, an optional Immich API key, a Google `oauth_token`, an optional `cookies.txt` browser session, and a fallback flag for unmapped users. The same page previews where each Immich user's photos go.
+In **Accounts & Users**, one account combines:
+- an Immich user and that user's Immich API key
+- an optional Google Photos credential and browser cookies for shared albums
 
-Immich assigns every imported asset to the owner of the API key that calls `POST /assets`. To import a shared album as your sister, use her Immich API key for that mapping or album. In the other direction, the uploader reads each asset's `ownerId` and uploads it with the Google account linked to that person. Set `googleUpload.strictAccountMatching` to skip unmapped users instead of falling back, and set `googlePhotos[].immichAccountId` to choose the import account per album. See [CONFIGURATION.md](CONFIGURATION.md#accounts-and-routing) for the field reference.
+Choose two defaults at the top of the page:
+- **Default import account** owns new photos imported from shared albums and provides the Immich server connection.
+- **Default Google upload account** uploads photos whose Immich owner has no linked Google account.
+
+Add account sits under the account list. Selecting an account shows its credential status on the right. **Edit account** replaces credentials explicitly; **Reset accounts** clears every account and credential while keeping album URLs and intervals.
+
+Immich assigns every imported asset to the owner of the API key that calls `POST /assets`. The import owner is the default import account unless you choose another person under the album's Advanced **Import owner** control. In the other direction, the uploader reads each asset's `ownerId` and uses the Google account linked to that person. Set `googleUpload.strictAccountMatching` to skip owners without a linked Google account. See [CONFIGURATION.md](CONFIGURATION.md#accounts-and-routing) for the field reference.
 
 ## Google Photos upload
 
-The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Albums you own use the connected Google account. Albums shared with you use a browser session, because Google's mobile API cannot add to them. When several people are linked, each asset is uploaded through the Google account of its Immich owner. The browser session is also used for **Private albums**. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
+The upload direction is optional and per album. It uses the pinned [`gotohp`](https://github.com/xob0t/gotohp) CLI and the reverse-engineered Google Photos mobile API. Google credentials and browser cookies are managed per account under **Accounts & Users**. The default Google account uploads when the Immich owner has no linked Google account. Albums shared with you use the browser cookies of the account that owns the import, because Google's mobile API cannot add to an album you do not own. See [CONFIGURATION.md](CONFIGURATION.md#google-photos-upload) for setup.
 
 ### Unlimited storage
 
@@ -135,7 +147,7 @@ The optional `unlimited` storage mode makes the uploader identify as a Pixel pho
 
 ## Private album import (experimental)
 
-Private albums live in your own Google Photos account. They need the same browser session used for shared-album uploads: open **Google upload**, **Shared album access**, export a `cookies.txt` for `photos.google.com`, and connect it.
+Private albums live in your own Google Photos account. They use the browser cookies of the default import account: open **Accounts & Users**, edit that account, and add a `cookies.txt` for `photos.google.com` under **Browser cookies**.
 
 Open **Private albums**, choose an album, pick an existing Immich album or create a new one, and press **Import**. The importer downloads the original files, skips items it already imported, and shows progress on the same page. It is manual only, has no schedule, and does not propagate deletions.
 
@@ -145,7 +157,7 @@ Limitations: Live Photo motion is imported as the still only. If Google asks for
 
 Notifications are optional and configured under **Notifications** in the Web UI. Two independent channels are available:
 
-- **Immich** sends a notification through the admin notification API. Choose the primary profile or another linked person with an Immich API key; the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys.
+- **Immich** sends a notification through the admin notification API. Choose the default import account or another linked account with an Immich API key; the notification appears in that person's Immich account. The key needs `notification.create`, which Immich currently grants to admin keys.
 - **ntfy** posts to ntfy.sh or your own server. Set the URL, topic, optional access token, and priority, then pick the events for that channel.
 
 Each channel has its own event switches. A failure in one channel never blocks the other, and a failed notification never interrupts a sync. The test buttons show the exact error if a channel is not configured correctly.

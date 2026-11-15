@@ -69,7 +69,7 @@ func New(cfg *config.Config) (*App, error) {
 	if workers < 1 {
 		workers = 1
 	}
-	client := immich.NewClient(cfg.ApiURL, cfg.ApiKey, workers)
+	client := immich.NewClient(cfg.ApiURL, cfg.EffectiveApiKey(), workers)
 	gpClient := googlephotos.NewClient(logger, workers)
 
 	// Initialize persistent dedup state
@@ -152,7 +152,7 @@ func NeedsRestart(old, new *config.Config) bool {
 	if old == nil || new == nil {
 		return true
 	}
-	if old.ApiURL != new.ApiURL || old.ApiKey != new.ApiKey || old.DataDir != new.DataDir {
+	if old.ApiURL != new.ApiURL || old.EffectiveApiKey() != new.EffectiveApiKey() || old.DataDir != new.DataDir {
 		return true
 	}
 	if old.GoogleUpload.GotohpBinary != new.GoogleUpload.GotohpBinary ||
@@ -660,8 +660,9 @@ func (a *App) resolveAlbumID(ctx context.Context, ac config.GooglePhotosConfig, 
 	if ac.ImmichAlbumID != "" {
 		return ac.ImmichAlbumID
 	}
+	wanted := strings.TrimSpace(albumTitle)
 	for _, album := range albumCache {
-		if album.AlbumName == albumTitle {
+		if strings.EqualFold(strings.TrimSpace(album.AlbumName), wanted) {
 			return album.Id
 		}
 	}

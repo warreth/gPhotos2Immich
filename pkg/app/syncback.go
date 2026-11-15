@@ -49,7 +49,7 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 
 	google := gphotos.NewCLIClient(resolveGotohpBinary(cfg.EffectiveGotohpBinary()), cfg.EffectiveGotohpConfig())
 	gpClient := googlephotos.NewClient(logger, cfg.EffectiveThreads())
-	immichClient := immich.NewClient(cfg.ApiURL, cfg.ApiKey, cfg.EffectiveThreads())
+	immichClient := immich.NewClient(cfg.ApiURL, cfg.EffectiveApiKey(), cfg.EffectiveThreads())
 
 	uploadState := upload.NewState(filepath.Join(dataDir, "upload-state.json"))
 	if err := uploadState.Load(); err != nil {

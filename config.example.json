@@ -1,6 +1,7 @@
 {
-  "apiKey": "your-immich-api-key",
   "apiURL": "http://192.168.1.100:2283/api",
+  "defaultImportAccount": "lotte",
+  "defaultGoogleAccount": "lotte",
   "debug": false,
   "workers": 4,
   "albumWorkers": 3,
@@ -14,9 +15,8 @@
       "id": "lotte",
       "name": "Lotte",
       "immichUserId": "replace-with-immich-user-uuid",
-      "immichApiKey": "optional-immich-api-key-for-imports",
-      "googleEmail": "lotte@gmail.com",
-      "isDefault": false
+      "immichApiKey": "lotte-immich-api-key",
+      "googleEmail": "lotte@gmail.com"
     }
   ],
   "googleUpload": {
@@ -55,14 +55,14 @@
       "url": "https://photos.app.goo.gl/example-share-link-1",
       "albumName": "Summer Vacation 2023",
       "syncInterval": "12h",
-      "uploadToGoogle": false,
-      "immichAccountId": "lotte"
+      "uploadToGoogle": false
     },
     {
       "url": "https://photos.app.goo.gl/example-share-link-2",
       "immichAlbumId": "existing-album-uuid-optional",
       "syncInterval": "1h",
-      "uploadToGoogle": true
+      "uploadToGoogle": true,
+      "immichAccountId": "lotte"
     }
   ]
 }

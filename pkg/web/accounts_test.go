@@ -232,16 +232,17 @@ func TestSaveConfigKeepsAutomationFields(t *testing.T) {
 	}
 }
 
-func TestSaveConfigPreservesOmittedAPIKey(t *testing.T) {
+func TestSaveConfigMirrorsAccountAPIKey(t *testing.T) {
 	server, _, path := newAccountsTestServer(t, config.Config{
 		ApiKey: "stored-secret",
 		ApiURL: "http://immich.invalid/api",
 		Accounts: []config.AccountMapping{{
-			ID: "acc-1", ImmichUserID: "u1", Name: "Lotte",
+			ID: "acc-1", ImmichUserID: "u1", Name: "Lotte", ImmichAPIKey: "stored-secret",
 		}},
 		GooglePhotos: []config.GooglePhotosConfig{{URL: "https://photos.app.goo.gl/x"}},
 	})
 
+	// An omitted key keeps the default import account's key in the mirror.
 	body := []byte(`{
 		"apiURL": "http://immich.invalid/api",
 		"googlePhotos": [{"url":"https://photos.app.goo.gl/x"}]
@@ -255,13 +256,16 @@ func TestSaveConfigPreservesOmittedAPIKey(t *testing.T) {
 	}
 	cfg := readSavedConfig(t, path)
 	if cfg.ApiKey != "stored-secret" {
-		t.Fatalf("apiKey = %q, want the stored key", cfg.ApiKey)
+		t.Fatalf("apiKey = %q, want the account key", cfg.ApiKey)
+	}
+	if cfg.DefaultImportAccount != "acc-1" {
+		t.Fatalf("defaultImportAccount = %q", cfg.DefaultImportAccount)
 	}
 	if len(cfg.Accounts) != 1 || cfg.Accounts[0].ID != "acc-1" {
 		t.Fatalf("accounts were not preserved: %#v", cfg.Accounts)
 	}
 
-	// An explicit new key still replaces the stored one.
+	// A legacy key in the body never replaces the account key.
 	body = []byte(`{
 		"apiURL": "http://immich.invalid/api",
 		"apiKey": "rotated-secret",
@@ -273,8 +277,142 @@ func TestSaveConfigPreservesOmittedAPIKey(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
+	if cfg := readSavedConfig(t, path); cfg.ApiKey != "stored-secret" {
+		t.Fatalf("apiKey = %q, want the account key to win", cfg.ApiKey)
+	}
+
+	// Changing the account key updates the mirror.
+	body = []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"accounts": [{"id":"acc-1","immichUserId":"u1","name":"Lotte","immichApiKey":"rotated-secret"}],
+		"googlePhotos": [{"url":"https://photos.app.goo.gl/x"}]
+	}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	server.handleConfig(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
 	if cfg := readSavedConfig(t, path); cfg.ApiKey != "rotated-secret" {
-		t.Fatalf("apiKey = %q", cfg.ApiKey)
+		t.Fatalf("apiKey = %q, want the updated account key", cfg.ApiKey)
+	}
+}
+
+func TestSaveConfigKeepsLegacyKeyWithoutAccounts(t *testing.T) {
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiKey: "legacy-secret",
+		ApiURL: "http://immich.invalid/api",
+	})
+
+	body := []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"googlePhotos": []
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiKey != "legacy-secret" {
+		t.Fatalf("apiKey = %q, want the legacy key", cfg.ApiKey)
+	}
+	if cfg.DefaultImportAccount != "" || cfg.DefaultGoogleAccount != "" {
+		t.Fatalf("defaults = %q / %q, want empty", cfg.DefaultImportAccount, cfg.DefaultGoogleAccount)
+	}
+}
+
+func TestSaveConfigDerivesAccountDefaults(t *testing.T) {
+	server, service, path := newAccountsTestServer(t, config.Config{
+		ApiKey: "key-1",
+		ApiURL: "http://immich.invalid/api",
+		Accounts: []config.AccountMapping{
+			{ID: "acc-1", ImmichUserID: "u1", Name: "One", ImmichAPIKey: "key-1", GoogleEmail: "one@example.com"},
+			{ID: "acc-2", ImmichUserID: "u2", Name: "Two", ImmichAPIKey: "key-2", GoogleEmail: "two@example.com"},
+		},
+	})
+
+	body := []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"defaultImportAccount": "acc-2",
+		"defaultGoogleAccount": "acc-2",
+		"googlePhotos": []
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if cfg.DefaultImportAccount != "acc-2" || cfg.DefaultGoogleAccount != "acc-2" {
+		t.Fatalf("defaults = %q / %q", cfg.DefaultImportAccount, cfg.DefaultGoogleAccount)
+	}
+	if cfg.ApiKey != "key-2" {
+		t.Fatalf("apiKey = %q, want the default import account key", cfg.ApiKey)
+	}
+	for _, acc := range cfg.Accounts {
+		if acc.IsDefault != (acc.ID == "acc-2") {
+			t.Fatalf("account %q IsDefault = %v", acc.ID, acc.IsDefault)
+		}
+	}
+	for _, acc := range service.Accounts() {
+		if acc.IsDefault != (acc.ID == "acc-2") {
+			t.Fatalf("live account %q IsDefault = %v", acc.ID, acc.IsDefault)
+		}
+	}
+}
+
+func TestSaveConfigKeepsLegacyMirrorWithoutAccountKey(t *testing.T) {
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiKey: "legacy-secret",
+		ApiURL: "http://immich.invalid/api",
+		Accounts: []config.AccountMapping{{
+			ID: "acc-1", ImmichUserID: "u1", Name: "Lotte", GoogleEmail: "lotte@example.com",
+		}},
+	})
+
+	body := []byte(`{
+		"apiURL": "http://immich.invalid/api",
+		"googlePhotos": []
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiKey != "legacy-secret" {
+		t.Fatalf("apiKey = %q, want the legacy key kept for migration", cfg.ApiKey)
+	}
+	if cfg.DefaultImportAccount != "" {
+		t.Fatalf("defaultImportAccount = %q", cfg.DefaultImportAccount)
+	}
+}
+
+func TestSaveConfigAllowsResetDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	server := NewServer(path)
+
+	body := []byte(`{"googlePhotos":[]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if err := cfg.ValidateSettings(); err != nil {
+		t.Fatalf("a reset document must pass ValidateSettings: %v", err)
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("a reset document must still fail Validate")
 	}
 }
 
@@ -403,5 +541,291 @@ func TestAccountsResponseIncludesPrimary(t *testing.T) {
 	}
 	if resp.Primary.Error == "" {
 		t.Fatal("expected an error for the missing Immich URL")
+	}
+}
+
+func TestAccountsResponseDefaultsAndShape(t *testing.T) {
+	server, _, _ := newAccountsTestServer(t, config.Config{
+		ApiURL:               "http://immich.invalid/api",
+		ApiKey:               "key-1",
+		DefaultImportAccount: "acc-1",
+		DefaultGoogleAccount: "acc-2",
+		Accounts: []config.AccountMapping{
+			{ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "key-1", GoogleEmail: "one@example.com"},
+			{ID: "acc-2", ImmichUserID: "u2", ImmichAPIKey: "key-2", GoogleEmail: "two@example.com", IsDefault: true},
+		},
+	})
+	// Without a running service the stored accounts are reported instead of a
+	// 503, so the first-run page can render.
+	server.SetSyncBack(nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts", nil)
+	rec := httptest.NewRecorder()
+	server.handleAccounts(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Accounts []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"accounts"`
+		Defaults struct {
+			ImportAccount string `json:"importAccount"`
+			GoogleAccount string `json:"googleAccount"`
+		} `json:"defaults"`
+		ImmichURL string          `json:"immichURL"`
+		Primary   json.RawMessage `json:"primary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Defaults.ImportAccount != "acc-1" || resp.Defaults.GoogleAccount != "acc-2" {
+		t.Fatalf("defaults = %#v", resp.Defaults)
+	}
+	if resp.ImmichURL != "http://immich.invalid/api" {
+		t.Fatalf("immichURL = %q", resp.ImmichURL)
+	}
+	if len(resp.Accounts) != 2 || resp.Accounts[0].ID != "acc-1" {
+		t.Fatalf("accounts = %#v", resp.Accounts)
+	}
+	if len(resp.Primary) != 0 {
+		t.Fatalf("primary must be omitted without a service: %s", resp.Primary)
+	}
+}
+
+func TestHandleSetupAccount(t *testing.T) {
+	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/me" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Header.Get("x-api-key") {
+		case "setup-key":
+			w.Write([]byte(`{"id":"user-1","name":"Warre"}`))
+		case "other-key":
+			w.Write([]byte(`{"id":"user-2","name":"Lotte"}`))
+		default:
+			http.Error(w, `{"message":"Invalid API key"}`, http.StatusUnauthorized)
+		}
+	}))
+	defer immichServer.Close()
+
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiURL: "http://old.invalid/api",
+		UIMode: config.UIModeAdvanced,
+		GooglePhotos: []config.GooglePhotosConfig{{
+			URL: "https://photos.app.goo.gl/x", AlbumName: "Holiday", SyncInterval: "12h",
+		}},
+	})
+	server.OnConfigChange = func() {}
+
+	body := []byte(`{"apiURL":"` + immichServer.URL + `","name":"","immichApiKey":"setup-key"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/setup/account", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleSetupAccount(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		OK      bool                  `json:"ok"`
+		Account config.AccountMapping `json:"account"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.OK || resp.Account.ID != "user-1" || resp.Account.Name != "Warre" {
+		t.Fatalf("response = %#v", resp)
+	}
+
+	cfg := readSavedConfig(t, path)
+	if cfg.ApiURL != immichServer.URL || cfg.ApiKey != "setup-key" {
+		t.Fatalf("connection = %q / %q", cfg.ApiURL, cfg.ApiKey)
+	}
+	if len(cfg.Accounts) != 1 {
+		t.Fatalf("accounts = %#v", cfg.Accounts)
+	}
+	acc := cfg.Accounts[0]
+	if acc.ID != "user-1" || acc.ImmichUserID != "user-1" || acc.ImmichAPIKey != "setup-key" || acc.Name != "Warre" {
+		t.Fatalf("account = %#v", acc)
+	}
+	if cfg.DefaultImportAccount != "user-1" {
+		t.Fatalf("defaultImportAccount = %q", cfg.DefaultImportAccount)
+	}
+	if cfg.UIMode != config.UIModeAdvanced {
+		t.Fatalf("uiMode was not preserved: %q", cfg.UIMode)
+	}
+	if len(cfg.GooglePhotos) != 1 || cfg.GooglePhotos[0].AlbumName != "Holiday" || cfg.GooglePhotos[0].SyncInterval != "12h" {
+		t.Fatalf("albums were not preserved: %#v", cfg.GooglePhotos)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("the setup config must be valid: %v", err)
+	}
+
+	// A retry for the same Immich user is idempotent and does not duplicate it.
+	req = httptest.NewRequest(http.MethodPost, "/api/setup/account", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	server.handleSetupAccount(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("same-user setup status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if cfg := readSavedConfig(t, path); len(cfg.Accounts) != 1 {
+		t.Fatalf("same-user setup duplicated the account: %#v", cfg.Accounts)
+	}
+
+	// A second Immich user belongs on the accounts API.
+	otherBody := []byte(`{"apiURL":"` + immichServer.URL + `","name":"Lotte","immichApiKey":"other-key"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/setup/account", bytes.NewReader(otherBody))
+	rec = httptest.NewRecorder()
+	server.handleSetupAccount(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("second user setup status = %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleSetupAccountReusesSameUser(t *testing.T) {
+	immichServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"user-1","name":"Warre"}`))
+	}))
+	defer immichServer.Close()
+
+	server, _, path := newAccountsTestServer(t, config.Config{
+		ApiURL: "http://old.invalid/api",
+		Accounts: []config.AccountMapping{{
+			ID: "user-1", ImmichUserID: "user-1", Name: "Old name", ImmichAPIKey: "old-key",
+			GoogleEmail: "warre@example.com",
+		}},
+	})
+	server.OnConfigChange = func() {}
+
+	body := []byte(`{"apiURL":"` + immichServer.URL + `","name":"","immichApiKey":"new-key"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/setup/account", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	server.handleSetupAccount(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	cfg := readSavedConfig(t, path)
+	if len(cfg.Accounts) != 1 {
+		t.Fatalf("accounts must not be duplicated: %#v", cfg.Accounts)
+	}
+	acc := cfg.Accounts[0]
+	if acc.ImmichAPIKey != "new-key" || acc.Name != "Warre" || acc.GoogleEmail != "warre@example.com" {
+		t.Fatalf("account = %#v", acc)
+	}
+	if cfg.ApiKey != "new-key" {
+		t.Fatalf("apiKey = %q", cfg.ApiKey)
+	}
+}
+
+func TestHandleResetAccounts(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	gotohpPath := filepath.Join(dir, "gotohp.config")
+	cookiesPath := filepath.Join(dir, "web-cookies.txt")
+	accountCookiesPath := filepath.Join(dir, "account-cookies.txt")
+	statePath := filepath.Join(dir, "sync-state.json")
+	for _, path := range []string{gotohpPath, cookiesPath, accountCookiesPath, statePath} {
+		if err := os.WriteFile(path, []byte("secret"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg := config.Config{
+		ApiURL:               "http://immich.invalid/api",
+		ApiKey:               "legacy-key",
+		DefaultImportAccount: "acc-1",
+		DefaultGoogleAccount: "acc-1",
+		Accounts: []config.AccountMapping{{
+			ID: "acc-1", ImmichUserID: "u1", Name: "One", ImmichAPIKey: "key-1",
+			GoogleEmail: "one@example.com", WebCookiesFile: accountCookiesPath, IsDefault: true,
+		}},
+		GoogleUpload: config.GoogleUploadConfig{
+			Enabled: true, GotohpConfig: gotohpPath, WebCookiesFile: cookiesPath,
+			StorageMode: config.StorageModeQuota, Quality: config.QualityOriginal, Threads: 1,
+		},
+		Notifications: config.NotificationsConfig{
+			Immich:          true,
+			ImmichAccountID: "acc-1",
+			OnSyncFailed:    true,
+			Ntfy: config.NtfyConfig{
+				Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Token: "tk_secret",
+			},
+		},
+		GooglePhotos: []config.GooglePhotosConfig{{
+			URL: "https://photos.app.goo.gl/x", AlbumName: "Holiday", SyncInterval: "12h",
+			ImmichAlbumID: "album-1", ImmichAccountID: "acc-1", UploadToGoogle: true,
+		}},
+	}
+	content, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := NewServer(configPath)
+	server.OnConfigChange = func() {}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/reset", nil)
+	rec := httptest.NewRecorder()
+	server.handleResetAccounts(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+
+	reset := readSavedConfig(t, configPath)
+	if len(reset.Accounts) != 0 {
+		t.Fatalf("accounts = %#v", reset.Accounts)
+	}
+	if reset.ApiKey != "" || reset.DefaultImportAccount != "" || reset.DefaultGoogleAccount != "" {
+		t.Fatalf("account defaults were not cleared: %#v", reset)
+	}
+	if reset.Notifications.Immich || reset.Notifications.ImmichAccountID != "" || reset.Notifications.Ntfy.Token != "" {
+		t.Fatalf("notifications were not cleared: %#v", reset.Notifications)
+	}
+	if reset.Notifications.Ntfy.URL != "https://ntfy.sh" || reset.Notifications.Ntfy.Topic != "photos" {
+		t.Fatalf("unrelated ntfy settings were not preserved: %#v", reset.Notifications.Ntfy)
+	}
+	if reset.GoogleUpload.Enabled {
+		t.Fatal("googleUpload.enabled must be cleared")
+	}
+	if reset.GoogleUpload.GotohpConfig != gotohpPath || reset.GoogleUpload.WebCookiesFile != cookiesPath {
+		t.Fatalf("credential paths were not preserved: %#v", reset.GoogleUpload)
+	}
+	if len(reset.GooglePhotos) != 1 {
+		t.Fatalf("albums = %#v", reset.GooglePhotos)
+	}
+	album := reset.GooglePhotos[0]
+	if album.URL != cfg.GooglePhotos[0].URL || album.AlbumName != "Holiday" || album.SyncInterval != "12h" {
+		t.Fatalf("album fields were not preserved: %#v", album)
+	}
+	if album.ImmichAlbumID != "" || album.ImmichAccountID != "" || album.UploadToGoogle {
+		t.Fatalf("album targets were not cleared: %#v", album)
+	}
+	if err := reset.ValidateSettings(); err != nil {
+		t.Fatalf("reset config must pass ValidateSettings: %v", err)
+	}
+	if err := reset.Validate(); err == nil {
+		t.Fatal("reset config must still fail Validate")
+	}
+
+	for _, path := range []string{gotohpPath, cookiesPath, accountCookiesPath} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("credential file %s was not removed: %v", path, err)
+		}
+	}
+	if _, err := os.Stat(statePath); err != nil {
+		t.Fatalf("sync state must be preserved: %v", err)
 	}
 }

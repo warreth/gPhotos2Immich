@@ -75,6 +75,8 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/immich/users", s.handleImmichUsers)
 	mux.HandleFunc("/api/accounts", s.handleAccounts)
+	mux.HandleFunc("/api/accounts/reset", s.handleResetAccounts)
+	mux.HandleFunc("/api/setup/account", s.handleSetupAccount)
 	mux.HandleFunc("/api/primary-profile", s.handlePrimaryProfile)
 	mux.HandleFunc("/api/test-connection", s.handleTestConnection)
 	mux.HandleFunc("/api/logs", s.handleLogs)
@@ -188,15 +190,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	if userName == "" {
 		// Read config to initialize client
-		cfgBytes, err := os.ReadFile(s.configPath)
-		if err == nil {
-			var configData struct {
-				ApiURL string `json:"apiURL"`
-				ApiKey string `json:"apiKey"`
-			}
-			if err := json.Unmarshal(cfgBytes, &configData); err == nil && configData.ApiURL != "" && configData.ApiKey != "" {
+		if cfg, err := config.ReadConfig(s.configPath); err == nil {
+			apiURL, apiKey := strings.TrimSpace(cfg.ApiURL), strings.TrimSpace(cfg.EffectiveApiKey())
+			if apiURL != "" && apiKey != "" {
 				go func() {
-					client := immich.NewClient(configData.ApiURL, configData.ApiKey, 1)
+					client := immich.NewClient(apiURL, apiKey, 1)
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					if _, name, err := client.GetUser(ctx); err == nil && name != "" {
@@ -288,12 +286,12 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The settings form may omit the API key so a saved page never overwrites
-	// the stored secret with an empty value.
-	apiKey := newCfg.ApiKey
-	if strings.TrimSpace(apiKey) == "" {
+	// the stored secret with an empty value. The account defaults below can
+	// replace the mirror with the default import account's key.
+	apiKey := strings.TrimSpace(newCfg.ApiKey)
+	if apiKey == "" {
 		apiKey = existingCfg.ApiKey
 	}
-	connectionChanged := newCfg.ApiURL != existingCfg.ApiURL || apiKey != existingCfg.ApiKey
 
 	// Update every field exposed in the UI, preserving any extra fields that
 	// were added to config.json by hand.
@@ -318,23 +316,21 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Accounts are edited on their own API, so an omitted list keeps the one on
 	// disk instead of erasing every mapping.
-	accounts := newCfg.Accounts
 	if _, ok := raw["accounts"]; ok {
-		existingMap["accounts"] = accounts
-	} else {
-		accounts = existingCfg.Accounts
+		existingMap["accounts"] = newCfg.Accounts
+	}
+	// The default account pickers are independent of the account list, so an
+	// omitted value keeps the stored one.
+	if _, ok := raw["defaultImportAccount"]; ok {
+		existingMap["defaultImportAccount"] = strings.TrimSpace(newCfg.DefaultImportAccount)
+	}
+	if _, ok := raw["defaultGoogleAccount"]; ok {
+		existingMap["defaultGoogleAccount"] = strings.TrimSpace(newCfg.DefaultGoogleAccount)
 	}
 
-	// Prettify output
-	outBytes, err := json.MarshalIndent(existingMap, "", "    ")
-	if err != nil {
-		http.Error(w, "Failed to serialize config", http.StatusInternalServerError)
-		return
-	}
-
-	// Validate the merged document before writing it. The live app refuses an
-	// invalid config, so writing one would leave the file and the running
-	// service out of sync while the UI reported a successful save.
+	// Read the merged document back as a typed config, then derive both
+	// defaults and the connection-key mirror with the same rules ReadConfig
+	// uses, so the file and the live service cannot drift apart.
 	mergedBytes, err := json.Marshal(existingMap)
 	if err != nil {
 		http.Error(w, "Failed to serialize config", http.StatusInternalServerError)
@@ -345,7 +341,28 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read merged config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := mergedCfg.Validate(); err != nil {
+	if mergedCfg.Accounts != nil {
+		normalized := make([]config.AccountMapping, len(mergedCfg.Accounts))
+		for i, acc := range mergedCfg.Accounts {
+			normalized[i] = config.NormalizeAccount(acc)
+		}
+		mergedCfg.Accounts = normalized
+	}
+	mergedCfg.ApplyDefaults()
+	writeAccountDefaults(existingMap, &mergedCfg)
+
+	// Prettify output
+	outBytes, err := json.MarshalIndent(existingMap, "", "    ")
+	if err != nil {
+		http.Error(w, "Failed to serialize config", http.StatusInternalServerError)
+		return
+	}
+
+	// Validate the merged document before writing it. The live app refuses an
+	// invalid config, so writing one would leave the file and the running
+	// service out of sync while the UI reported a successful save. Connections
+	// are validated by the setup flow instead, so a reset document can be saved.
+	if err := mergedCfg.ValidateSettings(); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -361,10 +378,12 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	// Keep the live service in step with the file. The handler already holds
 	// s.mu, so read the field directly instead of calling syncBack().
 	if sb := s.SyncBack; sb != nil {
-		sb.SetAccounts(accounts, newCfg.GoogleUpload.StrictAccountMatching)
+		sb.SetAccounts(mergedCfg.Accounts, mergedCfg.GoogleUpload.StrictAccountMatching)
 	}
 
 	// The cached Immich user may belong to the previous credentials.
+	connectionChanged := mergedCfg.ApiURL != existingCfg.ApiURL ||
+		mergedCfg.EffectiveApiKey() != existingCfg.EffectiveApiKey()
 	if connectionChanged {
 		cachedImmichUserMu.Lock()
 		cachedImmichUser = ""

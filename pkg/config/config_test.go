@@ -568,3 +568,220 @@ func TestNtfyValidation(t *testing.T) {
 		t.Fatalf("disabled ntfy must not require a URL or topic: %v", err)
 	}
 }
+
+func TestReadConfigDerivesAccountDefaults(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		wantImport  string
+		wantGoogle  string
+		wantKey     string
+		wantDefault string
+	}{
+		{
+			name: "explicit ids win",
+			content: `{
+				"apiKey": "legacy",
+				"apiURL": "http://immich/api",
+				"defaultImportAccount": "acc-2",
+				"defaultGoogleAccount": "acc-1",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","googleEmail":"one@example.com"},
+					{"id":"acc-2","immichUserId":"u2","immichApiKey":"key-2","googleEmail":"two@example.com"}
+				]
+			}`,
+			wantImport:  "acc-2",
+			wantGoogle:  "acc-1",
+			wantKey:     "key-2",
+			wantDefault: "acc-1",
+		},
+		{
+			name: "legacy key selects the matching account",
+			content: `{
+				"apiKey": "key-2",
+				"apiURL": "http://immich/api",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","immichApiKey":"key-1","googleEmail":"one@example.com"},
+					{"id":"acc-2","immichUserId":"u2","immichApiKey":"key-2","googleEmail":"two@example.com"}
+				]
+			}`,
+			wantImport:  "acc-2",
+			wantGoogle:  "acc-1",
+			wantKey:     "key-2",
+			wantDefault: "acc-1",
+		},
+		{
+			name: "isDefault picks the Google account",
+			content: `{
+				"apiKey": "key-1",
+				"apiURL": "http://immich/api",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","immichApiKey":"key-1","googleEmail":"one@example.com"},
+					{"id":"acc-2","immichUserId":"u2","immichApiKey":"key-2","googleEmail":"two@example.com","isDefault":true}
+				]
+			}`,
+			wantImport:  "acc-1",
+			wantGoogle:  "acc-2",
+			wantKey:     "key-1",
+			wantDefault: "acc-2",
+		},
+		{
+			name: "first keyed and first emailed account",
+			content: `{
+				"apiURL": "http://immich/api",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","googleEmail":"one@example.com"},
+					{"id":"acc-2","immichUserId":"u2","immichApiKey":"key-2","googleEmail":"two@example.com"}
+				]
+			}`,
+			wantImport:  "acc-2",
+			wantGoogle:  "acc-1",
+			wantKey:     "key-2",
+			wantDefault: "acc-1",
+		},
+		{
+			name: "configured import account without a key falls back",
+			content: `{
+				"apiURL": "http://immich/api",
+				"defaultImportAccount": "acc-1",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","googleEmail":"one@example.com"},
+					{"id":"acc-2","immichUserId":"u2","immichApiKey":"key-2","googleEmail":"two@example.com"}
+				]
+			}`,
+			wantImport:  "acc-2",
+			wantGoogle:  "acc-1",
+			wantKey:     "key-2",
+			wantDefault: "acc-1",
+		},
+		{
+			name: "legacy key without a matching account is kept for migration",
+			content: `{
+				"apiKey": "legacy",
+				"apiURL": "http://immich/api",
+				"accounts": [
+					{"id":"acc-1","immichUserId":"u1","googleEmail":"one@example.com"}
+				]
+			}`,
+			wantImport:  "",
+			wantGoogle:  "acc-1",
+			wantKey:     "legacy",
+			wantDefault: "acc-1",
+		},
+		{
+			name: "no accounts keeps the legacy key",
+			content: `{
+				"apiKey": "legacy",
+				"apiURL": "http://immich/api"
+			}`,
+			wantImport: "",
+			wantGoogle: "",
+			wantKey:    "legacy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := ReadConfig(writeTestConfig(t, tt.content))
+			if err != nil {
+				t.Fatalf("ReadConfig failed: %v", err)
+			}
+			if cfg.DefaultImportAccount != tt.wantImport {
+				t.Fatalf("defaultImportAccount = %q, want %q", cfg.DefaultImportAccount, tt.wantImport)
+			}
+			if cfg.DefaultGoogleAccount != tt.wantGoogle {
+				t.Fatalf("defaultGoogleAccount = %q, want %q", cfg.DefaultGoogleAccount, tt.wantGoogle)
+			}
+			if cfg.ApiKey != tt.wantKey {
+				t.Fatalf("apiKey mirror = %q, want %q", cfg.ApiKey, tt.wantKey)
+			}
+			if got := cfg.EffectiveApiKey(); got != tt.wantKey {
+				t.Fatalf("EffectiveApiKey() = %q, want %q", got, tt.wantKey)
+			}
+			for _, acc := range cfg.Accounts {
+				want := acc.ID == tt.wantDefault
+				if acc.IsDefault != want {
+					t.Fatalf("account %q IsDefault = %v, want %v", acc.ID, acc.IsDefault, want)
+				}
+			}
+		})
+	}
+}
+
+func TestEffectiveWebCookiesFilePrefersImportAccount(t *testing.T) {
+	cfg := &Config{
+		Accounts: []AccountMapping{{ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "k", WebCookiesFile: "/data/acc-1.txt"}},
+		GoogleUpload: GoogleUploadConfig{
+			WebCookiesFile: "/data/top-level.txt",
+		},
+	}
+	if got := cfg.EffectiveWebCookiesFile(); got != "/data/acc-1.txt" {
+		t.Fatalf("EffectiveWebCookiesFile() = %q, want the default import account path", got)
+	}
+
+	cfg.Accounts = []AccountMapping{{ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "k"}}
+	if got := cfg.EffectiveWebCookiesFile(); got != "/data/top-level.txt" {
+		t.Fatalf("EffectiveWebCookiesFile() = %q, want the top-level path", got)
+	}
+
+	cfg.GoogleUpload.WebCookiesFile = ""
+	if got := cfg.EffectiveWebCookiesFile(); got != "./data/gphotos-web-cookies.txt" {
+		t.Fatalf("EffectiveWebCookiesFile() = %q, want the built-in default", got)
+	}
+}
+
+func TestValidateSettingsDoesNotRequireConnection(t *testing.T) {
+	empty := &Config{}
+	if err := empty.ValidateSettings(); err != nil {
+		t.Fatalf("ValidateSettings() on an empty reset document = %v", err)
+	}
+	if err := empty.Validate(); err == nil {
+		t.Fatal("Validate() must still require a connection")
+	}
+
+	settingsOnly := &Config{ApiURL: "http://immich/api"}
+	if err := settingsOnly.ValidateSettings(); err != nil {
+		t.Fatalf("ValidateSettings() = %v", err)
+	}
+	if err := settingsOnly.Validate(); err == nil {
+		t.Fatal("Validate() must require an API key")
+	}
+
+	accountKey := &Config{ApiURL: "http://immich/api", Accounts: []AccountMapping{{
+		ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "account-key",
+	}}}
+	if err := accountKey.Validate(); err != nil {
+		t.Fatalf("an account key must satisfy Validate(): %v", err)
+	}
+
+	invalid := &Config{Workers: -1}
+	if err := invalid.ValidateSettings(); err == nil {
+		t.Fatal("ValidateSettings() must reject invalid field values")
+	}
+	invalid = &Config{}
+	invalid.Notifications.Ntfy = NtfyConfig{Enabled: true, URL: "https://ntfy.sh", Topic: "photos", Priority: "loud"}
+	if err := invalid.ValidateSettings(); err == nil {
+		t.Fatal("ValidateSettings() must reject an invalid ntfy priority")
+	}
+	invalid = &Config{GooglePhotos: []GooglePhotosConfig{{URL: "x", SyncInterval: "nope"}}}
+	if err := invalid.ValidateSettings(); err == nil {
+		t.Fatal("ValidateSettings() must reject an invalid album duration")
+	}
+}
+
+func TestApplyDefaultsIsIdempotent(t *testing.T) {
+	cfg := &Config{
+		Accounts: []AccountMapping{
+			{ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "key-1", GoogleEmail: "one@example.com"},
+			{ID: "acc-2", ImmichUserID: "u2", ImmichAPIKey: "key-2", GoogleEmail: "two@example.com", IsDefault: true},
+		},
+	}
+	cfg.ApplyDefaults()
+	if cfg.DefaultImportAccount != "acc-1" || cfg.DefaultGoogleAccount != "acc-2" || cfg.ApiKey != "key-1" {
+		t.Fatalf("first pass = %#v", cfg)
+	}
+	cfg.ApplyDefaults()
+	if cfg.DefaultImportAccount != "acc-1" || cfg.DefaultGoogleAccount != "acc-2" || cfg.ApiKey != "key-1" {
+		t.Fatalf("second pass = %#v", cfg)
+	}
+}

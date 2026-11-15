@@ -119,21 +119,28 @@ const (
 )
 
 type Config struct {
-	ApiKey                 string               `json:"apiKey"`
-	ApiURL                 string               `json:"apiURL"`
-	Debug                  bool                 `json:"debug"`                  // Optional, enable verbose logging
-	Workers                int                  `json:"workers"`                // Optional, default 1
-	AlbumWorkers           int                  `json:"albumWorkers"`           // Optional, concurrent album processing (default 1)
-	StrictMetadata         bool                 `json:"strictMetadata"`         // Optional, skip items with missing dates
-	SkipVideos             bool                 `json:"skipVideos"`             // Optional, skip video items entirely
-	DataDir                string               `json:"dataDir"`                // Optional, directory for persistent state (default "./data")
-	DedupMode              string               `json:"dedupMode"`              // Optional: safe (default), repair, fast
-	UpdateExistingMetadata bool                 `json:"updateExistingMetadata"` // Optional, backfill descriptions of existing assets
-	UIMode                 string               `json:"uiMode,omitempty"`       // Optional: simple, standard, advanced
-	Notifications          NotificationsConfig  `json:"notifications"`
-	GoogleUpload           GoogleUploadConfig   `json:"googleUpload"`
-	Accounts               []AccountMapping     `json:"accounts,omitempty"`
-	GooglePhotos           []GooglePhotosConfig `json:"googlePhotos"`
+	ApiKey                 string              `json:"apiKey"`
+	ApiURL                 string              `json:"apiURL"`
+	Debug                  bool                `json:"debug"`                  // Optional, enable verbose logging
+	Workers                int                 `json:"workers"`                // Optional, default 1
+	AlbumWorkers           int                 `json:"albumWorkers"`           // Optional, concurrent album processing (default 1)
+	StrictMetadata         bool                `json:"strictMetadata"`         // Optional, skip items with missing dates
+	SkipVideos             bool                `json:"skipVideos"`             // Optional, skip video items entirely
+	DataDir                string              `json:"dataDir"`                // Optional, directory for persistent state (default "./data")
+	DedupMode              string              `json:"dedupMode"`              // Optional: safe (default), repair, fast
+	UpdateExistingMetadata bool                `json:"updateExistingMetadata"` // Optional, backfill descriptions of existing assets
+	UIMode                 string              `json:"uiMode,omitempty"`       // Optional: simple, standard, advanced
+	Notifications          NotificationsConfig `json:"notifications"`
+	GoogleUpload           GoogleUploadConfig  `json:"googleUpload"`
+	Accounts               []AccountMapping    `json:"accounts,omitempty"`
+	// DefaultImportAccount names the account whose Immich API key is used for
+	// imports. Empty means no account supplies a key.
+	DefaultImportAccount string `json:"defaultImportAccount,omitempty"`
+	// DefaultGoogleAccount names the account used for Google upload routing
+	// when an Immich owner has no mapping. It replaces the legacy isDefault
+	// flag, which is kept in sync for the upload code.
+	DefaultGoogleAccount string               `json:"defaultGoogleAccount,omitempty"`
+	GooglePhotos         []GooglePhotosConfig `json:"googlePhotos"`
 }
 
 // EffectiveUIMode returns the interface mode the user should see. An empty
@@ -241,12 +248,154 @@ func (c *Config) EffectiveGotohpConfig() string {
 	return strings.TrimSpace(c.GoogleUpload.GotohpConfig)
 }
 
-// EffectiveWebCookiesFile returns the browser-session cookies path.
+// EffectiveWebCookiesFile returns the browser-session cookies path. An
+// explicit path on the default import account wins, so the connection key and
+// the browser session of the same person stay together.
 func (c *Config) EffectiveWebCookiesFile() string {
-	if strings.TrimSpace(c.GoogleUpload.WebCookiesFile) == "" {
-		return "./data/gphotos-web-cookies.txt"
+	if c != nil {
+		if acc, ok := c.defaultImportAccount(); ok {
+			if path := strings.TrimSpace(acc.WebCookiesFile); path != "" {
+				return path
+			}
+		}
+		if path := strings.TrimSpace(c.GoogleUpload.WebCookiesFile); path != "" {
+			return path
+		}
 	}
-	return strings.TrimSpace(c.GoogleUpload.WebCookiesFile)
+	return "./data/gphotos-web-cookies.txt"
+}
+
+// accountMatchesID reports whether wanted names acc by its stable id or by its
+// Immich user id.
+func accountMatchesID(acc AccountMapping, wanted string) bool {
+	wanted = strings.TrimSpace(wanted)
+	if wanted == "" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(acc.ID), wanted) ||
+		strings.EqualFold(strings.TrimSpace(acc.ImmichUserID), wanted)
+}
+
+// defaultImportAccount returns the mapping that supplies the Immich connection
+// key. A configured id is used only when that account has a key, then an
+// account matching the legacy mirror, then the first account with a key.
+func (c *Config) defaultImportAccount() (AccountMapping, bool) {
+	if c == nil {
+		return AccountMapping{}, false
+	}
+	if wanted := strings.TrimSpace(c.DefaultImportAccount); wanted != "" {
+		for _, acc := range c.Accounts {
+			if accountMatchesID(acc, wanted) && strings.TrimSpace(acc.ImmichAPIKey) != "" {
+				return acc, true
+			}
+		}
+	}
+	if legacy := strings.TrimSpace(c.ApiKey); legacy != "" {
+		for _, acc := range c.Accounts {
+			if strings.TrimSpace(acc.ImmichAPIKey) == legacy {
+				return acc, true
+			}
+		}
+		// The legacy key belongs to the connection profile that has not been
+		// migrated into an account yet. Do not silently switch the connection
+		// to an unrelated account.
+		return AccountMapping{}, false
+	}
+	for _, acc := range c.Accounts {
+		if strings.TrimSpace(acc.ImmichAPIKey) != "" {
+			return acc, true
+		}
+	}
+	return AccountMapping{}, false
+}
+
+// defaultGoogleAccount returns the mapping used for Google upload routing. A
+// configured id is used only when that account has a Google email, then the
+// legacy isDefault flag, then the first account with a Google email.
+func (c *Config) defaultGoogleAccount() (AccountMapping, bool) {
+	if c == nil {
+		return AccountMapping{}, false
+	}
+	if wanted := strings.TrimSpace(c.DefaultGoogleAccount); wanted != "" {
+		for _, acc := range c.Accounts {
+			if accountMatchesID(acc, wanted) && strings.TrimSpace(acc.GoogleEmail) != "" {
+				return acc, true
+			}
+		}
+	}
+	for _, acc := range c.Accounts {
+		if acc.IsDefault {
+			return acc, true
+		}
+	}
+	for _, acc := range c.Accounts {
+		if strings.TrimSpace(acc.GoogleEmail) != "" {
+			return acc, true
+		}
+	}
+	return AccountMapping{}, false
+}
+
+// ApplyDefaults derives both default account ids, syncs the legacy IsDefault
+// flag to the default Google account and mirrors the connection key. It is the
+// single source of truth shared by config reads and the settings API.
+func (c *Config) ApplyDefaults() {
+	if c == nil {
+		return
+	}
+	if len(c.Accounts) == 0 {
+		c.DefaultImportAccount = ""
+		c.DefaultGoogleAccount = ""
+		// Without accounts the legacy key stays for migration.
+		return
+	}
+
+	importAccount, hasImport := c.defaultImportAccount()
+	if hasImport {
+		c.DefaultImportAccount = importAccount.ID
+	} else {
+		c.DefaultImportAccount = ""
+	}
+
+	googleAccount, hasGoogle := c.defaultGoogleAccount()
+	if hasGoogle {
+		c.DefaultGoogleAccount = googleAccount.ID
+	} else {
+		c.DefaultGoogleAccount = ""
+	}
+	for i := range c.Accounts {
+		c.Accounts[i].IsDefault = hasGoogle && strings.EqualFold(c.Accounts[i].ID, googleAccount.ID)
+	}
+
+	if hasImport {
+		if key := strings.TrimSpace(importAccount.ImmichAPIKey); key != "" {
+			c.ApiKey = key
+			return
+		}
+	}
+	// A non-empty legacy key with no matching account is the pre-account
+	// connection profile. Keep it until the migration creates that account.
+	if strings.TrimSpace(c.ApiKey) != "" {
+		return
+	}
+	// Accounts exist but none supplies a key, so the mirror must not keep a
+	// stale legacy value that no account can use.
+	c.ApiKey = ""
+}
+
+// EffectiveApiKey returns the Immich API key used for imports. It prefers the
+// default import account and falls back to the legacy internal mirror, so
+// callers never need to inspect the account list.
+func (c *Config) EffectiveApiKey() string {
+	if c == nil {
+		return ""
+	}
+	if acc, ok := c.defaultImportAccount(); ok {
+		if key := strings.TrimSpace(acc.ImmichAPIKey); key != "" {
+			return key
+		}
+	}
+	return strings.TrimSpace(c.ApiKey)
 }
 
 // EffectiveAccountCookiesFile returns the browser-session cookies path for one
@@ -425,6 +574,9 @@ func ReadConfig(path string) (*Config, error) {
 	config.DedupMode = strings.TrimSpace(config.DedupMode)
 	config.UIMode = strings.ToLower(strings.TrimSpace(config.UIMode))
 	config.Accounts = normalizeAccounts(config.Accounts)
+	// Derive both defaults, sync isDefault and mirror the connection key. The
+	// legacy ApiKey is kept as-is only when no accounts exist.
+	config.ApplyDefaults()
 
 	config.GoogleUpload.GotohpBinary = strings.TrimSpace(config.GoogleUpload.GotohpBinary)
 	config.GoogleUpload.GotohpConfig = strings.TrimSpace(config.GoogleUpload.GotohpConfig)
@@ -480,14 +632,21 @@ func ReadConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-// Validate checks that all required config fields are present and valid
+// Validate checks that all required config fields are present and valid. It
+// requires a usable Immich connection.
 func (c *Config) Validate() error {
-	if c.ApiKey == "" {
+	if strings.TrimSpace(c.EffectiveApiKey()) == "" {
 		return fmt.Errorf("apiKey is required (set in config or IMMICH_API_KEY env var)")
 	}
-	if c.ApiURL == "" {
+	if strings.TrimSpace(c.ApiURL) == "" {
 		return fmt.Errorf("apiURL is required (set in config or IMMICH_API_URL env var)")
 	}
+	return c.ValidateSettings()
+}
+
+// ValidateSettings checks every field value without requiring a usable Immich
+// connection, so a reset or first-run document can be stored before setup.
+func (c *Config) ValidateSettings() error {
 	if c.Workers < 0 {
 		return fmt.Errorf("workers must be non-negative")
 	}
