@@ -2364,9 +2364,13 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.13.0';
+        const APP_VERSION = '1.13.1';
         let setupSignature = '';
         const WHATS_NEW = [
+            {
+                title: 'Save fix for Docker',
+                body: 'Saving config.json works again when the file is bind-mounted into the container.'
+            },
             {
                 title: 'Settings save automatically',
                 body: 'Changes save as you type. The top bar shows Saving, Saved, or Could not save, and ordinary settings apply without restarting a running sync.'

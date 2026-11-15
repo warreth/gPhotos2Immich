@@ -379,8 +379,9 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status": "ok"}`))
 }
 
-// writeConfigFile replaces the config atomically so a concurrent reader never
-// sees a half-written JSON document. The existing file mode is preserved.
+// writeConfigFile replaces the config. A bind-mounted config.json cannot be
+// replaced by rename, so a failed rename falls back to rewriting the existing
+// file in place. The existing file mode is preserved.
 func writeConfigFile(path string, data []byte) error {
 	mode := os.FileMode(0644)
 	if info, err := os.Stat(path); err == nil {
@@ -408,7 +409,32 @@ func writeConfigFile(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, path)
+	if err := renameFile(tmpName, path); err != nil {
+		// Docker bind mounts expose config.json as a mount point. Rename over
+		// it returns EBUSY; writing the existing file still works.
+		if writeErr := writeFileInPlace(path, data, mode); writeErr != nil {
+			return fmt.Errorf("replace config: %v; write in place: %w", err, writeErr)
+		}
+	}
+	return nil
+}
+
+var renameFile = os.Rename
+
+func writeFileInPlace(path string, data []byte, mode os.FileMode) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 // mergeNotifications keeps nested notification settings the current form does

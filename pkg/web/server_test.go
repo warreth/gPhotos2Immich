@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -89,6 +90,28 @@ func TestSaveConfigRejectsInvalidConfig(t *testing.T) {
 	}
 	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
 		t.Fatalf("invalid config was written to disk: %v", err)
+	}
+}
+
+func TestWriteConfigFileFallsBackWhenRenameIsBusy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	originalRename := renameFile
+	renameFile = func(_, _ string) error { return syscall.EBUSY }
+	t.Cleanup(func() { renameFile = originalRename })
+
+	if err := writeConfigFile(path, []byte("new")); err != nil {
+		t.Fatalf("writeConfigFile() = %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "new" {
+		t.Fatalf("content = %q, want new", content)
 	}
 }
 
