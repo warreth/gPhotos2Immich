@@ -1821,7 +1821,7 @@
                             <div class="button-row" style="margin-top:12px">
                                 <button class="btn btn-secondary" type="button" onclick="goToSection('accounts')">Manage accounts</button>
                             </div>
-                            <div class="hint">Needed for shared albums and private album imports.</div>
+                            <div class="hint">The account that uploads uses its own browser session; the default Google account is the usual one. Needed for shared albums and private album imports.</div>
                         </div>
 
                         <div class="card">
@@ -2483,20 +2483,20 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.14.1';
+        const APP_VERSION = '1.14.2';
         let setupSignature = '';
         const WHATS_NEW = [
             {
+                title: 'Shared album sessions',
+                body: 'The upload page and the shared-album check now look at the default Google account browser session first. Cookies you added to that account now count, so a shared album no longer asks for cookies that are already saved.'
+            },
+            {
                 title: 'Immich v3 album uploads',
-                body: 'The Google upload direction now reads album assets through Immich v3 search, so photos added to an Immich album are found and uploaded instead of reporting 0 items.'
+                body: 'The Google upload direction reads album assets through Immich v3 search, so photos added to an Immich album are found and uploaded instead of reporting 0 items.'
             },
             {
                 title: 'Clearer Google setup',
-                body: 'The Add account wizard now has separate pages for the Google credential and browser cookies. Each page says whether it is optional, what it is for, and how to get it.'
-            },
-            {
-                title: 'Upload diagnostics',
-                body: 'Manual uploads now show how many photos were found in the linked Immich album, and the log warns when the album mapping returns no assets.'
+                body: 'The Add account wizard has separate pages for the Google credential and browser cookies, with optionality, purpose, and instructions for each.'
             }
         ];
 
@@ -2833,7 +2833,12 @@
             }
             if (shared && !webReady) {
                 uploadButton.disabled = true;
-                status.textContent = 'Shared album. Add browser cookies under Accounts & Users, then verify again.';
+                if (state.webSession && state.webSession.saved) {
+                    const who = state.webSession.label ? ` for ${state.webSession.label}` : '';
+                    status.textContent = `Shared album. The browser session${who} could not be checked. Re-export cookies under Accounts & Users, then verify again.`;
+                } else {
+                    status.textContent = 'Shared album. Add browser cookies under Accounts & Users, then verify again.';
+                }
                 status.className = 'test-result danger';
                 return;
             }
@@ -3541,8 +3546,7 @@
         }
 
         function accountNeedsSetup(account) {
-            if (accountImmichKeyState(account) !== 'ok') return true;
-            return !account.googleEmail && !account.googleConnected;
+            return accountImmichKeyState(account) !== 'ok';
         }
 
         function accountCanImport(account) {
@@ -3581,13 +3585,33 @@
             return (account && account.id) || '';
         }
 
+        // The browser session for shared albums belongs to the account that
+        // uploads. That is the default Google account in the usual setup, with
+        // the default import account and any other connected account as
+        // fallbacks, so a saved session is never reported as missing.
+        function webSessionAccount() {
+            const accounts = state.accounts || [];
+            const google = defaultGoogleAccount();
+            if (google && (google.webSessionOk || google.cookiesSaved)) return google;
+            const importer = defaultImportAccount();
+            if (importer && (importer.webSessionOk || importer.cookiesSaved)) return importer;
+            const connected = accounts.find(account => account.webSessionOk)
+                || accounts.find(account => account.cookiesSaved);
+            if (connected) return connected;
+            return google || importer || null;
+        }
+
         function renderGoogleUploadAccounts() {
             const google = defaultGoogleAccount();
-            const importer = defaultImportAccount();
+            const session = webSessionAccount();
             const googleConnected = !!(google && google.googleConnected);
-            const webConnected = !!(importer && importer.webSessionOk);
+            const webConnected = !!(session && session.webSessionOk);
             state.googleAccount = { connected: googleConnected, email: (google && google.googleEmail) || '' };
-            state.webSession = { connected: webConnected };
+            state.webSession = {
+                connected: webConnected,
+                saved: !!(session && session.cookiesSaved),
+                label: session ? accountDisplayName(session) : ''
+            };
 
             const googlePill = $('googleAccountPill');
             const googleSummary = $('googleAccountSummary');
@@ -3618,11 +3642,11 @@
             if (webSummary) {
                 if (webConnected) {
                     webSummary.innerHTML = `
-                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(importer))}</div>
+                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(session))}</div>
                         <div class="cred-summary-line status-ok">Cookies found and the session is active</div>`;
-                } else if (importer && importer.cookiesSaved) {
+                } else if (session && session.cookiesSaved) {
                     webSummary.innerHTML = `
-                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(importer))}</div>
+                        <div class="cred-summary-name">${escapeHtml(accountDisplayName(session))}</div>
                         <div class="cred-summary-line status-warn">Cookies saved, but the session could not be checked</div>`;
                 } else {
                     webSummary.textContent = 'No browser session. Add cookies under Accounts & Users.';
@@ -3645,13 +3669,13 @@
         }
 
         function accountBadgeMarkup(account) {
+            const badges = [];
+            if (account.id === defaultImportId()) badges.push('<span class="badge badge-accent account-list-badge">Default import</span>');
+            if (account.id === defaultGoogleId()) badges.push('<span class="badge badge-accent account-list-badge">Default Google</span>');
             if (accountNeedsSetup(account)) {
-                return '<span class="badge badge-warn account-list-badge">Needs setup</span>';
+                badges.push('<span class="badge badge-warn account-list-badge">Needs setup</span>');
             }
-            if (account.id === defaultImportId() || account.id === defaultGoogleId()) {
-                return '<span class="badge badge-accent account-list-badge">Default</span>';
-            }
-            return '';
+            return badges.join(' ');
         }
 
         function renderAccountDetail(account, simple) {

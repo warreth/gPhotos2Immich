@@ -174,7 +174,7 @@ The credential is stored by `gotohp-cli` in `googleUpload.gotohpConfig` with mod
 There are two access routes, because Google's mobile API and its web app do not allow the same things:
 
 - **Albums you own** use the account's Google credential. The album key is resolved from the public share URL and the upload is added with the mobile API.
-- **Albums someone else owns and shared with you** use the account's browser cookies. Add a Netscape `cookies.txt` for `photos.google.com` under the same account, in **Browser cookies**. The app uploads the files to your library, then adds them to the shared album through the web session. Without this session, a shared album cannot receive uploads.
+- **Albums someone else owns and shared with you** use the browser cookies of the account that uploads the files. Add a Netscape `cookies.txt` for `photos.google.com` under that account, in **Browser cookies**; the default Google account is the usual one. The app uploads the files to your library, then adds them to the shared album through the web session. Without this session, a shared album cannot receive uploads.
 
 Browser cookies expire eventually. If **Verify mapping** or an upload reports that the session is expired, export the cookies again for that account. The session grants full access to the Google account, so keep the data directory private.
 
