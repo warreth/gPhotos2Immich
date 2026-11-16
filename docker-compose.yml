@@ -9,6 +9,7 @@ services:
       - TZ=UTC
       - PORT=8080 # Port for the Web UI
       - DISABLE_WEBUI=false # Set to true to fully disable the Web UI
+      # - LOG_SECRETS=show # Keep secrets in logs (redacted by default)
       # - IMMICH_API_KEY=your-key # Overrides config.json when set
       # - IMMICH_API_URL=http://immich-server:2283/api # Overrides config.json when set
     volumes:

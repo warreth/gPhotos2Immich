@@ -1,12 +1,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"warreth.dev/gphotos2immich/pkg/config"
 	"warreth.dev/gphotos2immich/pkg/googlephotos"
 	"warreth.dev/gphotos2immich/pkg/immich"
+	"warreth.dev/gphotos2immich/pkg/redact"
 )
 
 func TestTriggerSync(t *testing.T) {
@@ -571,5 +575,63 @@ func TestUpdateConfigAppliesLiveAndSignalsSchedule(t *testing.T) {
 		// The schedule loop is woken to reconcile the album list.
 	case <-time.After(time.Second):
 		t.Fatal("expected a config change signal")
+	}
+}
+
+func TestNewLoggerRedactsConfigSecrets(t *testing.T) {
+	t.Setenv(redact.EnvVar, "")
+	t.Cleanup(func() { redact.SetSecrets(nil) })
+
+	cfg := &config.Config{
+		ApiKey: "immich-secret-key",
+		Notifications: config.NotificationsConfig{
+			Ntfy: config.NtfyConfig{Token: "ntfy-secret-token"},
+		},
+	}
+	redact.SetSecrets(cfg.SensitiveValues())
+
+	var buf bytes.Buffer
+	logger := newLogger(&buf, slog.LevelInfo)
+	logger.Warn("Connection failed",
+		"error", fmt.Errorf("request with key immich-secret-key failed"),
+		"note", "ntfy-secret-token",
+	)
+
+	out := buf.String()
+	for _, secret := range []string{"immich-secret-key", "ntfy-secret-token"} {
+		if strings.Contains(out, secret) {
+			t.Fatalf("secret %q survived the logger: %s", secret, out)
+		}
+	}
+	if !strings.Contains(out, redact.Placeholder) {
+		t.Fatalf("logger output missing redaction placeholder: %s", out)
+	}
+}
+
+func TestNewAndUpdateConfigRegisterSecrets(t *testing.T) {
+	t.Setenv(redact.EnvVar, "")
+	t.Cleanup(func() { redact.SetSecrets(nil) })
+
+	cfg := &config.Config{
+		ApiKey:  "first-secret-key",
+		ApiURL:  "http://localhost:2283/api",
+		DataDir: t.TempDir(),
+	}
+	application, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() = %v", err)
+	}
+	if got := redact.String("first-secret-key"); strings.Contains(got, "first-secret-key") {
+		t.Fatalf("New() did not register the API key: %q", got)
+	}
+
+	rotated := &config.Config{
+		ApiKey:  "rotated-secret-key",
+		ApiURL:  cfg.ApiURL,
+		DataDir: cfg.DataDir,
+	}
+	application.UpdateConfig(rotated)
+	if got := redact.String("rotated-secret-key"); strings.Contains(got, "rotated-secret-key") {
+		t.Fatalf("UpdateConfig() did not register the rotated key: %q", got)
 	}
 }

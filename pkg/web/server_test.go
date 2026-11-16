@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"warreth.dev/gphotos2immich/pkg/redact"
 )
 
 func TestSaveConfig(t *testing.T) {
@@ -177,9 +179,9 @@ func TestSaveConfigPermissionError(t *testing.T) {
 
 func TestHandleSync(t *testing.T) {
 	s := NewServer("dummy.json")
-	var triggered bool
+	triggered := make(chan struct{}, 2)
 	s.OnSyncTrigger = func() {
-		triggered = true
+		triggered <- struct{}{}
 	}
 
 	// Test POST
@@ -192,19 +194,14 @@ func TestHandleSync(t *testing.T) {
 		t.Fatalf("expected 200 OK on POST /api/sync, got %d", resp.StatusCode)
 	}
 
-	// Wait briefly for goroutine
-	for i := 0; i < 50; i++ {
-		if triggered {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !triggered {
+	// Wait for the goroutine
+	select {
+	case <-triggered:
+	case <-time.After(time.Second):
 		t.Fatal("expected OnSyncTrigger to be called")
 	}
 
 	// Test GET (for easy browser/Home Assistant webhook usage)
-	triggered = false
 	reqGet := httptest.NewRequest(http.MethodGet, "/sync_now", nil)
 	wGet := httptest.NewRecorder()
 	s.handleSync(wGet, reqGet)
@@ -214,13 +211,9 @@ func TestHandleSync(t *testing.T) {
 		t.Fatalf("expected 200 OK on GET /sync_now, got %d", respGet.StatusCode)
 	}
 
-	for i := 0; i < 50; i++ {
-		if triggered {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !triggered {
+	select {
+	case <-triggered:
+	case <-time.After(time.Second):
 		t.Fatal("expected OnSyncTrigger to be called on GET")
 	}
 
@@ -249,5 +242,58 @@ func TestHandleStatus(t *testing.T) {
 	bodyStr := w.Body.String()
 	if !strings.Contains(bodyStr, "immichUser") || !strings.Contains(bodyStr, "lastRun") || !strings.Contains(bodyStr, "nextRun") {
 		t.Fatalf("response missing expected fields: %s", bodyStr)
+	}
+}
+
+func TestLogBufferRedactsSecrets(t *testing.T) {
+	t.Setenv(redact.EnvVar, "")
+	redact.SetSecrets([]string{"super-secret-key"})
+	t.Cleanup(func() { redact.SetSecrets(nil) })
+
+	var stdout bytes.Buffer
+	previous := originalStdout
+	originalStdout = &stdout
+	t.Cleanup(func() { originalStdout = previous })
+
+	var buf LogBuffer
+	if _, err := fmt.Fprintf(&buf, "api key super-secret-key and https://photos.google.com/share/AlbumSecret?key=ShareKey\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, value := range []string{"super-secret-key", "AlbumSecret", "ShareKey"} {
+		if strings.Contains(buf.String(), value) {
+			t.Fatalf("sensitive value %q survived in the log buffer: %s", value, buf.String())
+		}
+		if strings.Contains(stdout.String(), value) {
+			t.Fatalf("sensitive value %q survived in stdout: %s", value, stdout.String())
+		}
+	}
+	if !strings.Contains(buf.String(), redact.Placeholder) {
+		t.Fatalf("log buffer missing redaction placeholder: %s", buf.String())
+	}
+}
+
+func TestLogBufferRedactsSecretSplitAcrossWrites(t *testing.T) {
+	t.Setenv(redact.EnvVar, "")
+	redact.SetSecrets([]string{"super-secret-key"})
+	t.Cleanup(func() { redact.SetSecrets(nil) })
+
+	var stdout bytes.Buffer
+	previous := originalStdout
+	originalStdout = &stdout
+	t.Cleanup(func() { originalStdout = previous })
+
+	var buf LogBuffer
+	buf.Write([]byte("api key super-"))
+	if strings.Contains(buf.String(), "super-secret") {
+		t.Fatalf("partial secret leaked before the line ended: %s", buf.String())
+	}
+	buf.Write([]byte("secret-key\n"))
+
+	if strings.Contains(buf.String(), "super-secret-key") || strings.Contains(stdout.String(), "super-secret-key") {
+		t.Fatalf("split secret survived redaction: buffer=%s stdout=%s", buf.String(), stdout.String())
+	}
+	if !strings.Contains(buf.String(), redact.Placeholder) {
+		t.Fatalf("log buffer missing redaction placeholder: %s", buf.String())
 	}
 }

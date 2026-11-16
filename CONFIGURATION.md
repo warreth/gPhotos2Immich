@@ -8,6 +8,12 @@ If you don't use the Web UI, you can disable it entirely by setting the `DISABLE
 
 The `IMMICH_API_KEY` and `IMMICH_API_URL` environment variables override the corresponding `config.json` values at runtime. This is useful for key rotation: update the ENV var on your container and the next config read picks it up, even if a `config.json` with an older key exists. When neither ENV var is set, `config.json` is used unchanged. If neither the file nor the ENV vars provide credentials, the app waits for configuration via the Web UI (or exits if the Web UI is disabled).
 
+### Log redaction
+
+Logs are redacted by default. Immich API keys, per-account API keys, Google email addresses, ntfy tokens and access-bearing URL parameters (such as the share key in a Google Photos album URL) are replaced with `[REDACTED]`. This covers both the terminal output and the Web UI's live log view, so logs can be shared without editing them first.
+
+Set `LOG_SECRETS=show` to keep full values in the logs while debugging. Any other value (or leaving the variable unset) keeps redaction enabled. Do not leave `LOG_SECRETS=show` enabled on a shared system.
+
 ## API Permissions
 
 Your Immich API key needs these permissions (or use "All" for simplicity):

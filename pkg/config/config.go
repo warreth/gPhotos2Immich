@@ -398,6 +398,23 @@ func (c *Config) EffectiveApiKey() string {
 	return strings.TrimSpace(c.ApiKey)
 }
 
+// SensitiveValues returns the configuration values that must never appear in
+// logs: API keys, Google account emails and notification tokens.
+func (c *Config) SensitiveValues() []string {
+	if c == nil {
+		return nil
+	}
+	values := []string{
+		c.ApiKey,
+		c.EffectiveApiKey(),
+		c.Notifications.Ntfy.Token,
+	}
+	for _, acc := range c.Accounts {
+		values = append(values, acc.ImmichAPIKey, acc.GoogleEmail)
+	}
+	return values
+}
+
 // EffectiveAccountCookiesFile returns the browser-session cookies path for one
 // account. Accounts without an explicit path get their own file, so two Google
 // accounts never share a session.

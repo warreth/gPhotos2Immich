@@ -17,37 +17,70 @@ import (
 	"warreth.dev/gphotos2immich/pkg/config"
 	"warreth.dev/gphotos2immich/pkg/immich"
 	"warreth.dev/gphotos2immich/pkg/progress"
+	"warreth.dev/gphotos2immich/pkg/redact"
 	"warreth.dev/gphotos2immich/pkg/syncback"
 )
 
-const maxLogSize = 100 * 1024 // 100KB max logs stored
+const (
+	maxLogSize     = 100 * 1024 // 100KB max logs stored
+	maxLogLineSize = 64 * 1024  // flush a line that never terminates
+)
 
 type LogBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
+	mu      sync.Mutex
+	buf     bytes.Buffer
+	pending []byte
 }
 
-var originalStdout = os.Stdout
+var originalStdout io.Writer = os.Stdout
 
 func (l *LogBuffer) Write(p []byte) (n int, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	// write to original os.Stdout
-	originalStdout.Write(p)
 
-	l.buf.Write(p)
+	// Redact complete lines only, so a secret split across two reads from the
+	// stdout pipe is still masked as a whole.
+	l.pending = append(l.pending, p...)
+	for {
+		idx := bytes.IndexByte(l.pending, '\n')
+		if idx < 0 {
+			break
+		}
+		line := append([]byte(nil), l.pending[:idx+1]...)
+		l.pending = l.pending[idx+1:]
+		l.writeRedacted(line)
+	}
+	if len(l.pending) > maxLogLineSize {
+		line := append([]byte(nil), l.pending...)
+		l.pending = l.pending[:0]
+		l.writeRedacted(line)
+	}
+	return len(p), nil
+}
+
+// writeRedacted emits one line to the real stdout and stores it for the web
+// log view. Both destinations receive the redacted form, so neither a docker
+// log nor a shared /api/logs response can expose a configured secret.
+func (l *LogBuffer) writeRedacted(line []byte) {
+	clean := []byte(redact.String(string(line)))
+	if originalStdout != nil {
+		originalStdout.Write(clean)
+	}
+	l.buf.Write(clean)
 	if l.buf.Len() > maxLogSize {
 		// simple truncation: drop first half
 		truncated := l.buf.Bytes()[l.buf.Len()/2:]
 		l.buf.Reset()
 		l.buf.Write(truncated)
 	}
-	return len(p), nil
 }
 
 func (l *LogBuffer) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if len(l.pending) > 0 {
+		return l.buf.String() + redact.String(string(l.pending))
+	}
 	return l.buf.String()
 }
 

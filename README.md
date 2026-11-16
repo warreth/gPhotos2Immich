@@ -21,6 +21,7 @@ Sync photos from Google Photos shared albums to your [Immich](https://immich.app
        environment:
          - PORT=8080 # Port for the Web UI
          - DISABLE_WEBUI=false # Set to true to fully disable the Web UI
+         # - LOG_SECRETS=show # Keep secrets in logs (redacted by default)
          # - IMMICH_API_KEY=your-key # Overrides config.json when set (e.g. for key rotation)
          # - IMMICH_API_URL=http://immich-server:2283/api # Overrides config.json when set
        volumes:
@@ -108,7 +109,7 @@ It downloads the `=d` variant from Google Photos, which is the full-size file Go
 - **Automatic Immich album matching:** When you paste a shared album link, the app resolves the Google title, selects an existing Immich album with the same name, or suggests close matches. If none fits, it creates the album on the first import only when the Google album contains photos.
 - **Clear import owner:** The per-album import owner is now an Advanced control labelled "Who owns the imported photos?", with the default import account preselected.
 - **Reset accounts:** Clear every account, API key, Google credential, cookie file, and Immich album ID while keeping album URLs and intervals.
-- **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging.
+- **Live activity and structured logs:** The Activity page shows import and upload progress bars, counters, and a filterable event stream. The raw terminal log is still available for debugging, with API keys, tokens and Google share links redacted by default. Set `LOG_SECRETS=show` to see full values temporarily.
 - **Immich notifications:** Choose whether a failed sync, a finished import, or a finished Google Photos upload sends a notification, and choose the default import account or another linked account to send it.
 - **ntfy notifications:** Send the same events to ntfy.sh or your own ntfy server as an independent second channel.
 - **Private album import (experimental):** Import albums from your own Google Photos account into Immich from a separate tab. Originals are downloaded, items are deduplicated, and progress is shown live.

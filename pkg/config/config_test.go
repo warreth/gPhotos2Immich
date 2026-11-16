@@ -785,3 +785,38 @@ func TestApplyDefaultsIsIdempotent(t *testing.T) {
 		t.Fatalf("second pass = %#v", cfg)
 	}
 }
+
+func TestSensitiveValues(t *testing.T) {
+	cfg := &Config{
+		ApiKey: "legacy-key",
+		Notifications: NotificationsConfig{
+			Ntfy: NtfyConfig{Token: "ntfy-token"},
+		},
+		Accounts: []AccountMapping{{
+			ID:           "acc-1",
+			ImmichUserID: "u1",
+			ImmichAPIKey: "account-key",
+			GoogleEmail:  "one@example.com",
+		}},
+	}
+
+	values := strings.Join(cfg.SensitiveValues(), "\n")
+	for _, want := range []string{"legacy-key", "account-key", "ntfy-token", "one@example.com"} {
+		if !strings.Contains(values, want) {
+			t.Fatalf("SensitiveValues() missing %q: %v", want, cfg.SensitiveValues())
+		}
+	}
+
+	// The effective connection key is included even when no legacy mirror is
+	// set, because import code uses it directly.
+	accountOnly := &Config{Accounts: []AccountMapping{{
+		ID: "acc-1", ImmichUserID: "u1", ImmichAPIKey: "effective-account-key",
+	}}}
+	if values := strings.Join(accountOnly.SensitiveValues(), "\n"); !strings.Contains(values, "effective-account-key") {
+		t.Fatalf("SensitiveValues() missing the effective account key: %v", accountOnly.SensitiveValues())
+	}
+
+	if values := (*Config)(nil).SensitiveValues(); values != nil {
+		t.Fatalf("nil config values = %v, want nil", values)
+	}
+}

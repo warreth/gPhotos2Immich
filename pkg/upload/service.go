@@ -16,6 +16,7 @@ import (
 
 	"warreth.dev/gphotos2immich/pkg/gphotos"
 	"warreth.dev/gphotos2immich/pkg/immich"
+	"warreth.dev/gphotos2immich/pkg/redact"
 )
 
 // ImmichSource is the part of the Immich client the uploader needs.
@@ -496,7 +497,7 @@ func (s *Service) finishPendingAdds(ctx context.Context, mapping AlbumMapping, s
 			summary.Uploaded++
 		}
 		logger.Info("Added previously uploaded items to the shared album",
-			"album", mapping.GoogleAlbumURL, "items", len(items), "account", account)
+			"album_ref", redact.Ref(mapping.GoogleAlbumURL), "items", len(items), "account", account)
 	}
 	if err := s.State.Save(); err != nil {
 		return err

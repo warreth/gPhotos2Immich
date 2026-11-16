@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"warreth.dev/gphotos2immich/pkg/notify"
 	"warreth.dev/gphotos2immich/pkg/privateimport"
 	"warreth.dev/gphotos2immich/pkg/progress"
+	"warreth.dev/gphotos2immich/pkg/redact"
 	"warreth.dev/gphotos2immich/pkg/state"
 	"warreth.dev/gphotos2immich/pkg/syncback"
 )
@@ -47,24 +49,14 @@ type descriptionUpdate struct {
 }
 
 func New(cfg *config.Config) (*App, error) {
+	// Register the connection secrets before the first log line so every
+	// handler created here masks them by default.
+	redact.SetSecrets(cfg.SensitiveValues())
 	level := slog.LevelInfo
 	if cfg.Debug {
 		level = slog.LevelDebug
 	}
-	opts := &slog.HandlerOptions{
-		Level: level,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.LevelKey {
-				return slog.Attr{}
-			}
-			if a.Key == slog.TimeKey {
-				t := a.Value.Time()
-				return slog.String(slog.TimeKey, t.Format("15:04:05"))
-			}
-			return a
-		},
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+	logger := newLogger(os.Stdout, level)
 	workers := cfg.Workers
 	if workers < 1 {
 		workers = 1
@@ -107,6 +99,25 @@ func New(cfg *config.Config) (*App, error) {
 	return application, nil
 }
 
+// newLogger builds the application logger with the short time format and the
+// secret redaction used by every service.
+func newLogger(w io.Writer, level slog.Level) *slog.Logger {
+	opts := &slog.HandlerOptions{
+		Level: level,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.LevelKey {
+				return slog.Attr{}
+			}
+			if a.Key == slog.TimeKey {
+				t := a.Value.Time()
+				return slog.String(slog.TimeKey, t.Format("15:04:05"))
+			}
+			return redact.ReplaceAttr(groups, a)
+		},
+	}
+	return slog.New(slog.NewTextHandler(w, opts))
+}
+
 // Config returns the current configuration. A caller may keep the pointer for
 // the duration of one operation: UpdateConfig replaces the pointer instead of
 // mutating the previous value.
@@ -126,6 +137,9 @@ func (a *App) UpdateConfig(cfg *config.Config) {
 	if a == nil || cfg == nil {
 		return
 	}
+	// A rotated key or token must be redacted immediately, before any service
+	// logs a request that uses it.
+	redact.SetSecrets(cfg.SensitiveValues())
 	a.cfgMu.Lock()
 	a.Cfg = cfg
 	a.cfgMu.Unlock()
@@ -577,7 +591,7 @@ func (a *App) Run(ctx context.Context) error {
 					interval = 24 * time.Hour
 				}
 				nextRun[ac.URL] = nowCompleted.Add(interval)
-				a.Logger.Info("Scheduled next sync", "album", ac.URL, "next_run", nextRun[ac.URL].Format("15:04:05"))
+				a.Logger.Info("Scheduled next sync", "album", redact.AlbumLabel(ac.AlbumName, ac.URL), "next_run", nextRun[ac.URL].Format("15:04:05"))
 			}
 			for _, nr := range nextRun {
 				if nr.Before(nextEarliest) {
@@ -706,16 +720,13 @@ func (a *App) processAlbum(ctx context.Context, ac config.GooglePhotosConfig, al
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	logger := a.Logger.With("album_url", ac.URL)
+	logger := a.Logger.With("album_ref", redact.Ref(ac.URL))
 	logger.Info("Syncing Google Photos Album")
 
 	album, err := googlephotos.ScrapeAlbum(ctx, a.GPClient, ac.URL)
 	if err != nil {
 		logger.Error("Error scraping album", "error", err)
-		label := ac.AlbumName
-		if label == "" {
-			label = ac.URL
-		}
+		label := redact.AlbumLabel(ac.AlbumName, ac.URL)
 		progress.FailAlbum(label, err)
 		return albumRunResult{Album: label, Err: err}
 	}
@@ -927,7 +938,7 @@ func (a *App) processItem(ctx context.Context, cfg *config.Config, client *immic
 
 	if cfg.StrictMetadata && p.TakenAt.IsZero() {
 		a.Logger.Warn("Skipping item with missing metadata date",
-			"id", p.ID, "url", p.URL)
+			"id", p.ID)
 		return "", false, 0, 0, nil
 	}
 
@@ -975,7 +986,7 @@ func (a *App) processItem(ctx context.Context, cfg *config.Config, client *immic
 
 	if p.TakenAt.IsZero() {
 		a.Logger.Warn("Uploading item with missing metadata date (using current time)",
-			"id", safeId, "url", p.URL, "is_video", isVideo)
+			"id", safeId, "is_video", isVideo)
 	}
 
 	// Handle motion photos for images

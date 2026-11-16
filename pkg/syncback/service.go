@@ -20,6 +20,7 @@ import (
 	"warreth.dev/gphotos2immich/pkg/config"
 	"warreth.dev/gphotos2immich/pkg/gphotos"
 	"warreth.dev/gphotos2immich/pkg/gphotosweb"
+	"warreth.dev/gphotos2immich/pkg/redact"
 	"warreth.dev/gphotos2immich/pkg/upload"
 )
 
@@ -494,12 +495,12 @@ func (s *Service) StartSchedule(ctx context.Context, cfgFn func() *config.Config
 					summary, err := s.SyncAlbum(runCtx, cfg, i, "")
 					cancel()
 					if err != nil {
-						s.logger.Warn("Backward upload failed", "album", gp.URL, "error", err)
+						s.logger.Warn("Backward upload failed", "album", redact.AlbumLabel(gp.AlbumName, gp.URL), "error", err)
 						continue
 					}
 					if summary.Uploaded > 0 || summary.Failed > 0 {
 						s.logger.Info("Backward upload finished",
-							"album", gp.URL,
+							"album", redact.AlbumLabel(gp.AlbumName, gp.URL),
 							"uploaded", summary.Uploaded,
 							"skipped", summary.Skipped,
 							"failed", summary.Failed,
@@ -581,7 +582,7 @@ func (s *Service) SyncAlbum(ctx context.Context, cfg *config.Config, albumIndex 
 		StrictAccountMatching: cfg.GoogleUpload.StrictAccountMatching,
 	}
 	s.logger.Info("Google Photos upload source album",
-		"immich_album_id", albumID, "album", gp.AlbumName, "google_album", gp.URL)
+		"immich_album_id", albumID, "album", redact.AlbumLabel(gp.AlbumName, gp.URL), "album_ref", redact.Ref(gp.URL))
 	summary, err := s.Uploader.SyncAlbum(ctx, mapping)
 	if err == nil && summary.Total == 0 {
 		s.logger.Warn("Google Photos upload found no assets in the linked Immich album; check the album mapping",
