@@ -295,7 +295,7 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 	var groupOrder []string
 	staged := 0
 
-	for _, entry := range plan {
+	for i, entry := range plan {
 		if err := ctx.Err(); err != nil {
 			return summary, err
 		}
@@ -312,6 +312,15 @@ func (s *Service) SyncAlbum(ctx context.Context, mapping AlbumMapping) (Summary,
 		stagedName := asset.Id + "__" + stillName
 		stillPath := filepath.Join(group.dir, stagedName)
 		if err := s.Immich.DownloadAssetToFile(ctx, asset.Id, stillPath); err != nil {
+			if errors.Is(err, immich.ErrAssetDownloadForbidden) {
+				// Every remaining file would fail the same way, and repeating
+				// it once per photo hides the cause. Count the rest and stop so
+				// the API key can be fixed.
+				summary.Failed += len(plan) - i
+				logger.Error("Immich API key cannot download photos for the Google upload",
+					"album_id", mapping.ImmichAlbumID, "error", err)
+				return summary, err
+			}
 			logger.Warn("Could not download Immich asset for Google upload", "asset_id", asset.Id, "error", err)
 			s.State.Set(mapping.ImmichAlbumID, asset.Id, AssetState{
 				Filename:   stillName,

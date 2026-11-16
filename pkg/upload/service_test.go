@@ -286,6 +286,45 @@ func TestSyncAlbumDownloadFailure(t *testing.T) {
 	}
 }
 
+func TestSyncAlbumStopsWhenKeyCannotDownload(t *testing.T) {
+	album := newAlbum(
+		struct{ id, name, typ, live, owner string }{"one", "one.jpg", "IMAGE", "", ""},
+		struct{ id, name, typ, live, owner string }{"two", "two.jpg", "IMAGE", "", ""},
+	)
+	state := NewState(filepath.Join(t.TempDir(), "upload-state.json"))
+	google := &fakeGoogle{}
+	service := &Service{
+		Immich: &fakeImmich{
+			album:     album,
+			downloads: map[string][]byte{},
+			downloadErr: map[string]error{
+				"one": immich.ErrAssetDownloadForbidden,
+				"two": immich.ErrAssetDownloadForbidden,
+			},
+		},
+		Google:      google,
+		State:       state,
+		Imported:    fakeImported{ids: map[string]bool{}},
+		StagingRoot: t.TempDir(),
+		Threads:     1,
+	}
+	summary, err := service.SyncAlbum(context.Background(), AlbumMapping{
+		ImmichAlbumID: "album-1", GoogleAlbumKey: "AF1QipAlbum",
+	})
+	if !errors.Is(err, immich.ErrAssetDownloadForbidden) {
+		t.Fatalf("err = %v, want ErrAssetDownloadForbidden", err)
+	}
+	if summary.Failed != 2 || summary.Uploaded != 0 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	if google.uploads != 0 {
+		t.Fatalf("google uploads = %d, want none", google.uploads)
+	}
+	if _, ok := state.Get("album-1", "one"); ok {
+		t.Fatal("a permission error must not mark individual assets as failed")
+	}
+}
+
 func TestStateRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "upload-state.json")
 	state := NewState(path)

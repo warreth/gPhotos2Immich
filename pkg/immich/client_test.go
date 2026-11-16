@@ -332,3 +332,36 @@ func TestGetAssetParsesOwnerID(t *testing.T) {
 		t.Fatalf("owner id = %q", asset.OwnerID)
 	}
 }
+
+func TestDownloadAssetFlagsMissingDownloadPermission(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/assets/a1/original" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"message":"Missing required permission: asset.download"}`))
+	}))
+	defer server.Close()
+
+	err := NewClient(server.URL, "key", 1).DownloadAssetToFile(context.Background(), "a1", t.TempDir()+"/a1.jpg")
+	if !errors.Is(err, ErrAssetDownloadForbidden) {
+		t.Fatalf("err = %v, want ErrAssetDownloadForbidden", err)
+	}
+	if !strings.Contains(err.Error(), "asset.download") {
+		t.Fatalf("err = %v, want the permission name", err)
+	}
+}
+
+func TestDownloadAssetKeepsOtherForbiddenErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"message":"Missing required permission: asset.read"}`))
+	}))
+	defer server.Close()
+
+	err := NewClient(server.URL, "key", 1).DownloadAssetToFile(context.Background(), "a1", t.TempDir()+"/a1.jpg")
+	if err == nil || errors.Is(err, ErrAssetDownloadForbidden) {
+		t.Fatalf("err = %v, want an unrelated forbidden error", err)
+	}
+}

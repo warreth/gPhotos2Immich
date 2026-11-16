@@ -2262,7 +2262,7 @@
             <div class="field">
                 <label for="wizApiKey">Immich API key</label>
                 <input class="input" type="password" id="wizApiKey" placeholder="Your Immich API key" autocomplete="off">
-                <div class="hint">In Immich, open Account Settings &gt; API Keys.</div>
+                <div class="hint">In Immich, open Account Settings &gt; API Keys. Google Photos uploads also need the Download assets permission (<code>asset.download</code>).</div>
             </div>
             <div class="button-row">
                 <button class="btn btn-secondary" type="button" onclick="testWizardConnection()">Test connection</button>
@@ -2348,7 +2348,7 @@
                         <div class="field" id="accountImmichKeyField">
                             <label for="accountImmichAPIKey" id="accountImmichKeyLabel">Immich API key (optional)</label>
                             <input class="input" type="password" id="accountImmichAPIKey" placeholder="Immich API key" autocomplete="off">
-                            <div class="hint">Needed to import Google albums or send notifications as this person.</div>
+                            <div class="hint">Needed to import Google albums or send notifications as this person. Google Photos uploads also need the Download assets permission (<code>asset.download</code>).</div>
                             <button class="btn btn-ghost btn-sm" type="button" id="accountImmichKeyCancel" onclick="cancelAccountCredential('immichKey')">Cancel</button>
                         </div>
                     </div>
@@ -2483,9 +2483,13 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.14.2';
+        const APP_VERSION = '1.14.3';
         let setupSignature = '';
         const WHATS_NEW = [
+            {
+                title: 'Clear upload permission error',
+                body: 'When the Immich API key cannot download original photos, the upload stops at the first file and says that the key needs the Download assets (asset.download) permission. It no longer reports one failure per photo without a reason.'
+            },
             {
                 title: 'Shared album sessions',
                 body: 'The upload page and the shared-album check now look at the default Google account browser session first. Cookies you added to that account now count, so a shared album no longer asks for cookies that are already saved.'
@@ -4522,7 +4526,7 @@
                         <div class="field">
                             <label for="acctWizardKey">Immich API key</label>
                             <input class="input" type="password" id="acctWizardKey" data-wiz-field="immichApiKey" value="${escapeHtml(values.immichApiKey || '')}" placeholder="Paste the API key" autocomplete="off">
-                            <div class="hint">In Immich, open Account Settings &gt; API Keys.</div>
+                            <div class="hint">In Immich, open Account Settings &gt; API Keys. Google Photos uploads also need the Download assets permission (<code>asset.download</code>).</div>
                         </div>
                     </div>`;
             } else if (wizard.step === 3) {

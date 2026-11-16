@@ -143,6 +143,7 @@ The upload direction is optional and per album. It uses the pinned [`gotohp`](ht
 
 - A Google credential is optional. Without it, the account can still import photos and receive notifications, but it cannot upload to Google Photos.
 - Browser cookies are optional. They are only needed for shared albums someone else owns and for private album imports. Albums you own upload without cookies. The account that uploads the files uses its own browser session; the default Google account is the usual one.
+- Google Photos uploads read original photos from Immich, so the Immich API key also needs the **Download assets** permission (`asset.download`). Imports and notifications work without it.
 - Immich v3 removed album assets from its album response. The app reads album contents through Immich search, so uploads work on v3.
 
 ### Unlimited storage

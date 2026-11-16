@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -23,6 +24,11 @@ const (
 	uploadMaxRetries = 3
 	uploadRetryDelay = 3 * time.Second
 )
+
+// ErrAssetDownloadForbidden reports that the Immich API key lacks the
+// asset.download permission. Immich v3 scopes API keys per action, so a key
+// that works for imports can still refuse to hand back original files.
+var ErrAssetDownloadForbidden = errors.New("the Immich API key used for the connection cannot download original photos; enable the asset.download permission on that key and try again")
 
 type Album struct {
 	AlbumName string       `json:"albumName"`
@@ -892,7 +898,11 @@ func (c *Client) DownloadAssetToFile(ctx context.Context, assetID, path string) 
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("download asset %s returned %s: %s", assetID, resp.Status, strings.TrimSpace(string(body)))
+		detail := strings.TrimSpace(string(body))
+		if resp.StatusCode == http.StatusForbidden && strings.Contains(detail, "asset.download") {
+			return ErrAssetDownloadForbidden
+		}
+		return fmt.Errorf("download asset %s returned %s: %s", assetID, resp.Status, detail)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {

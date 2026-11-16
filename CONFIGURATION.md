@@ -176,6 +176,8 @@ There are two access routes, because Google's mobile API and its web app do not 
 - **Albums you own** use the account's Google credential. The album key is resolved from the public share URL and the upload is added with the mobile API.
 - **Albums someone else owns and shared with you** use the browser cookies of the account that uploads the files. Add a Netscape `cookies.txt` for `photos.google.com` under that account, in **Browser cookies**; the default Google account is the usual one. The app uploads the files to your library, then adds them to the shared album through the web session. Without this session, a shared album cannot receive uploads.
 
+Uploads read the original files from Immich, so the Immich API key used for the connection also needs the **Download assets** permission (`asset.download`). Without it Immich answers `403 Missing required permission: asset.download` and nothing can be uploaded. Imports and notifications keep working with a key that lacks it; add the permission only when you use the upload direction.
+
 Browser cookies expire eventually. If **Verify mapping** or an upload reports that the session is expired, export the cookies again for that account. The session grants full access to the Google account, so keep the data directory private.
 
 The upload direction also requires the Google album to be shared with you and **Collaborate** to be enabled. The album key is resolved from the public share URL and shown by **Verify mapping**. When a browser session is connected, verification also labels the album as owned or shared.

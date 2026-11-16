@@ -86,6 +86,8 @@ func NewSyncBack(cfg *config.Config, imported upload.ImportedAssetSource, logger
 				return
 			}
 			if err != nil {
+				progress.AddEvent("error", "upload", "Google Photos upload failed",
+					map[string]any{"album": albumURL, "error": err.Error()})
 				notifier.Send(ctx, notify.EventSyncFailed, "error",
 					"Google Photos upload failed",
 					fmt.Sprintf("%s: %v", albumURL, err),
