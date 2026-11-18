@@ -176,6 +176,37 @@ func TestResolveOwnerSkipsWhenStrict(t *testing.T) {
 	}
 }
 
+func TestResolveOwnerSkipsMappingWithoutGoogleWhenStrict(t *testing.T) {
+	service := New(Options{Google: &fakeGoogle{}})
+	service.SetAccounts([]config.AccountMapping{
+		{ID: "acc-1", ImmichUserID: "owner-1", ImmichAPIKey: "key-1"},
+		{ID: "acc-2", ImmichUserID: "owner-2", GoogleEmail: "two@gmail.com", IsDefault: true},
+	}, true)
+
+	if _, ok, _ := service.ResolveOwner("owner-1", true); ok {
+		t.Fatal("an account without a linked Google account must be skipped in strict mode")
+	}
+}
+
+func TestResolveOwnerFallsBackForMappingWithoutGoogle(t *testing.T) {
+	service := New(Options{
+		Google:     &fakeGoogle{},
+		WebFactory: func(string) WebClient { return &fakeWeb{available: true} },
+	})
+	service.SetAccounts([]config.AccountMapping{
+		{ID: "acc-1", ImmichUserID: "owner-1", ImmichAPIKey: "key-1"},
+		{ID: "acc-2", ImmichUserID: "owner-2", GoogleEmail: "two@gmail.com", IsDefault: true},
+	}, false)
+
+	route, ok, fallback := service.ResolveOwner("owner-1", false)
+	if !ok || !fallback {
+		t.Fatalf("ok = %v, fallback = %v", ok, fallback)
+	}
+	if route.GoogleEmail != "two@gmail.com" {
+		t.Fatalf("route = %#v", route)
+	}
+}
+
 func TestRouteForEmail(t *testing.T) {
 	service := New(Options{
 		Google:     &fakeGoogle{},
@@ -812,6 +843,39 @@ func TestRoutingPreviewRoutesUnmappedUserToDefault(t *testing.T) {
 	fallback := preview.ImmichUsers[1]
 	if fallback.Status != "fallback" || fallback.AccountID != "acc-1" || fallback.GoogleEmail != "warre@gmail.com" {
 		t.Fatalf("fallback user = %#v", fallback)
+	}
+}
+
+func TestRoutingPreviewTreatsMappingWithoutGoogleAsUnmapped(t *testing.T) {
+	server := immichServer(t, "cfg-key", `{}`, `[
+		{"id":"owner-1","name":"KSA","email":"ksa@example.com"},
+		{"id":"owner-2","name":"Warre","email":"warre@example.com"}
+	]`)
+	service := New(Options{Google: &fakeGoogle{}})
+
+	cfg := &config.Config{
+		ApiKey: "cfg-key",
+		ApiURL: server.URL,
+		Accounts: []config.AccountMapping{
+			{ID: "ksa", ImmichUserID: "owner-1", ImmichAPIKey: "key-1"},
+			{ID: "warre", ImmichUserID: "owner-2", GoogleEmail: "warre@gmail.com", IsDefault: true},
+		},
+	}
+
+	preview := service.RoutingPreview(context.Background(), cfg)
+	if preview.Unmapped != "fallback" || preview.Fallback != "warre@gmail.com" {
+		t.Fatalf("preview = %#v", preview)
+	}
+	if len(preview.ImmichUsers) != 2 {
+		t.Fatalf("users = %#v", preview.ImmichUsers)
+	}
+	ksa := preview.ImmichUsers[0]
+	if ksa.Status != "fallback" || ksa.AccountID != "warre" || ksa.GoogleEmail != "warre@gmail.com" {
+		t.Fatalf("mapping without a Google account must fall back: %#v", ksa)
+	}
+	warre := preview.ImmichUsers[1]
+	if warre.Status != "mapped" || warre.AccountID != "warre" {
+		t.Fatalf("linked user = %#v", warre)
 	}
 }
 

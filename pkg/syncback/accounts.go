@@ -135,7 +135,7 @@ func (s *Service) ResolveOwner(ownerID string, strict bool) (upload.AccountRoute
 	ownerID = strings.TrimSpace(ownerID)
 	if ownerID != "" {
 		for _, acc := range accounts {
-			if strings.EqualFold(acc.ImmichUserID, ownerID) {
+			if strings.EqualFold(acc.ImmichUserID, ownerID) && strings.TrimSpace(acc.GoogleEmail) != "" {
 				return s.routeFor(acc), true, false
 			}
 		}
@@ -569,7 +569,7 @@ func (s *Service) RoutingPreview(ctx context.Context, cfg *config.Config) Routin
 	routeUser := func(user immich.User) RoutingPreviewUser {
 		row := RoutingPreviewUser{ID: user.ID, Name: user.Name, Email: user.Email}
 		for _, acc := range accounts {
-			if strings.EqualFold(acc.ImmichUserID, strings.TrimSpace(user.ID)) {
+			if strings.EqualFold(acc.ImmichUserID, strings.TrimSpace(user.ID)) && strings.TrimSpace(acc.GoogleEmail) != "" {
 				row.AccountID = acc.ID
 				row.GoogleEmail = acc.GoogleEmail
 				row.Status = "mapped"

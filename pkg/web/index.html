@@ -1872,6 +1872,24 @@
                                 <span class="switch"><input type="checkbox" id="googleReuploadDeleted"><span class="switch-track"></span></span>
                             </label>
                         </div>
+                        <div class="card mode-advanced-only" id="routingCard">
+                            <div class="card-header">
+                                <div><h3>Upload routing</h3><p>What happens when a photo already in Immich goes back to Google Photos.</p></div>
+                                <span class="pill pill-accent" id="routingModePill">Fallback</span>
+                            </div>
+                            <label class="toggle">
+                                <div class="toggle-text">
+                                    <div class="toggle-title">Strict contributor matching</div>
+                                    <div class="toggle-desc">Skip photos from Immich users without a linked Google account. Off falls back to the default Google account.</div>
+                                </div>
+                                <span class="switch"><input type="checkbox" id="googleStrictMatching"><span class="switch-track"></span></span>
+                            </label>
+                            <div class="routing-summary" id="routingSummary"></div>
+                            <div class="routing-list" id="routingList"></div>
+                            <div class="empty-state" id="routingEmpty" hidden>No Immich users loaded yet.</div>
+                            <div class="test-result" id="routingError" role="status" aria-live="polite"></div>
+                            <div class="hint">The preview follows the linked accounts and the live Immich user list. The rule is saved with the configuration.</div>
+                        </div>
                     </section>
 
                     <section id="section-private" class="section">
@@ -2483,9 +2501,17 @@
         };
 
         // Bump APP_VERSION and add the user-facing changes when a release ships.
-        const APP_VERSION = '1.14.3';
+        const APP_VERSION = '1.14.4';
         let setupSignature = '';
         const WHATS_NEW = [
+            {
+                title: 'Upload routing preview',
+                body: 'Advanced mode shows which Google account receives each Immich user\'s photos, following the strict or fallback rule. The preview updates as you change the toggle.'
+            },
+            {
+                title: 'Strict matching for unlinked accounts',
+                body: 'A mapped Immich user without a linked Google Photos account now counts as unmapped: strict mode skips those photos, fallback mode uses the default Google account.'
+            },
             {
                 title: 'Clear upload permission error',
                 body: 'When the Immich API key cannot download original photos, the upload stops at the first file and says that the key needs the Download assets (asset.download) permission. It no longer reports one failure per photo without a reason.'
@@ -2497,10 +2523,6 @@
             {
                 title: 'Immich v3 album uploads',
                 body: 'The Google upload direction reads album assets through Immich v3 search, so photos added to an Immich album are found and uploaded instead of reporting 0 items.'
-            },
-            {
-                title: 'Clearer Google setup',
-                body: 'The Add account wizard has separate pages for the Google credential and browser cookies, with optionality, purpose, and instructions for each.'
             }
         ];
 
@@ -3673,9 +3695,16 @@
         }
 
         function accountBadgeMarkup(account) {
+            const isImport = account.id === defaultImportId();
+            const isGoogle = account.id === defaultGoogleId();
             const badges = [];
-            if (account.id === defaultImportId()) badges.push('<span class="badge badge-accent account-list-badge">Default import</span>');
-            if (account.id === defaultGoogleId()) badges.push('<span class="badge badge-accent account-list-badge">Default Google</span>');
+            if (isImport && isGoogle) {
+                badges.push('<span class="badge badge-accent account-list-badge">Default</span>');
+            } else if (isImport) {
+                badges.push('<span class="badge badge-accent account-list-badge">Default import</span>');
+            } else if (isGoogle) {
+                badges.push('<span class="badge badge-accent account-list-badge">Default Google</span>');
+            }
             if (accountNeedsSetup(account)) {
                 badges.push('<span class="badge badge-warn account-list-badge">Needs setup</span>');
             }
@@ -4044,6 +4073,11 @@
             const accounts = state.accounts || [];
             const strict = $('googleStrictMatching').checked;
             const fallback = accounts.find(account => account.isDefault);
+            const modePill = $('routingModePill');
+            if (modePill) {
+                modePill.textContent = strict ? 'Strict matching' : 'Fallback to default';
+                modePill.className = strict ? 'pill pill-warning' : 'pill pill-accent';
+            }
             const users = [];
             const known = new Set();
             for (const user of (routing.immichUsers || [])) {
@@ -4085,11 +4119,11 @@
                 info.append(name, email);
 
                 const account = accounts.find(item => String(item.immichUserId || '').toLowerCase() === String(user.id || '').toLowerCase());
+                const hasLinkedGoogle = !!(account && account.googleEmail);
                 let label;
                 let tone;
-                if (account) {
-                    const target = account.googleEmail || 'linked Google account';
-                    label = `Route as ${target}`;
+                if (hasLinkedGoogle) {
+                    label = `Route as ${account.googleEmail}`;
                     tone = 'badge-ok';
                 } else if (strict) {
                     label = 'Skip (strict)';
@@ -5649,7 +5683,10 @@
         });
 
         const strictMatchingToggle = $('googleStrictMatching');
-        if (strictMatchingToggle) strictMatchingToggle.addEventListener('change', renderRoutingPreview);
+        if (strictMatchingToggle) strictMatchingToggle.addEventListener('change', () => {
+            renderRoutingPreview();
+            scheduleAutosave();
+        });
 
         $('defaultImportAccount').addEventListener('change', onDefaultAccountChange);
         $('defaultGoogleAccount').addEventListener('change', onDefaultAccountChange);
